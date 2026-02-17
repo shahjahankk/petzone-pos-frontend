@@ -3,74 +3,26 @@ import api from '../../../utils/axios'
 
 const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
-// Helper to get scope from multiple sources
-const getScopeInfo = (getState) => {
-  const state = getState()
-  const { scopeType, scopeId } = state.scope
-  const { user } = state.auth
-
-  // Priority 1: Redux scope (set by admin simulation)
-  if (scopeType && scopeId) {
-    return { scopeType, scopeId, source: 'redux' }
-  }
-
-  // Priority 2: User's assigned branch/warehouse (for cashiers/warehouse keepers)
-  if (user) {
-    if (user.branchId) {
-      return { scopeType: 'BRANCH', scopeId: user.branchId, source: 'user' }
-    }
-    if (user.warehouseId) {
-      return { scopeType: 'WAREHOUSE', scopeId: user.warehouseId, source: 'user' }
-    }
-  }
-
-  // Priority 3: Session storage (for admin simulation persistence)
-  if (typeof window !== 'undefined') {
-    const sessionScopeType = sessionStorage.getItem('scopeType')
-    const sessionScopeId = sessionStorage.getItem('scopeId')
-    if (sessionScopeType && sessionScopeId) {
-      return { 
-        scopeType: sessionScopeType, 
-        scopeId: Number(sessionScopeId), 
-        source: 'session' 
-      }
-    }
-  }
-
-  return { scopeType: null, scopeId: null, source: null }
-}
-
 // Async thunks
 export const fetchSales = createAsyncThunk(
   'sales/fetchSales',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId, source } = getScopeInfo(getState)
+      const { scopeType, scopeId } = getState().scope
 
       if (!scopeType || !scopeId) {
-        // For cashiers/warehouse keepers, this should not happen as they have assigned scope
-        // But if it does, provide helpful message
-        const { user } = getState().auth
-        if (user?.role === 'CASHIER' || user?.role === 'WAREHOUSE_KEEPER') {
-          return rejectWithValue({
-            message: 'Your account is not assigned to any branch or warehouse. Please contact admin.',
-            requiresAssignment: true
-          })
-        }
         return rejectWithValue({
-          message: 'Please select a Branch or Warehouse scope first.'
+          message: 'Please select Branch or Warehouse scope first.'
         })
       }
 
-      console.log(`[SalesSlice] Using scope from ${source}:`, { scopeType, scopeId })
-
       const paramsWithScope = {
         ...params,
-        ...(scopeType === 'BRANCH' ? { branchId: scopeId } : {}),
-        ...(scopeType === 'WAREHOUSE' ? { warehouseId: scopeId } : {})
+        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
+        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
       }
 
-      const cacheKey = JSON.stringify({ ...paramsWithScope, source })
+      const cacheKey = JSON.stringify(paramsWithScope || {})
       const { cache } = getState().sales || {}
       const cached = cache?.[cacheKey]
 
@@ -115,31 +67,18 @@ export const createSale = createAsyncThunk(
   'sales/createSale',
   async (saleData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId, source } = getScopeInfo(getState)
-      const { user } = getState().auth
+      const { scopeType, scopeId } = getState().scope
 
       if (!scopeType || !scopeId) {
-        if (user?.role === 'CASHIER' || user?.role === 'WAREHOUSE_KEEPER') {
-          return rejectWithValue({
-            message: 'Your account is not assigned to any branch or warehouse. Please contact admin.',
-            requiresAssignment: true
-          })
-        }
         return rejectWithValue({
           message: 'Please select Branch or Warehouse scope first.'
         })
       }
 
-      console.log(`[SalesSlice] Creating sale with scope from ${source}:`, { scopeType, scopeId })
-
       const payload = {
         ...saleData,
-        ...(scopeType === 'BRANCH' ? { branchId: scopeId } : {}),
-        ...(scopeType === 'WAREHOUSE' ? { warehouseId: scopeId } : {}),
-        // Add audit fields
-        createdBy: user?.id,
-        createdByRole: user?.role,
-        ...(user?.role === 'ADMIN' && source !== 'user' ? { simulatedBy: user.id } : {})
+        branchId: scopeType === 'BRANCH' ? scopeId : null,
+        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
       }
 
       const response = await api.post('/sales', payload)
@@ -156,18 +95,8 @@ export const createSale = createAsyncThunk(
       const defaultMessage = 'Failed to create sale'
 
       if (status === 403) {
-        const { user } = getState().auth
-        const isSimulation = user?.role === 'ADMIN' && sessionStorage.getItem('simulation_mode') === 'true'
-        
-        let permissionMessage = apiMessage
-        if (isSimulation) {
-          permissionMessage = permissionMessage || 
-            'Permission denied in simulation mode. You may not have the required permissions as a simulated user.'
-        } else {
-          permissionMessage = permissionMessage || 
-            'Permission denied: please ask an admin to grant sales permissions for this scope.'
-        }
-        
+        const permissionMessage =
+          apiMessage || 'Permission denied: please ask an admin to grant sales permissions for this scope.'
         return rejectWithValue({ message: permissionMessage, status })
       }
 
@@ -183,29 +112,17 @@ export const createWarehouseSale = createAsyncThunk(
   'sales/createWarehouseSale',
   async (saleData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId, source } = getScopeInfo(getState)
-      const { user } = getState().auth
+      const { scopeType, scopeId } = getState().scope
 
-      if (scopeType !== 'WAREHOUSE') {
+      if (scopeType !== 'WAREHOUSE' || !scopeId) {
         return rejectWithValue({
           message: 'Warehouse scope is required to create warehouse sale.'
         })
       }
 
-      if (!scopeId) {
-        return rejectWithValue({
-          message: 'No warehouse assigned. Please contact admin.'
-        })
-      }
-
-      console.log(`[SalesSlice] Creating warehouse sale with scope from ${source}:`, { scopeId })
-
       const payload = {
         ...saleData,
-        warehouseId: scopeId,
-        createdBy: user?.id,
-        createdByRole: user?.role,
-        ...(user?.role === 'ADMIN' && source !== 'user' ? { simulatedBy: user.id } : {})
+        warehouseId: scopeId
       }
 
       const response = await api.post('/warehouse-sales', payload)
@@ -216,13 +133,8 @@ export const createWarehouseSale = createAsyncThunk(
       const defaultMessage = 'Failed to create warehouse sale'
 
       if (status === 403) {
-        const { user } = getState().auth
-        const isSimulation = user?.role === 'ADMIN' && sessionStorage.getItem('simulation_mode') === 'true'
-        
-        const permissionMessage = isSimulation
-          ? (apiMessage || 'Permission denied in simulation mode.')
-          : (apiMessage || 'Permission denied: please ask an admin to grant warehouse sales permissions.')
-          
+        const permissionMessage =
+          apiMessage || 'Permission denied: please ask an admin to grant warehouse sales permissions for this scope.'
         return rejectWithValue({ message: permissionMessage, status })
       }
 
@@ -238,8 +150,7 @@ export const updateSale = createAsyncThunk(
   'sales/updateSale',
   async ({ id, data }, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getScopeInfo(getState)
-      const { user } = getState().auth
+      const { scopeType, scopeId } = getState().scope
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -249,10 +160,8 @@ export const updateSale = createAsyncThunk(
 
       const payload = {
         ...data,
-        ...(scopeType === 'BRANCH' ? { branchId: scopeId } : {}),
-        ...(scopeType === 'WAREHOUSE' ? { warehouseId: scopeId } : {}),
-        updatedBy: user?.id,
-        updatedByRole: user?.role
+        branchId: scopeType === 'BRANCH' ? scopeId : null,
+        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
       }
 
       const response = await api.put(`/sales/${id}`, payload)
@@ -265,15 +174,9 @@ export const updateSale = createAsyncThunk(
 
 export const deleteSale = createAsyncThunk(
   'sales/deleteSale',
-  async (id, { rejectWithValue, getState }) => {
+  async (id, { rejectWithValue }) => {
     try {
-      const { user } = getState().auth
-      await api.delete(`/sales/${id}`, {
-        data: { 
-          deletedBy: user?.id,
-          deletedByRole: user?.role 
-        }
-      })
+      await api.delete(`/sales/${id}`)
       return id
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to delete sale')
@@ -297,7 +200,7 @@ export const fetchSalesReturns = createAsyncThunk(
   'sales/fetchSalesReturns',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getScopeInfo(getState)
+      const { scopeType, scopeId } = getState().scope
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -307,8 +210,8 @@ export const fetchSalesReturns = createAsyncThunk(
 
       const paramsWithScope = {
         ...params,
-        ...(scopeType === 'BRANCH' ? { branchId: scopeId } : {}),
-        ...(scopeType === 'WAREHOUSE' ? { warehouseId: scopeId } : {})
+        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
+        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
       }
 
       const response = await api.get('/sales/returns', { params: paramsWithScope })
@@ -330,8 +233,7 @@ export const createSalesReturn = createAsyncThunk(
   'sales/createSalesReturn',
   async (returnData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getScopeInfo(getState)
-      const { user } = getState().auth
+      const { scopeType, scopeId } = getState().scope
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -341,10 +243,8 @@ export const createSalesReturn = createAsyncThunk(
 
       const payload = {
         ...returnData,
-        ...(scopeType === 'BRANCH' ? { branchId: scopeId } : {}),
-        ...(scopeType === 'WAREHOUSE' ? { warehouseId: scopeId } : {}),
-        createdBy: user?.id,
-        createdByRole: user?.role
+        branchId: scopeType === 'BRANCH' ? scopeId : null,
+        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
       }
 
       const response = await api.post('/sales/returns', payload)
@@ -366,7 +266,7 @@ export const fetchLatestSales = createAsyncThunk(
   'sales/fetchLatestSales',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getScopeInfo(getState)
+      const { scopeType, scopeId } = getState().scope
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -375,8 +275,8 @@ export const fetchLatestSales = createAsyncThunk(
       }
 
       const paramsWithScope = {
-        ...(scopeType === 'BRANCH' ? { branchId: scopeId } : {}),
-        ...(scopeType === 'WAREHOUSE' ? { warehouseId: scopeId } : {})
+        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
+        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
       }
 
       const response = await api.get('/sales/latest', { params: paramsWithScope })
@@ -391,7 +291,7 @@ export const fetchSalesSummary = createAsyncThunk(
   'sales/fetchSalesSummary',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getScopeInfo(getState)
+      const { scopeType, scopeId } = getState().scope
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -401,8 +301,8 @@ export const fetchSalesSummary = createAsyncThunk(
 
       const paramsWithScope = {
         ...params,
-        ...(scopeType === 'BRANCH' ? { branchId: scopeId } : {}),
-        ...(scopeType === 'WAREHOUSE' ? { warehouseId: scopeId } : {})
+        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
+        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
       }
 
       const response = await api.get('/sales/summary', { params: paramsWithScope })
@@ -431,8 +331,7 @@ const initialState = {
   },
   cache: {},
   loading: false,
-  error: null,
-  scopeSource: null // Track where scope came from (redux/user/session)
+  error: null
 }
 
 const salesSlice = createSlice({
@@ -441,14 +340,10 @@ const salesSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null
-    },
-    clearCache: (state) => {
-      state.cache = {}
     }
   },
   extraReducers: (builder) => {
     builder
-      // fetchSales
       .addCase(fetchSales.pending, (state) => {
         state.loading = true
         state.error = null
@@ -461,9 +356,6 @@ const salesSlice = createSlice({
 
         state.data = data
         state.error = null
-
-        // Track scope source from meta
-        state.scopeSource = action.meta?.arg?.source || null
 
         state.pagination = {
           page: payload.page || action.meta?.arg?.page || 1,
@@ -487,7 +379,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // createSale
       .addCase(createSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -495,7 +386,7 @@ const salesSlice = createSlice({
       .addCase(createSale.fulfilled, (state, action) => {
         state.loading = false
         const newSale = action.payload.data || action.payload
-        state.data = [newSale, ...state.data] // Add to beginning for better UX
+        state.data.push(newSale)
         state.error = null
       })
       .addCase(createSale.rejected, (state, action) => {
@@ -503,15 +394,12 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // createWarehouseSale
       .addCase(createWarehouseSale.pending, (state) => {
         state.loading = true
         state.error = null
       })
-      .addCase(createWarehouseSale.fulfilled, (state, action) => {
+      .addCase(createWarehouseSale.fulfilled, (state) => {
         state.loading = false
-        const newSale = action.payload.data || action.payload
-        state.data = [newSale, ...state.data]
         state.error = null
       })
       .addCase(createWarehouseSale.rejected, (state, action) => {
@@ -519,7 +407,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // updateSale
       .addCase(updateSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -540,7 +427,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // deleteSale
       .addCase(deleteSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -555,7 +441,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // getSale
       .addCase(getSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -578,7 +463,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // fetchSalesReturns
       .addCase(fetchSalesReturns.pending, (state) => {
         state.loading = true
         state.error = null
@@ -593,7 +477,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // createSalesReturn
       .addCase(createSalesReturn.pending, (state) => {
         state.loading = true
         state.error = null
@@ -601,7 +484,7 @@ const salesSlice = createSlice({
       .addCase(createSalesReturn.fulfilled, (state, action) => {
         state.loading = false
         const newReturn = action.payload.data || action.payload
-        state.returns = [newReturn, ...state.returns]
+        state.returns.push(newReturn)
         state.error = null
       })
       .addCase(createSalesReturn.rejected, (state, action) => {
@@ -609,7 +492,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // fetchLatestSales
       .addCase(fetchLatestSales.pending, (state) => {
         state.loading = true
         state.error = null
@@ -624,7 +506,6 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // fetchSalesSummary
       .addCase(fetchSalesSummary.pending, (state) => {
         state.loading = true
         state.error = null
@@ -641,5 +522,5 @@ const salesSlice = createSlice({
   }
 })
 
-export const { clearError, clearCache } = salesSlice.actions
+export const { clearError } = salesSlice.actions
 export default salesSlice.reducer

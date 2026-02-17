@@ -67,27 +67,6 @@ const forceLogout = (
   }
 }
 
-// Helper to get scope from Redux store (if available)
-const getScopeFromStore = () => {
-  if (typeof window === 'undefined') return { scopeType: null, scopeId: null }
-  
-  try {
-    // Try to get scope from Redux store if it's available
-    // This is a workaround - ideally you'd import the store directly
-    const reduxState = window.__REDUX_STATE__ || {}
-    return {
-      scopeType: reduxState?.scope?.scopeType || sessionStorage.getItem('scopeType'),
-      scopeId: reduxState?.scope?.scopeId || sessionStorage.getItem('scopeId')
-    }
-  } catch (e) {
-    // Fallback to sessionStorage
-    return {
-      scopeType: sessionStorage.getItem('scopeType'),
-      scopeId: sessionStorage.getItem('scopeId')
-    }
-  }
-}
-
 // Request interceptor
 api.interceptors.request.use(
   async (config) => {
@@ -108,50 +87,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-    
-    // ================ ADD SCOPE AND SIMULATION HEADERS ================
-    if (typeof window !== 'undefined') {
-      // Check if we're in simulation mode
-      const isSimulation = sessionStorage.getItem('simulation_mode') === 'true'
-      const simulatedRole = sessionStorage.getItem('simulated_role')
-      const originalRole = sessionStorage.getItem('original_user_role')
-      
-      // Get scope from sessionStorage (set by AdminDashboard)
-      const scopeType = sessionStorage.getItem('scopeType')
-      const scopeId = sessionStorage.getItem('scopeId')
-      
-      // Add scope headers if they exist
-      if (scopeType && scopeId) {
-        config.headers['X-Scope-Type'] = scopeType
-        config.headers['X-Scope-Id'] = scopeId
-        
-        // If admin is simulating, add simulation header
-        if (isSimulation && simulatedRole) {
-          config.headers['X-Simulate-Role'] = simulatedRole
-          config.headers['X-Original-Role'] = originalRole || 'ADMIN'
-          
-          // Also add to params for GET requests that might need it
-          if (config.method?.toLowerCase() === 'get' && config.params) {
-            config.params.simulatedRole = simulatedRole
-            config.params.scopeType = scopeType
-            config.params.scopeId = scopeId
-          } else if (config.method?.toLowerCase() === 'get') {
-            config.params = {
-              ...config.params,
-              simulatedRole,
-              scopeType,
-              scopeId
-            }
-          }
-        }
-        
-        // Log simulation mode for debugging
-        if (isSimulation) {
-          console.debug(`[API] Simulation mode: ${simulatedRole} at ${scopeType}:${scopeId}`)
-        }
-      }
-    }
-    // ================ END SCOPE AND SIMULATION HEADERS ================
     
     return config
   },
@@ -219,37 +154,6 @@ api.interceptors.response.use(
       }
     }
     
-    // Handle 403 errors (forbidden) - Enhanced for simulation mode
-    if (error.response?.status === 403) {
-      const isSimulation = sessionStorage.getItem('simulation_mode') === 'true'
-      const simulatedRole = sessionStorage.getItem('simulated_role')
-      
-      if (isSimulation) {
-        // Provide more helpful error message for simulation mode
-        const errorMessage = error.response?.data?.message || 
-          `Permission denied while simulating as ${simulatedRole}. You may not have the required permissions for this action.`
-        
-        // Clear simulation if permission denied? (optional)
-        // sessionStorage.removeItem('simulation_mode')
-        
-        return Promise.reject({
-          ...error,
-          message: errorMessage,
-          isSimulationError: true,
-          simulatedRole
-        })
-      }
-      
-      // Log 403 errors for debugging
-      try {
-        console.error('403 Forbidden:', {
-          url: error.config?.url,
-          method: error.config?.method,
-          message: error.response?.data?.message || 'Access denied'
-        })
-      } catch (logError) {}
-    }
-    
     // Handle timeout errors
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
       return Promise.reject(new Error('Request timeout. Please check if the backend server is running.'))
@@ -269,17 +173,12 @@ api.interceptors.response.use(
     
     // Handle other errors
     if (error.response?.status === 403) {
-      // Already handled above
     }
     
     if (error.response?.status >= 500) {
       try {
-        console.error('Server Error:', {
-          status: error.response.status,
-          url: error.config?.url,
-          message: error.response?.data?.message || 'Internal server error'
-        })
-      } catch (logError) {}
+      } catch (logError) {
+      }
     }
     
     // Enhanced error logging
@@ -307,9 +206,7 @@ api.interceptors.response.use(
         return Promise.reject(new Error(errorMessage))
       }
     } else if (error.request) {
-      console.error('No response received:', error.request)
     } else {
-      console.error('Request error:', error.message)
     }
     
     return Promise.reject(error)
@@ -321,16 +218,6 @@ export const authAPI = {
   // Login user
   async login(email, password) {
     const response = await api.post('/auth/login', { email, password })
-    
-    // After login, clear any simulation state
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('simulation_mode')
-      sessionStorage.removeItem('simulated_role')
-      sessionStorage.removeItem('original_user_role')
-      sessionStorage.removeItem('scopeType')
-      sessionStorage.removeItem('scopeId')
-    }
-    
     return response
   },
 
@@ -356,21 +243,11 @@ export const authAPI = {
     try {
       await api.post('/auth/logout')
     } catch (error) {
-      console.error('Logout error:', error)
     } finally {
       // Clear tokens regardless of API response
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
-      
-      // Clear simulation state
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('simulation_mode')
-        sessionStorage.removeItem('simulated_role')
-        sessionStorage.removeItem('original_user_role')
-        sessionStorage.removeItem('scopeType')
-        sessionStorage.removeItem('scopeId')
-      }
     }
   },
 
@@ -403,57 +280,6 @@ export const authAPI = {
   isAuthenticated() {
     const token = this.getToken()
     return !!token
-  },
-  
-  // ================ NEW SIMULATION HELPER METHODS ================
-  
-  // Set simulation mode
-  setSimulationMode(scopeType, scopeId, simulatedRole) {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('simulation_mode', 'true')
-      sessionStorage.setItem('simulated_role', simulatedRole)
-      sessionStorage.setItem('original_user_role', 'ADMIN')
-      sessionStorage.setItem('scopeType', scopeType)
-      sessionStorage.setItem('scopeId', scopeId.toString())
-    }
-  },
-  
-  // Clear simulation mode
-  clearSimulationMode() {
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('simulation_mode')
-      sessionStorage.removeItem('simulated_role')
-      sessionStorage.removeItem('original_user_role')
-      sessionStorage.removeItem('scopeType')
-      sessionStorage.removeItem('scopeId')
-    }
-  },
-  
-  // Check if in simulation mode
-  isSimulationMode() {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('simulation_mode') === 'true'
-    }
-    return false
-  },
-  
-  // Get simulated role
-  getSimulatedRole() {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('simulated_role')
-    }
-    return null
-  },
-  
-  // Get current scope
-  getCurrentScope() {
-    if (typeof window !== 'undefined') {
-      return {
-        scopeType: sessionStorage.getItem('scopeType'),
-        scopeId: sessionStorage.getItem('scopeId')
-      }
-    }
-    return { scopeType: null, scopeId: null }
   }
 }
 
