@@ -21,6 +21,8 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  Snackbar,
+  Button
 } from '@mui/material'
 import {
   Store as StoreIcon,
@@ -33,7 +35,8 @@ import {
   Business as BusinessIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
-  Security as SecurityIcon
+  Security as SecurityIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material'
 
 import DashboardLayout from '../../../components/layout/DashboardLayout'
@@ -43,6 +46,7 @@ import PermissionCheck from '../../../components/auth/PermissionCheck'
 import { fetchBranches } from '../../store/slices/branchesSlice'
 import { fetchWarehouses } from '../../store/slices/warehousesSlice'
 import { setScope, clearScope } from '../../store/slices/scopeSlice'
+import { authAPI } from '../../../utils/axios' // ✅ IMPORT authAPI
 
 const AdminDashboardPage = () => {
   const dispatch = useDispatch()
@@ -50,12 +54,14 @@ const AdminDashboardPage = () => {
 
   const { data: branches, loading: branchesLoading } = useSelector(state => state.branches)
   const { data: warehouses, loading: warehousesLoading } = useSelector(state => state.warehouses)
-
   const { scopeType, scopeId } = useSelector(state => state.scope)
+  const { user } = useSelector(state => state.auth)
 
   const [selectedScope, setSelectedScope] = useState('')
   const [selectedScopeType, setSelectedScopeType] = useState('')
   const [selectedScopeData, setSelectedScopeData] = useState(null)
+  const [error, setError] = useState(null) // ✅ ADD missing error state
+  const [showSimulationAlert, setShowSimulationAlert] = useState(false)
 
   // Load branches/warehouses on page load
   useEffect(() => {
@@ -69,6 +75,7 @@ const AdminDashboardPage = () => {
 
     setSelectedScopeType(scopeType)
     setSelectedScope(scopeId.toString())
+    setShowSimulationAlert(true)
 
     if (scopeType === 'BRANCH') {
       const branch = branches?.find(b => b.id === scopeId)
@@ -85,11 +92,16 @@ const AdminDashboardPage = () => {
   const handleScopeChange = (newScopeType, newScopeId) => {
     setSelectedScopeType(newScopeType)
     setSelectedScope(newScopeId)
+    setError(null)
 
     const numericId = Number(newScopeId)
+    const simulatedRole = newScopeType === 'BRANCH' ? 'CASHIER' : 'WAREHOUSE_KEEPER'
 
-    // ✅ STORE IN REDUX (IMPORTANT FIX)
+    // STORE IN REDUX
     dispatch(setScope({ scopeType: newScopeType, scopeId: numericId }))
+    
+    // USE THE HELPER METHOD
+    authAPI.setSimulationMode(newScopeType, numericId, simulatedRole)
 
     if (newScopeType === 'BRANCH') {
       const branch = branches.find(b => b.id === numericId)
@@ -102,9 +114,19 @@ const AdminDashboardPage = () => {
     }
   }
 
+  // ✅ ADD clear scope handler
+  const handleClearScope = () => {
+    dispatch(clearScope())
+    setSelectedScope('')
+    setSelectedScopeType('')
+    setSelectedScopeData(null)
+    setShowSimulationAlert(false)
+    authAPI.clearSimulationMode()
+  }
+
   const handlePOSAccess = () => {
     if (!selectedScope || selectedScopeType !== 'BRANCH') {
-      alert('Please select a branch first')
+      setError('Please select a branch first')
       return
     }
 
@@ -113,7 +135,7 @@ const AdminDashboardPage = () => {
 
   const handleWarehouseBillingAccess = () => {
     if (!selectedScope || selectedScopeType !== 'WAREHOUSE') {
-      alert('Please select a warehouse first')
+      setError('Please select a warehouse first')
       return
     }
 
@@ -122,7 +144,7 @@ const AdminDashboardPage = () => {
 
   const handleInventoryAccess = () => {
     if (!selectedScope || !selectedScopeType) {
-      alert('Please select a branch or warehouse first')
+      setError('Please select a branch or warehouse first')
       return
     }
 
@@ -131,7 +153,7 @@ const AdminDashboardPage = () => {
 
   const handleReportsAccess = () => {
     if (!selectedScope || !selectedScopeType) {
-      alert('Please select a branch or warehouse first')
+      setError('Please select a branch or warehouse first')
       return
     }
 
@@ -150,6 +172,10 @@ const AdminDashboardPage = () => {
     return type === 'BRANCH' ? 'Branch' : 'Warehouse'
   }
 
+  const getSimulatedRole = () => {
+    return selectedScopeType === 'BRANCH' ? 'CASHIER' : 'WAREHOUSE_KEEPER'
+  }
+
   return (
     <DashboardLayout>
       <RouteGuard allowedRoles={['ADMIN']} />
@@ -163,9 +189,34 @@ const AdminDashboardPage = () => {
             Admin Dashboard
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Select a branch or warehouse to work under that scope.
+            Select a branch or warehouse to simulate as {selectedScopeType === 'BRANCH' ? 'CASHIER' : 'WAREHOUSE_KEEPER'}
           </Typography>
         </Box>
+
+        {/* Error Snackbar - ✅ ADDED */}
+        <Snackbar
+          open={!!error}
+          autoHideDuration={6000}
+          onClose={() => setError(null)}
+          message={error}
+        />
+
+        {/* Simulation Alert - ✅ ADDED */}
+        {showSimulationAlert && selectedScopeType && (
+          <Alert 
+            severity="warning" 
+            sx={{ mb: 3 }}
+            icon={<WarningIcon />}
+            action={
+              <Button color="inherit" size="small" onClick={handleClearScope}>
+                Exit Simulation
+              </Button>
+            }
+          >
+            <strong>Simulation Mode Active:</strong> You are now acting as{' '}
+            <strong>{getSimulatedRole()}</strong> at <strong>{selectedScopeData?.name}</strong>
+          </Alert>
+        )}
 
         {/* Scope Selection */}
         <Grid container spacing={3}>
@@ -175,7 +226,7 @@ const AdminDashboardPage = () => {
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <StoreIcon color="primary" />
-                  Branch Access
+                  Branch Access (Simulate as Cashier)
                 </Typography>
 
                 <FormControl fullWidth sx={{ mb: 2 }}>
@@ -197,13 +248,19 @@ const AdminDashboardPage = () => {
                 </FormControl>
 
                 {selectedScopeType === 'BRANCH' && selectedScopeData && (
-                  <Paper sx={{ p: 2 }}>
+                  <Paper sx={{ p: 2, bgcolor: 'primary.50' }}>
                     <Typography variant="subtitle2">
                       Selected Branch: {selectedScopeData.name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Location: {selectedScopeData.location}
                     </Typography>
+                    <Chip 
+                      size="small" 
+                      label="Simulating as CASHIER" 
+                      color="primary" 
+                      sx={{ mt: 1 }}
+                    />
                   </Paper>
                 )}
               </CardContent>
@@ -216,7 +273,7 @@ const AdminDashboardPage = () => {
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <WarehouseIcon color="secondary" />
-                  Warehouse Access
+                  Warehouse Access (Simulate as Warehouse Keeper)
                 </Typography>
 
                 <FormControl fullWidth sx={{ mb: 2 }}>
@@ -238,13 +295,19 @@ const AdminDashboardPage = () => {
                 </FormControl>
 
                 {selectedScopeType === 'WAREHOUSE' && selectedScopeData && (
-                  <Paper sx={{ p: 2 }}>
+                  <Paper sx={{ p: 2, bgcolor: 'secondary.50' }}>
                     <Typography variant="subtitle2">
                       Selected Warehouse: {selectedScopeData.name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Location: {selectedScopeData.location}
                     </Typography>
+                    <Chip 
+                      size="small" 
+                      label="Simulating as WAREHOUSE_KEEPER" 
+                      color="secondary" 
+                      sx={{ mt: 1 }}
+                    />
                   </Paper>
                 )}
               </CardContent>
@@ -263,7 +326,7 @@ const AdminDashboardPage = () => {
 
                 <Box>
                   <Typography variant="h6">
-                    Working as {getScopeLabel(selectedScopeType)} User
+                    Simulating as {getSimulatedRole()}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {selectedScopeData?.name} - {selectedScopeData?.location}
@@ -275,10 +338,18 @@ const AdminDashboardPage = () => {
                   color={getScopeColor(selectedScopeType)}
                   variant="outlined"
                 />
+                
+                <Chip
+                  icon={<WarningIcon />}
+                  label="Simulation Mode"
+                  color="warning"
+                  variant="filled"
+                />
               </Box>
 
-              <Alert severity="info">
-                All operations will now be saved under <b>{selectedScopeData?.name}</b>.
+              <Alert severity="warning" icon={<SecurityIcon />}>
+                <strong>You are in simulation mode.</strong> All operations will be performed as{' '}
+                <strong>{getSimulatedRole()}</strong>. Your admin privileges are temporarily suspended.
               </Alert>
             </CardContent>
           </Card>
@@ -289,19 +360,27 @@ const AdminDashboardPage = () => {
           <Card sx={{ mt: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Available Functions
+                Available Functions (Simulation Mode)
               </Typography>
 
               <Grid container spacing={2}>
                 {selectedScopeType === 'BRANCH' && (
                   <Grid item xs={12} sm={6} md={4}>
                     <Card
-                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'primary.main' }}
+                      sx={{ 
+                        cursor: 'pointer', 
+                        '&:hover': { bgcolor: 'action.hover' }, 
+                        border: 2, 
+                        borderColor: 'primary.main' 
+                      }}
                       onClick={handlePOSAccess}
                     >
                       <CardContent sx={{ textAlign: 'center', p: 2 }}>
                         <POSIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
                         <Typography variant="h6">POS Terminal</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Simulating as Cashier
+                        </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -310,12 +389,20 @@ const AdminDashboardPage = () => {
                 {selectedScopeType === 'WAREHOUSE' && (
                   <Grid item xs={12} sm={6} md={4}>
                     <Card
-                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'secondary.main' }}
+                      sx={{ 
+                        cursor: 'pointer', 
+                        '&:hover': { bgcolor: 'action.hover' }, 
+                        border: 2, 
+                        borderColor: 'secondary.main' 
+                      }}
                       onClick={handleWarehouseBillingAccess}
                     >
                       <CardContent sx={{ textAlign: 'center', p: 2 }}>
                         <ReceiptIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
                         <Typography variant="h6">Warehouse Billing</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Simulating as Warehouse Keeper
+                        </Typography>
                       </CardContent>
                     </Card>
                   </Grid>
@@ -323,24 +410,40 @@ const AdminDashboardPage = () => {
 
                 <Grid item xs={12} sm={6} md={4}>
                   <Card
-                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'info.main' }}
+                    sx={{ 
+                      cursor: 'pointer', 
+                      '&:hover': { bgcolor: 'action.hover' }, 
+                      border: 2, 
+                      borderColor: 'info.main' 
+                    }}
                     onClick={handleInventoryAccess}
                   >
                     <CardContent sx={{ textAlign: 'center', p: 2 }}>
                       <InventoryIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
                       <Typography variant="h6">Inventory</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Simulating as {getSimulatedRole()}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Grid>
 
                 <Grid item xs={12} sm={6} md={4}>
                   <Card
-                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'warning.main' }}
+                    sx={{ 
+                      cursor: 'pointer', 
+                      '&:hover': { bgcolor: 'action.hover' }, 
+                      border: 2, 
+                      borderColor: 'warning.main' 
+                    }}
                     onClick={handleReportsAccess}
                   >
                     <CardContent sx={{ textAlign: 'center', p: 2 }}>
                       <ReportsIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
                       <Typography variant="h6">Reports</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        View only
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -353,35 +456,47 @@ const AdminDashboardPage = () => {
         <Card sx={{ mt: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              How to Use Admin Dashboard
+              How Simulation Mode Works
             </Typography>
             <List>
               <ListItem>
                 <ListItemIcon>
-                  <SecurityIcon color="primary" />
+                  <SecurityIcon color="warning" />
                 </ListItemIcon>
-                <ListItemText primary="Select Scope" secondary="Choose branch or warehouse first" />
+                <ListItemText 
+                  primary="Temporary Role Change" 
+                  secondary="You're temporarily acting as a Cashier or Warehouse Keeper" 
+                />
               </ListItem>
 
               <ListItem>
                 <ListItemIcon>
-                  <PersonIcon color="primary" />
+                  <PersonIcon color="warning" />
                 </ListItemIcon>
-                <ListItemText primary="Scope Mode" secondary="All actions will save inside selected scope" />
+                <ListItemText 
+                  primary="Limited Permissions" 
+                  secondary="You can only perform actions allowed for that role" 
+                />
               </ListItem>
 
               <ListItem>
                 <ListItemIcon>
-                  <BusinessIcon color="primary" />
+                  <BusinessIcon color="warning" />
                 </ListItemIcon>
-                <ListItemText primary="Data Filter" secondary="Inventory, sales, billing will be filtered automatically" />
+                <ListItemText 
+                  primary="Scope Locked" 
+                  secondary="All operations are restricted to selected branch/warehouse" 
+                />
               </ListItem>
 
               <ListItem>
                 <ListItemIcon>
-                  <LocationIcon color="primary" />
+                  <LocationIcon color="warning" />
                 </ListItemIcon>
-                <ListItemText primary="Switch Anytime" secondary="Admin can switch branch/warehouse anytime" />
+                <ListItemText 
+                  primary="Exit Anytime" 
+                  secondary="Click 'Exit Simulation' to return to admin mode" 
+                />
               </ListItem>
             </List>
           </CardContent>
