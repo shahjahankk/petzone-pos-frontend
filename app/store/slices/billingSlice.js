@@ -1,7 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
-// Async thunks
+// ============================
+// ASYNC THUNKS
+// ============================
+
 export const fetchBilling = createAsyncThunk(
   'billing/fetchBilling',
   async (params = {}, { rejectWithValue, getState }) => {
@@ -21,7 +24,6 @@ export const fetchBilling = createAsyncThunk(
       if (params.page) queryParams.append('page', params.page)
       if (params.limit) queryParams.append('limit', params.limit)
 
-      // ✅ scope append
       if (scopeType === 'BRANCH') queryParams.append('branchId', scopeId)
       if (scopeType === 'WAREHOUSE') queryParams.append('warehouseId', scopeId)
 
@@ -52,17 +54,9 @@ export const createBillingRecord = createAsyncThunk(
       const response = await api.post('/billing', payload)
       return response.data
     } catch (error) {
-      if (error.response?.status === 500) {
-        return rejectWithValue('Server error occurred. Please try again or contact support.')
-      } else if (error.response?.status === 400) {
-        return rejectWithValue(error.response?.data?.message || 'Invalid data provided.')
-      } else if (error.response?.status === 404) {
-        return rejectWithValue('Billing record not found.')
-      } else if (error.response?.status === 403) {
-        return rejectWithValue('Access denied for this scope.')
-      } else {
-        return rejectWithValue(error.response?.data?.message || 'Failed to create billing record')
-      }
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to create billing record'
+      )
     }
   }
 )
@@ -84,19 +78,11 @@ export const updateBillingRecord = createAsyncThunk(
       }
 
       const response = await api.put(`/billing/${id}`, payload)
-      return response.data
+      return { id, data: response.data }
     } catch (error) {
-      if (error.response?.status === 500) {
-        return rejectWithValue('Server error occurred. Please try again or contact support.')
-      } else if (error.response?.status === 400) {
-        return rejectWithValue(error.response?.data?.message || 'Invalid data provided.')
-      } else if (error.response?.status === 404) {
-        return rejectWithValue('Billing record not found.')
-      } else if (error.response?.status === 403) {
-        return rejectWithValue('Access denied for this scope.')
-      } else {
-        return rejectWithValue(error.response?.data?.message || 'Failed to update billing record')
-      }
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to update billing record'
+      )
     }
   }
 )
@@ -105,14 +91,19 @@ export const deleteBillingRecord = createAsyncThunk(
   'billing/deleteBillingRecord',
   async (id, { rejectWithValue }) => {
     try {
-      const response = await api.delete(`/billing/${id}`)
-      return response.data
+      await api.delete(`/billing/${id}`)
+      return id
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete billing record')
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to delete billing record'
+      )
     }
   }
 )
 
+// ============================
+// SLICE
+// ============================
 const initialState = {
   data: [],
   loading: false,
@@ -129,6 +120,7 @@ const billingSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // FETCH
       .addCase(fetchBilling.pending, (state) => {
         state.loading = true
         state.error = null
@@ -143,14 +135,14 @@ const billingSlice = createSlice({
         state.error = action.payload
       })
 
+      // CREATE
       .addCase(createBillingRecord.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(createBillingRecord.fulfilled, (state, action) => {
         state.loading = false
-        const newBillingRecord = action.payload.data || action.payload
-        state.data.push(newBillingRecord)
+        state.data.push(action.payload.data || action.payload)
         state.error = null
       })
       .addCase(createBillingRecord.rejected, (state, action) => {
@@ -158,20 +150,15 @@ const billingSlice = createSlice({
         state.error = action.payload
       })
 
+      // UPDATE
       .addCase(updateBillingRecord.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(updateBillingRecord.fulfilled, (state, action) => {
         state.loading = false
-
-        const updated = action.payload.data || action.payload
-        const index = state.data.findIndex((billing) => billing.id === updated.id)
-
-        if (index !== -1) {
-          state.data[index] = updated
-        }
-
+        const index = state.data.findIndex((b) => b.id === action.payload.id)
+        if (index !== -1) state.data[index] = action.payload.data
         state.error = null
       })
       .addCase(updateBillingRecord.rejected, (state, action) => {
@@ -179,13 +166,14 @@ const billingSlice = createSlice({
         state.error = action.payload
       })
 
+      // DELETE
       .addCase(deleteBillingRecord.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(deleteBillingRecord.fulfilled, (state, action) => {
         state.loading = false
-        state.data = state.data.filter((billing) => billing.id !== action.payload)
+        state.data = state.data.filter((b) => b.id !== action.payload)
         state.error = null
       })
       .addCase(deleteBillingRecord.rejected, (state, action) => {
