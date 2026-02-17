@@ -3,36 +3,15 @@ import api from '../../../utils/axios'
 
 const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
-// Async thunks
+// Async thunks - REMOVED all scope validation
 export const fetchSales = createAsyncThunk(
   'sales/fetchSales',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      // ❌ REMOVED scope validation - now handled by axios headers
+      console.log('[SalesSlice] fetchSales - Request params:', params)
 
-      if (!scopeType || !scopeId) {
-        return rejectWithValue({
-          message: 'Please select Branch or Warehouse scope first.'
-        })
-      }
-
-      const paramsWithScope = {
-        ...params,
-        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
-      }
-
-      const cacheKey = JSON.stringify(paramsWithScope || {})
-      const { cache } = getState().sales || {}
-      const cached = cache?.[cacheKey]
-
-      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return { ...cached.payload, _fromCache: true }
-      }
-
-      console.log('[SalesSlice] fetchSales - Request params:', paramsWithScope)
-
-      const response = await api.get('/sales', { params: paramsWithScope })
+      const response = await api.get('/sales', { params })
 
       console.log('[SalesSlice] fetchSales - Response:', {
         success: response.data?.success,
@@ -67,21 +46,10 @@ export const createSale = createAsyncThunk(
   'sales/createSale',
   async (saleData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      // ❌ REMOVED scope validation - now handled by axios headers
+      console.log('[SalesSlice] createSale - Request data:', saleData)
 
-      if (!scopeType || !scopeId) {
-        return rejectWithValue({
-          message: 'Please select Branch or Warehouse scope first.'
-        })
-      }
-
-      const payload = {
-        ...saleData,
-        branchId: scopeType === 'BRANCH' ? scopeId : null,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
-      }
-
-      const response = await api.post('/sales', payload)
+      const response = await api.post('/sales', saleData)
 
       if (response.data.success) {
         return response.data
@@ -96,7 +64,7 @@ export const createSale = createAsyncThunk(
 
       if (status === 403) {
         const permissionMessage =
-          apiMessage || 'Permission denied: please ask an admin to grant sales permissions for this scope.'
+          apiMessage || 'Permission denied. You may not have access to this scope.'
         return rejectWithValue({ message: permissionMessage, status })
       }
 
@@ -112,20 +80,10 @@ export const createWarehouseSale = createAsyncThunk(
   'sales/createWarehouseSale',
   async (saleData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      // ❌ REMOVED scope validation - now handled by axios headers
+      console.log('[SalesSlice] createWarehouseSale - Request data:', saleData)
 
-      if (scopeType !== 'WAREHOUSE' || !scopeId) {
-        return rejectWithValue({
-          message: 'Warehouse scope is required to create warehouse sale.'
-        })
-      }
-
-      const payload = {
-        ...saleData,
-        warehouseId: scopeId
-      }
-
-      const response = await api.post('/warehouse-sales', payload)
+      const response = await api.post('/warehouse-sales', saleData)
       return response.data
     } catch (error) {
       const status = error.response?.status
@@ -134,7 +92,7 @@ export const createWarehouseSale = createAsyncThunk(
 
       if (status === 403) {
         const permissionMessage =
-          apiMessage || 'Permission denied: please ask an admin to grant warehouse sales permissions for this scope.'
+          apiMessage || 'Permission denied. You may not have access to this warehouse.'
         return rejectWithValue({ message: permissionMessage, status })
       }
 
@@ -148,23 +106,9 @@ export const createWarehouseSale = createAsyncThunk(
 
 export const updateSale = createAsyncThunk(
   'sales/updateSale',
-  async ({ id, data }, { rejectWithValue, getState }) => {
+  async ({ id, data }, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
-
-      if (!scopeType || !scopeId) {
-        return rejectWithValue({
-          message: 'Please select Branch or Warehouse scope first.'
-        })
-      }
-
-      const payload = {
-        ...data,
-        branchId: scopeType === 'BRANCH' ? scopeId : null,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
-      }
-
-      const response = await api.put(`/sales/${id}`, payload)
+      const response = await api.put(`/sales/${id}`, data)
       return response.data
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to update sale')
@@ -198,23 +142,9 @@ export const getSale = createAsyncThunk(
 
 export const fetchSalesReturns = createAsyncThunk(
   'sales/fetchSalesReturns',
-  async (params = {}, { rejectWithValue, getState }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
-
-      if (!scopeType || !scopeId) {
-        return rejectWithValue({
-          message: 'Please select Branch or Warehouse scope first.'
-        })
-      }
-
-      const paramsWithScope = {
-        ...params,
-        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
-      }
-
-      const response = await api.get('/sales/returns', { params: paramsWithScope })
+      const response = await api.get('/sales/returns', { params })
       return response.data
     } catch (error) {
       const status = error.response?.status
@@ -231,23 +161,9 @@ export const fetchSalesReturns = createAsyncThunk(
 
 export const createSalesReturn = createAsyncThunk(
   'sales/createSalesReturn',
-  async (returnData, { rejectWithValue, getState }) => {
+  async (returnData, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
-
-      if (!scopeType || !scopeId) {
-        return rejectWithValue({
-          message: 'Please select Branch or Warehouse scope first.'
-        })
-      }
-
-      const payload = {
-        ...returnData,
-        branchId: scopeType === 'BRANCH' ? scopeId : null,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
-      }
-
-      const response = await api.post('/sales/returns', payload)
+      const response = await api.post('/sales/returns', returnData)
       return response.data
     } catch (error) {
       const status = error.response?.status
@@ -264,22 +180,9 @@ export const createSalesReturn = createAsyncThunk(
 
 export const fetchLatestSales = createAsyncThunk(
   'sales/fetchLatestSales',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
-
-      if (!scopeType || !scopeId) {
-        return rejectWithValue({
-          message: 'Please select Branch or Warehouse scope first.'
-        })
-      }
-
-      const paramsWithScope = {
-        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
-      }
-
-      const response = await api.get('/sales/latest', { params: paramsWithScope })
+      const response = await api.get('/sales/latest')
       return response.data
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch latest sales')
@@ -289,23 +192,9 @@ export const fetchLatestSales = createAsyncThunk(
 
 export const fetchSalesSummary = createAsyncThunk(
   'sales/fetchSalesSummary',
-  async (params = {}, { rejectWithValue, getState }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
-
-      if (!scopeType || !scopeId) {
-        return rejectWithValue({
-          message: 'Please select Branch or Warehouse scope first.'
-        })
-      }
-
-      const paramsWithScope = {
-        ...params,
-        branchId: scopeType === 'BRANCH' ? scopeId : undefined,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
-      }
-
-      const response = await api.get('/sales/summary', { params: paramsWithScope })
+      const response = await api.get('/sales/summary', { params })
       return response.data
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch sales summary')
@@ -340,10 +229,14 @@ const salesSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null
+    },
+    clearCache: (state) => {
+      state.cache = {}
     }
   },
   extraReducers: (builder) => {
     builder
+      // fetchSales
       .addCase(fetchSales.pending, (state) => {
         state.loading = true
         state.error = null
@@ -379,6 +272,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // createSale
       .addCase(createSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -386,7 +280,7 @@ const salesSlice = createSlice({
       .addCase(createSale.fulfilled, (state, action) => {
         state.loading = false
         const newSale = action.payload.data || action.payload
-        state.data.push(newSale)
+        state.data = [newSale, ...state.data] // Add to beginning for better UX
         state.error = null
       })
       .addCase(createSale.rejected, (state, action) => {
@@ -394,12 +288,15 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // createWarehouseSale
       .addCase(createWarehouseSale.pending, (state) => {
         state.loading = true
         state.error = null
       })
-      .addCase(createWarehouseSale.fulfilled, (state) => {
+      .addCase(createWarehouseSale.fulfilled, (state, action) => {
         state.loading = false
+        const newSale = action.payload.data || action.payload
+        state.data = [newSale, ...state.data]
         state.error = null
       })
       .addCase(createWarehouseSale.rejected, (state, action) => {
@@ -407,6 +304,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // updateSale
       .addCase(updateSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -427,6 +325,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // deleteSale
       .addCase(deleteSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -441,6 +340,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // getSale
       .addCase(getSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -463,6 +363,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // fetchSalesReturns
       .addCase(fetchSalesReturns.pending, (state) => {
         state.loading = true
         state.error = null
@@ -477,6 +378,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // createSalesReturn
       .addCase(createSalesReturn.pending, (state) => {
         state.loading = true
         state.error = null
@@ -484,7 +386,7 @@ const salesSlice = createSlice({
       .addCase(createSalesReturn.fulfilled, (state, action) => {
         state.loading = false
         const newReturn = action.payload.data || action.payload
-        state.returns.push(newReturn)
+        state.returns = [newReturn, ...state.returns]
         state.error = null
       })
       .addCase(createSalesReturn.rejected, (state, action) => {
@@ -492,6 +394,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // fetchLatestSales
       .addCase(fetchLatestSales.pending, (state) => {
         state.loading = true
         state.error = null
@@ -506,6 +409,7 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
+      // fetchSalesSummary
       .addCase(fetchSalesSummary.pending, (state) => {
         state.loading = true
         state.error = null
@@ -522,5 +426,5 @@ const salesSlice = createSlice({
   }
 })
 
-export const { clearError } = salesSlice.actions
+export const { clearError, clearCache } = salesSlice.actions
 export default salesSlice.reducer

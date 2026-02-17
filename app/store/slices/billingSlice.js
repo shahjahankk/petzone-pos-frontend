@@ -1,17 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
-// Async thunks
+// Async thunks - REMOVED all scope validation
 export const fetchBilling = createAsyncThunk(
   'billing/fetchBilling',
-  async (params = {}, { rejectWithValue, getState }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
-
-      if (!scopeType || !scopeId) {
-        return rejectWithValue('Please select Branch or Warehouse scope first.')
-      }
-
+      // ❌ REMOVED scope validation - now handled by axios headers
       const queryParams = new URLSearchParams()
 
       if (params.status) queryParams.append('status', params.status)
@@ -21,10 +16,7 @@ export const fetchBilling = createAsyncThunk(
       if (params.page) queryParams.append('page', params.page)
       if (params.limit) queryParams.append('limit', params.limit)
 
-      // ✅ scope append
-      if (scopeType === 'BRANCH') queryParams.append('branchId', scopeId)
-      if (scopeType === 'WAREHOUSE') queryParams.append('warehouseId', scopeId)
-
+      // ❌ REMOVED manual scope append - now handled by axios headers
       const response = await api.get(`/billing?${queryParams.toString()}`)
       return response.data
     } catch (error) {
@@ -35,21 +27,12 @@ export const fetchBilling = createAsyncThunk(
 
 export const createBillingRecord = createAsyncThunk(
   'billing/createBillingRecord',
-  async (billingData, { rejectWithValue, getState }) => {
+  async (billingData, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      // ❌ REMOVED scope validation - now handled by axios headers
+      console.log('[BillingSlice] createBillingRecord - Request data:', billingData)
 
-      if (!scopeType || !scopeId) {
-        return rejectWithValue('Please select Branch or Warehouse scope first.')
-      }
-
-      const payload = {
-        ...billingData,
-        branchId: scopeType === 'BRANCH' ? scopeId : null,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
-      }
-
-      const response = await api.post('/billing', payload)
+      const response = await api.post('/billing', billingData)
       return response.data
     } catch (error) {
       if (error.response?.status === 500) {
@@ -59,7 +42,7 @@ export const createBillingRecord = createAsyncThunk(
       } else if (error.response?.status === 404) {
         return rejectWithValue('Billing record not found.')
       } else if (error.response?.status === 403) {
-        return rejectWithValue('Access denied for this scope.')
+        return rejectWithValue('Access denied. You may not have permission for this scope.')
       } else {
         return rejectWithValue(error.response?.data?.message || 'Failed to create billing record')
       }
@@ -69,21 +52,12 @@ export const createBillingRecord = createAsyncThunk(
 
 export const updateBillingRecord = createAsyncThunk(
   'billing/updateBillingRecord',
-  async ({ id, data }, { rejectWithValue, getState }) => {
+  async ({ id, data }, { rejectWithValue }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      // ❌ REMOVED scope validation - now handled by axios headers
+      console.log('[BillingSlice] updateBillingRecord - Request data:', { id, data })
 
-      if (!scopeType || !scopeId) {
-        return rejectWithValue('Please select Branch or Warehouse scope first.')
-      }
-
-      const payload = {
-        ...data,
-        branchId: scopeType === 'BRANCH' ? scopeId : null,
-        warehouseId: scopeType === 'WAREHOUSE' ? scopeId : null
-      }
-
-      const response = await api.put(`/billing/${id}`, payload)
+      const response = await api.put(`/billing/${id}`, data)
       return response.data
     } catch (error) {
       if (error.response?.status === 500) {
@@ -93,7 +67,7 @@ export const updateBillingRecord = createAsyncThunk(
       } else if (error.response?.status === 404) {
         return rejectWithValue('Billing record not found.')
       } else if (error.response?.status === 403) {
-        return rejectWithValue('Access denied for this scope.')
+        return rejectWithValue('Access denied. You may not have permission for this scope.')
       } else {
         return rejectWithValue(error.response?.data?.message || 'Failed to update billing record')
       }
@@ -116,7 +90,13 @@ export const deleteBillingRecord = createAsyncThunk(
 const initialState = {
   data: [],
   loading: false,
-  error: null
+  error: null,
+  pagination: {
+    page: 1,
+    limit: 50,
+    total: 0,
+    totalPages: 1
+  }
 }
 
 const billingSlice = createSlice({
@@ -125,24 +105,48 @@ const billingSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null
+    },
+    clearBillingData: (state) => {
+      state.data = []
+      state.pagination = {
+        page: 1,
+        limit: 50,
+        total: 0,
+        totalPages: 1
+      }
     }
   },
   extraReducers: (builder) => {
     builder
+      // fetchBilling
       .addCase(fetchBilling.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(fetchBilling.fulfilled, (state, action) => {
         state.loading = false
-        state.data = action.payload.data || action.payload
+        
+        const payload = action.payload || {}
+        const data = payload.data || payload
+        
+        state.data = data
         state.error = null
+        
+        // Update pagination if available
+        state.pagination = {
+          page: payload.page || action.meta?.arg?.page || 1,
+          limit: payload.limit || action.meta?.arg?.limit || data?.length || 50,
+          total: payload.count ?? payload.total ?? data?.length ?? 0,
+          totalPages: payload.totalPages || 
+            Math.max(1, Math.ceil((payload.count ?? data?.length ?? 0) / (payload.limit || data?.length || 50)))
+        }
       })
       .addCase(fetchBilling.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })
 
+      // createBillingRecord
       .addCase(createBillingRecord.pending, (state) => {
         state.loading = true
         state.error = null
@@ -150,7 +154,7 @@ const billingSlice = createSlice({
       .addCase(createBillingRecord.fulfilled, (state, action) => {
         state.loading = false
         const newBillingRecord = action.payload.data || action.payload
-        state.data.push(newBillingRecord)
+        state.data = [newBillingRecord, ...state.data] // Add to beginning
         state.error = null
       })
       .addCase(createBillingRecord.rejected, (state, action) => {
@@ -158,6 +162,7 @@ const billingSlice = createSlice({
         state.error = action.payload
       })
 
+      // updateBillingRecord
       .addCase(updateBillingRecord.pending, (state) => {
         state.loading = true
         state.error = null
@@ -179,13 +184,16 @@ const billingSlice = createSlice({
         state.error = action.payload
       })
 
+      // deleteBillingRecord
       .addCase(deleteBillingRecord.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(deleteBillingRecord.fulfilled, (state, action) => {
         state.loading = false
-        state.data = state.data.filter((billing) => billing.id !== action.payload)
+        // Assuming the API returns the deleted ID or the response contains the ID
+        const deletedId = action.payload?.id || action.meta?.arg
+        state.data = state.data.filter((billing) => billing.id !== deletedId)
         state.error = null
       })
       .addCase(deleteBillingRecord.rejected, (state, action) => {
@@ -195,5 +203,5 @@ const billingSlice = createSlice({
   }
 })
 
-export const { clearError } = billingSlice.actions
+export const { clearError, clearBillingData } = billingSlice.actions
 export default billingSlice.reducer
