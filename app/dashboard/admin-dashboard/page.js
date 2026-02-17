@@ -41,6 +41,7 @@ import RouteGuard from '../../../components/auth/RouteGuard'
 import PermissionCheck from '../../../components/auth/PermissionCheck'
 import { fetchBranches } from '../../store/slices/branchesSlice'
 import { fetchWarehouses } from '../../store/slices/warehousesSlice'
+
 const AdminDashboardPage = () => {
   const dispatch = useDispatch()
   const router = useRouter()
