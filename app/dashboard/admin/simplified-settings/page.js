@@ -52,7 +52,7 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-// Simplified Branch Settings Component
+// ==================== BRANCH SETTINGS COMPONENT ====================
 const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
   const [error, setError] = useState(null);
   const [selectedBranch, setSelectedBranch] = useState(null);
@@ -101,52 +101,66 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
     }));
   };
 
- const handleSaveSettings = async () => {
-  if (!selectedBranch) return;
+  const handleNumberChange = (key) => (event) => {
+    const value = parseFloat(event.target.value) || 0;
+    
+    setEditingSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    
+    setChangedSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
 
-  console.log('Branch changedSettings:', changedSettings);
+  const handleSaveSettings = async () => {
+    if (!selectedBranch) return;
 
-  if (Object.keys(changedSettings).length === 0) {
-    console.log('No changes to save');
-    setSettingsDialogOpen(false);
-    return;
-  }
+    console.log('Branch changedSettings:', changedSettings);
 
-  setSaving(true);
-  try {
-    // Get latest settings from DB
-    const latestResponse = await api.get(`/branches/${selectedBranch.id}/settings`);
-    const latestSettings = { ...latestResponse.data.data.settings };
+    if (Object.keys(changedSettings).length === 0) {
+      console.log('No changes to save');
+      setSettingsDialogOpen(false);
+      return;
+    }
 
-    // Strip any backward-compat aggregate fields that could override granular changes
-    delete latestSettings.allowBranchTransfersCRUD;
-    delete latestSettings.allowCashierCRUD;
+    setSaving(true);
+    try {
+      // Get latest settings from DB
+      const latestResponse = await api.get(`/branches/${selectedBranch.id}/settings`);
+      const latestSettings = { ...latestResponse.data.data.settings };
 
-    // Merge latest with only what the user changed
-    const settingsToSave = {
-      ...latestSettings,
-      ...changedSettings
-    };
+      // Strip any backward-compat aggregate fields
+      delete latestSettings.allowBranchTransfersCRUD;
+      delete latestSettings.allowCashierCRUD;
 
-    // Save
-    await api.put(`/branches/${selectedBranch.id}/settings`, {
-      settings: settingsToSave
-    });
+      // Merge latest with only what the user changed
+      const settingsToSave = {
+        ...latestSettings,
+        ...changedSettings
+      };
 
-    // Refresh branches list
-    const refreshResponse = await api.get('/branches');
-    onBranchesChange(refreshResponse.data.data || []);
+      // Save
+      await api.put(`/branches/${selectedBranch.id}/settings`, {
+        settings: settingsToSave
+      });
 
-    setChangedSettings({});
-    setSettingsDialogOpen(false);
-    setError(null);
-  } catch (err) {
-    console.error('Save error:', err);
-    setError('Failed to save branch settings');
-  } finally {
-    setSaving(false);
-  }
-};
+      // Refresh branches list
+      const refreshResponse = await api.get('/branches');
+      onBranchesChange(refreshResponse.data.data || []);
+
+      setChangedSettings({});
+      setSettingsDialogOpen(false);
+      setError(null);
+    } catch (err) {
+      console.error('Save error:', err);
+      setError('Failed to save branch settings');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const getSettingsSummary = (branch) => {
     const settings = branch.settings || {};
@@ -157,7 +171,9 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
     return { enabled, total, percentage };
   };
 
+  // Branch settings configuration with company permissions
   const settingsConfig = [
+    { type: 'section', section: 'Cashier Permissions' },
     {
       key: 'allowCashierInventoryEdit',
       label: 'Allow Cashier Inventory Edit',
@@ -206,6 +222,30 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
       description: 'Enable open account functionality',
       type: 'switch'
     },
+
+    // Company Management Section
+    { type: 'section', section: 'Company Management' },
+    {
+      key: 'allowCompanyCreate',
+      label: 'Allow Company Creation',
+      description: 'Branch users can add new companies',
+      type: 'switch'
+    },
+    {
+      key: 'allowCompanyEdit',
+      label: 'Allow Company Edit',
+      description: 'Branch users can edit existing companies',
+      type: 'switch'
+    },
+    {
+      key: 'allowCompanyDelete',
+      label: 'Allow Company Delete',
+      description: 'Branch users can delete companies',
+      type: 'switch'
+    },
+
+    // Transfer Settings Section
+    { type: 'section', section: 'Transfer Settings' },
     {
       key: 'allowBranchTransfers',
       label: 'Allow Branch Transfers',
@@ -229,6 +269,12 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
       label: 'Require Approval for Branch Transfers',
       description: 'Require admin approval for branch transfers',
       type: 'switch'
+    },
+    {
+      key: 'maxTransferAmount',
+      label: 'Maximum Transfer Amount',
+      description: 'Maximum amount allowed for transfers',
+      type: 'number'
     }
   ];
 
@@ -242,7 +288,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
           </Typography>
         </Box>
         <Typography variant="body2" color="textSecondary">
-          Configure cashier permissions for each branch
+          Configure cashier permissions, company management, and transfer settings for each branch
         </Typography>
       </Box>
 
@@ -314,33 +360,61 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
               </Typography>
               
               <Grid container spacing={3}>
-                {settingsConfig.map((setting) => (
-                  <Grid item xs={12} md={6} key={setting.key}>
-                    <Card variant="outlined">
-                      <CardContent>
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={editingSettings[setting.key] || false}
-                              onChange={handleSettingChange(setting.key)}
-                              color="primary"
+                {settingsConfig.map((setting, index) => {
+                  if (setting.type === 'section') {
+                    return (
+                      <Grid item xs={12} key={`section-${index}`}>
+                        <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main' }}>
+                          {setting.section}
+                        </Typography>
+                      </Grid>
+                    );
+                  }
+                  
+                  return (
+                    <Grid item xs={12} md={6} key={setting.key}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          {setting.type === 'switch' ? (
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={editingSettings[setting.key] || false}
+                                  onChange={handleSettingChange(setting.key)}
+                                  color="primary"
+                                />
+                              }
+                              label={
+                                <Box>
+                                  <Typography variant="body1" component="div">
+                                    {setting.label}
+                                  </Typography>
+                                  <Typography variant="body2" color="textSecondary">
+                                    {setting.description}
+                                  </Typography>
+                                </Box>
+                              }
                             />
-                          }
-                          label={
+                          ) : (
                             <Box>
-                              <Typography variant="body1" component="div">
+                              <Typography variant="body1" gutterBottom>
                                 {setting.label}
                               </Typography>
-                              <Typography variant="body2" color="textSecondary">
-                                {setting.description}
-                              </Typography>
+                              <TextField
+                                type="number"
+                                value={editingSettings[setting.key] || ''}
+                                onChange={handleNumberChange(setting.key)}
+                                size="small"
+                                fullWidth
+                                helperText={setting.description}
+                              />
                             </Box>
-                          }
-                        />
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
               </Grid>
             </Box>
           )}
@@ -360,7 +434,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
   );
 };
 
-// Simplified Warehouse Settings Component - FIXED with granular permissions
+// ==================== WAREHOUSE SETTINGS COMPONENT ====================
 const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
   const [error, setError] = useState(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
@@ -424,52 +498,51 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
   };
 
   const handleSaveSettings = async () => {
-  if (!selectedWarehouse) return;
+    if (!selectedWarehouse) return;
 
-  console.log('Warehouse changedSettings:', changedSettings);
+    console.log('Warehouse changedSettings:', changedSettings);
 
-  if (Object.keys(changedSettings).length === 0) {
-    console.log('No changes to save');
-    setSettingsDialogOpen(false);
-    return;
-  }
+    if (Object.keys(changedSettings).length === 0) {
+      console.log('No changes to save');
+      setSettingsDialogOpen(false);
+      return;
+    }
 
-  setSaving(true);
-  try {
-    // Get latest settings from DB
-    const latestResponse = await api.get(`/warehouses/${selectedWarehouse.id}/settings`);
-    const latestSettings = { ...latestResponse.data.data.settings };
+    setSaving(true);
+    try {
+      // Get latest settings from DB
+      const latestResponse = await api.get(`/warehouses/${selectedWarehouse.id}/settings`);
+      const latestSettings = { ...latestResponse.data.data.settings };
 
-    // Strip backward-compat aggregate fields — these override granular
-    // company/retailer permissions and are the root cause of the bug
-    delete latestSettings.allowWarehouseCompanyCRUD;
-    delete latestSettings.allowWarehouseRetailerCRUD;
+      // Strip backward-compat aggregate fields
+      delete latestSettings.allowWarehouseCompanyCRUD;
+      delete latestSettings.allowWarehouseRetailerCRUD;
 
-    // Merge latest with only what the user changed
-    const settingsToSave = {
-      ...latestSettings,
-      ...changedSettings
-    };
+      // Merge latest with only what the user changed
+      const settingsToSave = {
+        ...latestSettings,
+        ...changedSettings
+      };
 
-    // Save
-    await api.put(`/warehouses/${selectedWarehouse.id}/settings`, {
-      settings: settingsToSave
-    });
+      // Save
+      await api.put(`/warehouses/${selectedWarehouse.id}/settings`, {
+        settings: settingsToSave
+      });
 
-    // Refresh warehouses list
-    const refreshResponse = await api.get('/warehouses');
-    onWarehousesChange(refreshResponse.data.data || []);
+      // Refresh warehouses list
+      const refreshResponse = await api.get('/warehouses');
+      onWarehousesChange(refreshResponse.data.data || []);
 
-    setChangedSettings({});
-    setSettingsDialogOpen(false);
-    setError(null);
-  } catch (err) {
-    console.error('Save error:', err);
-    setError('Failed to save warehouse settings');
-  } finally {
-    setSaving(false);
-  }
-};
+      setChangedSettings({});
+      setSettingsDialogOpen(false);
+      setError(null);
+    } catch (err) {
+      console.error('Save error:', err);
+      setError('Failed to save warehouse settings');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const getSettingsSummary = (warehouse) => {
     const settings = warehouse.settings || {};
@@ -480,7 +553,7 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
     return { enabled, total, percentage };
   };
 
-  // UPDATED: Granular permissions for companies and retailers
+  // Warehouse settings configuration with granular permissions
   const settingsConfig = [
     { type: 'section', section: 'Basic Warehouse Operations' },
     {
@@ -761,7 +834,7 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
   );
 };
 
-// Main Simplified Settings Page
+// ==================== MAIN SETTINGS PAGE ====================
 const SimplifiedSettingsPage = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [branches, setBranches] = useState([]);
@@ -784,6 +857,7 @@ const SimplifiedSettingsPage = () => {
       setWarehouses(warehousesRes.data.data || []);
       setError(null);
     } catch (err) {
+      console.error('Refresh error:', err);
       setError('Failed to refresh data');
     } finally {
       setLoading(false);
@@ -824,7 +898,7 @@ const SimplifiedSettingsPage = () => {
             <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
               <Chip
                 icon={<CheckCircle />}
-                label="Simplified System"
+                label="Granular Permissions System"
                 color="success"
                 variant="outlined"
                 size="small"

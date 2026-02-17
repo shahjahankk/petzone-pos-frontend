@@ -35,6 +35,8 @@ import {
   IconButton,
   Tooltip,
   Alert,
+  AlertTitle,
+  Divider
 } from '@mui/material'
 import {
   Add,
@@ -46,15 +48,18 @@ import {
   Edit,
   Delete,
   Visibility,
+  Warning,
+  CheckCircle,
+  Block
 } from '@mui/icons-material'
 import * as yup from 'yup'
 
 const RetailersPage = () => {
   const dispatch = useDispatch()
   const { user } = useSelector((state) => state.auth)
-  const { warehouseSettings } = useSelector((state) => state.warehouses || { warehouseSettings: null })
+  const { warehouseSettings, loading: settingsLoading } = useSelector((state) => state.warehouses || { warehouseSettings: null, loading: false })
   
-  // ✅ NEW - Granular permissions for retailers
+  // ✅ Granular permissions for retailers
   const canCreateRetailer = user?.role === 'ADMIN' || 
     (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowRetailerCreate === true)
   
@@ -76,6 +81,11 @@ const RetailersPage = () => {
   // For showing action column (if any action is allowed)
   const canManageRetailers = canCreate || canEdit || canDelete
   
+  // Permission warning for warehouse keepers without sufficient permissions
+  const showPermissionWarning = user?.role === 'WAREHOUSE_KEEPER' && 
+    !canCreate && !canEdit && !canDelete && 
+    warehouseSettings && !settingsLoading
+  
   const [filters, setFilters] = useState({
     status: 'all',
     location: 'all',
@@ -85,7 +95,9 @@ const RetailersPage = () => {
   // Dialog states
   const [formDialogOpen, setFormDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [editingRetailer, setEditingRetailer] = useState(null)
+  const [viewingRetailer, setViewingRetailer] = useState(null)
   const [retailerToDelete, setRetailerToDelete] = useState(null)
   const [formData, setFormData] = useState({})
   const [formErrors, setFormErrors] = useState({})
@@ -122,16 +134,17 @@ const RetailersPage = () => {
 
   const getRetailerStats = () => {
     if (!retailers || !Array.isArray(retailers)) {
-      return { total: 0, active: 0, inactive: 0, warehouse: 0, branch: 0 }
+      return { total: 0, active: 0, inactive: 0, suspended: 0, warehouse: 0, branch: 0 }
     }
     
     const total = retailers.length
     const active = retailers.filter(r => r.status === 'ACTIVE' || r.status === 'active').length
     const inactive = retailers.filter(r => r.status === 'INACTIVE' || r.status === 'inactive').length
+    const suspended = retailers.filter(r => r.status === 'SUSPENDED' || r.status === 'suspended').length
     const warehouse = retailers.filter(r => r.warehouse_id !== null && r.warehouse_id !== undefined).length
     const branch = retailers.filter(r => r.warehouse_id === null || r.warehouse_id === undefined).length
 
-    return { total, active, inactive, warehouse, branch }
+    return { total, active, inactive, suspended, warehouse, branch }
   }
 
   const stats = getRetailerStats()
@@ -198,6 +211,11 @@ const RetailersPage = () => {
     })
     setFormErrors({})
     setFormDialogOpen(true)
+  }
+
+  const handleView = (retailer) => {
+    setViewingRetailer(retailer)
+    setViewDialogOpen(true)
   }
 
   const handleDelete = (retailer) => {
@@ -289,9 +307,24 @@ const RetailersPage = () => {
     setIsSubmitting(false)
   }
 
+  const handleViewClose = () => {
+    setViewDialogOpen(false)
+    setViewingRetailer(null)
+  }
+
   const handleDeleteClose = () => {
     setDeleteDialogOpen(false)
     setRetailerToDelete(null)
+  }
+
+  // Get status chip color
+  const getStatusColor = (status) => {
+    switch(status?.toUpperCase()) {
+      case 'ACTIVE': return 'success'
+      case 'INACTIVE': return 'default'
+      case 'SUSPENDED': return 'error'
+      default: return 'default'
+    }
   }
 
   return (
@@ -328,6 +361,14 @@ const RetailersPage = () => {
           </Box>
         </Box>
 
+        {/* Permission Warning for Warehouse Keepers */}
+        {showPermissionWarning && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <AlertTitle>Limited Access</AlertTitle>
+            You have view-only access to retailers. Contact an administrator if you need to create, edit, or delete retailers.
+          </Alert>
+        )}
+
         {/* Stats Cards */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={2.4}>
@@ -359,7 +400,7 @@ const RetailersPage = () => {
                       {stats.active}
                     </Typography>
                   </Box>
-                  <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />
+                  <CheckCircle sx={{ fontSize: 40, color: 'success.main' }} />
                 </Box>
               </CardContent>
             </Card>
@@ -372,11 +413,28 @@ const RetailersPage = () => {
                     <Typography color="textSecondary" gutterBottom variant="h6">
                       Inactive
                     </Typography>
-                    <Typography variant="h4" color="error.main">
+                    <Typography variant="h4" color="textSecondary">
                       {stats.inactive}
                     </Typography>
                   </Box>
-                  <TrendingUp sx={{ fontSize: 40, color: 'error.main' }} />
+                  <Block sx={{ fontSize: 40, color: 'text.secondary' }} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={2.4}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">
+                      Suspended
+                    </Typography>
+                    <Typography variant="h4" color="error.main">
+                      {stats.suspended}
+                    </Typography>
+                  </Box>
+                  <Warning sx={{ fontSize: 40, color: 'error.main' }} />
                 </Box>
               </CardContent>
             </Card>
@@ -394,23 +452,6 @@ const RetailersPage = () => {
                     </Typography>
                   </Box>
                   <Store sx={{ fontSize: 40, color: 'info.main' }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2.4}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography color="textSecondary" gutterBottom variant="h6">
-                      Branch
-                    </Typography>
-                    <Typography variant="h4" color="secondary.main">
-                      {stats.branch}
-                    </Typography>
-                  </Box>
-                  <TrendingUp sx={{ fontSize: 40, color: 'secondary.main' }} />
                 </Box>
               </CardContent>
             </Card>
@@ -456,6 +497,7 @@ const RetailersPage = () => {
         {/* Error Alert */}
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
+            <AlertTitle>Error</AlertTitle>
             {error}
           </Alert>
         )}
@@ -507,6 +549,9 @@ const RetailersPage = () => {
                                 <Typography variant="body2" fontWeight="bold">
                                 {retailer.name || 'Unnamed Retailer'}
                                 </Typography>
+                                <Typography variant="caption" color="textSecondary">
+                                  {retailer.email || 'No email'}
+                                </Typography>
                               </Box>
                             </Box>
                           </TableCell>
@@ -533,7 +578,7 @@ const RetailersPage = () => {
                             <TableCell>
                               <Chip 
                               label={retailer.status || 'unknown'} 
-                              color={retailer.status === 'ACTIVE' || retailer.status === 'active' ? 'success' : 'default'}
+                              color={getStatusColor(retailer.status)}
                               size="small"
                             />
                           </TableCell>
@@ -546,7 +591,7 @@ const RetailersPage = () => {
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2">
-                              {parseFloat(retailer.creditLimit || 0).toFixed(2)}
+                              ${parseFloat(retailer.creditLimit || 0).toFixed(2)}
                                       </Typography>
                           </TableCell>
                           <TableCell>
@@ -572,7 +617,7 @@ const RetailersPage = () => {
                                 <Tooltip title="View Details">
                                   <IconButton
                                     size="small"
-                                    onClick={() => {}}
+                                    onClick={() => handleView(retailer)}
                                     color="info"
                                   >
                                     <Visibility fontSize="small" />
@@ -632,7 +677,18 @@ const RetailersPage = () => {
                   helperText={formErrors.name}
                   required
                 />
-                  </Grid>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  type="email"
+                  value={formData.email || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  error={!!formErrors.email}
+                  helperText={formErrors.email}
+                />
+              </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
@@ -641,6 +697,16 @@ const RetailersPage = () => {
                   onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   error={!!formErrors.phone}
                   helperText={formErrors.phone}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="City"
+                  value={formData.city || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                  error={!!formErrors.city}
+                  helperText={formErrors.city}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -653,22 +719,11 @@ const RetailersPage = () => {
                   helperText={formErrors.address}
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  fullWidth
-                  label="City"
-                  value={formData.city || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                  error={!!formErrors.city}
-                  helperText={formErrors.city}
-                />
-              </Grid>
-              
               
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="Credit Limit"
+                  label="Credit Limit ($)"
                   type="number"
                   value={formData.creditLimit || 0}
                   onChange={(e) => setFormData(prev => ({ ...prev, creditLimit: parseFloat(e.target.value) || 0 }))}
@@ -725,6 +780,85 @@ const RetailersPage = () => {
             <Button onClick={handleFormSubmit} variant="contained" disabled={loading || isSubmitting}>
               {isSubmitting ? <CircularProgress size={20} /> : (editingRetailer ? 'Update' : 'Create')}
             </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* View Details Dialog */}
+        <Dialog open={viewDialogOpen} onClose={handleViewClose} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Store />
+              <Typography variant="h6">Retailer Details</Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent dividers>
+            {viewingRetailer && (
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="textSecondary">Name</Typography>
+                  <Typography variant="body1">{viewingRetailer.name || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Divider />
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="textSecondary">Email</Typography>
+                  <Typography variant="body1">{viewingRetailer.email || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="textSecondary">Phone</Typography>
+                  <Typography variant="body1">{viewingRetailer.phone || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="textSecondary">Address</Typography>
+                  <Typography variant="body1">{viewingRetailer.address || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="textSecondary">City</Typography>
+                  <Typography variant="body1">{viewingRetailer.city || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="textSecondary">Status</Typography>
+                  <Chip 
+                    label={viewingRetailer.status || 'unknown'} 
+                    color={getStatusColor(viewingRetailer.status)}
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="textSecondary">Payment Terms</Typography>
+                  <Typography variant="body1">{viewingRetailer.paymentTerms || 'CASH'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="textSecondary">Credit Limit</Typography>
+                  <Typography variant="body1">${parseFloat(viewingRetailer.creditLimit || 0).toFixed(2)}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="textSecondary">Notes</Typography>
+                  <Typography variant="body1">{viewingRetailer.notes || 'No notes'}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="textSecondary">Created</Typography>
+                  <Typography variant="body2">
+                    {viewingRetailer.createdAt ? new Date(viewingRetailer.createdAt).toLocaleString() : 'Unknown'}
+                  </Typography>
+                </Grid>
+              </Grid>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleViewClose}>Close</Button>
+            {canEdit && viewingRetailer && (
+              <Button 
+                onClick={() => {
+                  handleViewClose()
+                  handleEdit(viewingRetailer)
+                }} 
+                color="primary"
+              >
+                Edit
+              </Button>
+            )}
           </DialogActions>
         </Dialog>
 

@@ -34,6 +34,8 @@ import {
   CircularProgress,
   Alert,
   Avatar,
+  AlertTitle,
+  Divider
 } from '@mui/material'
 import {
   Search, 
@@ -54,6 +56,9 @@ import {
   Paid,
   Today,
   Visibility as ViewIcon,
+  Warning,
+  CheckCircle,
+  Block
 } from '@mui/icons-material'
 import withAuth from '../../../components/auth/withAuth'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
@@ -124,18 +129,21 @@ function CompaniesPage() {
   const dispatch = useDispatch()
   const router = useRouter()
   const { user } = useSelector((state) => state.auth)
-  const { warehouseSettings } = useSelector((state) => state.warehouses || { warehouseSettings: null })
-  const { branchSettings } = useSelector((state) => state.branches || { branchSettings: null })
+  const { warehouseSettings, loading: warehouseLoading } = useSelector((state) => state.warehouses || { warehouseSettings: null, loading: false })
+  const { branchSettings, loading: branchLoading } = useSelector((state) => state.branches || { branchSettings: null, loading: false })
   
   // NEW: Granular permissions for companies
   const canCreateCompany = user?.role === 'ADMIN' || 
-    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyCreate === true)
+    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyCreate === true) ||
+    (user?.role === 'CASHIER' && branchSettings?.allowCompanyCreate === true)
 
   const canEditCompany = user?.role === 'ADMIN' || 
-    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyEdit === true)
+    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyEdit === true) ||
+    (user?.role === 'CASHIER' && branchSettings?.allowCompanyEdit === true)
 
   const canDeleteCompany = user?.role === 'ADMIN' || 
-    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyDelete === true)
+    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyDelete === true) ||
+    (user?.role === 'CASHIER' && branchSettings?.allowCompanyDelete === true)
 
   // For backward compatibility (if old setting still exists)
   const canManageCompaniesOld = user?.role === 'ADMIN' || 
@@ -149,6 +157,12 @@ function CompaniesPage() {
   
   // For showing action column (if any action is allowed)
   const canManageCompanies = canCreate || canEdit || canDelete
+  
+  // Permission warning for non-admin users without sufficient permissions
+  const showPermissionWarning = (user?.role === 'WAREHOUSE_KEEPER' || user?.role === 'CASHIER') && 
+    !canCreate && !canEdit && !canDelete && 
+    ((user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings && !warehouseLoading) ||
+     (user?.role === 'CASHIER' && branchSettings && !branchLoading))
   
   // Filter state
   const [filters, setFilters] = useState({
@@ -356,19 +370,30 @@ function CompaniesPage() {
   // Get company statistics
   const getCompanyStats = (sourceCompanies) => {
     if (!sourceCompanies || !Array.isArray(sourceCompanies)) {
-      return { total: 0, active: 0, inactive: 0, warehouse: 0, branch: 0 }
+      return { total: 0, active: 0, inactive: 0, suspended: 0, warehouse: 0, branch: 0 }
     }
     
     const total = sourceCompanies.length
     const active = sourceCompanies.filter(c => c.status === 'active').length
-    const inactive = sourceCompanies.filter(c => c.status === 'inactive' || c.status === 'suspended').length
+    const inactive = sourceCompanies.filter(c => c.status === 'inactive').length
+    const suspended = sourceCompanies.filter(c => c.status === 'suspended').length
     const warehouse = sourceCompanies.filter(c => c.scopeType === 'WAREHOUSE').length
     const branch = sourceCompanies.filter(c => c.scopeType === 'BRANCH').length
 
-    return { total, active, inactive, warehouse, branch }
+    return { total, active, inactive, suspended, warehouse, branch }
   }
 
   const stats = getCompanyStats(filteredCompanies)
+
+  // Get status chip color
+  const getStatusColor = (status) => {
+    switch(status?.toLowerCase()) {
+      case 'active': return 'success'
+      case 'inactive': return 'default'
+      case 'suspended': return 'error'
+      default: return 'default'
+    }
+  }
 
   // Handle CRUD operations
   const handleCreate = () => {
@@ -382,9 +407,12 @@ function CompaniesPage() {
       address: null,
       status: 'active',
       transactionType: 'CASH',
-      scopeType: user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' : 'BRANCH',
+      scopeType: user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' : 
+                 user?.role === 'CASHIER' ? 'BRANCH' : 'BRANCH',
       scopeId: user?.role === 'WAREHOUSE_KEEPER'
         ? (user?.warehouseId ? String(user.warehouseId) : '')
+        : user?.role === 'CASHIER'
+        ? (user?.branchId ? String(user.branchId) : '')
         : '',
     })
     setFormErrors({})
@@ -440,9 +468,13 @@ function CompaniesPage() {
         contactPerson: normalizeOptional(formData.contactPerson),
         status: normalizeOptional(formData.status),
         transactionType: normalizeOptional(formData.transactionType),
-        scopeType: user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' : normalizeOptional(formData.scopeType),
+        scopeType: user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' : 
+                   user?.role === 'CASHIER' ? 'BRANCH' : 
+                   normalizeOptional(formData.scopeType),
         scopeId: user?.role === 'WAREHOUSE_KEEPER'
           ? (user?.warehouseId ? String(user.warehouseId) : '')
+          : user?.role === 'CASHIER'
+          ? (user?.branchId ? String(user.branchId) : '')
           : (normalizeOptional(formData.scopeId) ? String(formData.scopeId) : null),
       }
 
@@ -454,7 +486,7 @@ function CompaniesPage() {
       })
       
       console.log('🔧 Company data being sent:', companyData)
-      console.log('🔧 User role:', user?.role, 'Warehouse ID:', user?.warehouseId)
+      console.log('🔧 User role:', user?.role, 'Warehouse ID:', user?.warehouseId, 'Branch ID:', user?.branchId)
 
       if (editingCompany) {
         // Update existing company
@@ -533,9 +565,9 @@ function CompaniesPage() {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Box>
               <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <BusinessCenter />
-            Companies Management
-          </Typography>
+                <BusinessCenter />
+                Companies Management
+              </Typography>
               <Typography variant="subtitle1" color="textSecondary">
                 Manage company accounts and relationships
               </Typography>
@@ -567,7 +599,7 @@ function CompaniesPage() {
                 </Button>
               )}
             </Box>
-        </Box>
+          </Box>
           <Menu
             anchorEl={exportMenuAnchor}
             open={Boolean(exportMenuAnchor)}
@@ -584,31 +616,46 @@ function CompaniesPage() {
             </MenuItem>
           </Menu>
 
-        {/* Role-specific information */}
-        {user?.role === 'WAREHOUSE_KEEPER' && (
+          {/* Permission Warning for users with limited access */}
+          {showPermissionWarning && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              <AlertTitle>Limited Access</AlertTitle>
+              You have view-only access to companies. Contact an administrator if you need to create, edit, or delete companies.
+            </Alert>
+          )}
+
+          {/* Role-specific information */}
+          {user?.role === 'WAREHOUSE_KEEPER' && (
             <Alert 
               severity={canManageCompanies ? 'info' : 'warning'} 
               sx={{ mb: 3 }}
             >
               <Typography variant="body2">
-              <strong>Warehouse Keeper Access:</strong> {
-                canManageCompanies 
+                <strong>Warehouse Keeper Access:</strong> {
+                  canManageCompanies 
                     ? `You can view and manage companies for your warehouse (ID: ${user?.warehouseId}).`
                   : 'Company management is currently disabled for your warehouse. Contact your administrator to enable this feature.'
-              }
+                }
               </Typography>
             </Alert>
           )}
 
-        {user?.role === 'CASHIER' && (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Typography variant="body2">
-              <strong>Cashier Access:</strong> You can view companies assigned to your branch (ID: {user?.branchId}). Contact your administrator if you need changes.
-            </Typography>
-          </Alert>
-        )}
+          {user?.role === 'CASHIER' && (
+            <Alert 
+              severity={canManageCompanies ? 'info' : 'info'} 
+              sx={{ mb: 3 }}
+            >
+              <Typography variant="body2">
+                <strong>Cashier Access:</strong> {
+                  canManageCompanies 
+                    ? `You can view and manage companies for your branch (ID: ${user?.branchId}).`
+                  : `You can view companies assigned to your branch (ID: ${user?.branchId}). Contact your administrator if you need to manage companies.`
+                }
+              </Typography>
+            </Alert>
+          )}
 
-          {/* Stats Cards */}
+          {/* Stats Cards - Updated with Suspended stat */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={6} md={2.4}>
               <Card>
@@ -639,7 +686,7 @@ function CompaniesPage() {
                         {stats.active}
                       </Typography>
                     </Box>
-                    <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />
+                    <CheckCircle sx={{ fontSize: 40, color: 'success.main' }} />
                   </Box>
                 </CardContent>
               </Card>
@@ -652,11 +699,28 @@ function CompaniesPage() {
                       <Typography color="textSecondary" gutterBottom variant="h6">
                         Inactive
                       </Typography>
-                      <Typography variant="h4" color="error.main">
+                      <Typography variant="h4" color="textSecondary">
                         {stats.inactive}
                       </Typography>
                     </Box>
-                    <TrendingUp sx={{ fontSize: 40, color: 'error.main' }} />
+                    <Block sx={{ fontSize: 40, color: 'text.secondary' }} />
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2.4}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography color="textSecondary" gutterBottom variant="h6">
+                        Suspended
+                      </Typography>
+                      <Typography variant="h4" color="error.main">
+                        {stats.suspended}
+                      </Typography>
+                    </Box>
+                    <Warning sx={{ fontSize: 40, color: 'error.main' }} />
                   </Box>
                 </CardContent>
               </Card>
@@ -674,23 +738,6 @@ function CompaniesPage() {
                       </Typography>
                     </Box>
                     <BusinessCenter sx={{ fontSize: 40, color: 'info.main' }} />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2.4}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Branch
-                      </Typography>
-                      <Typography variant="h4" color="secondary.main">
-                        {stats.branch}
-                      </Typography>
-                    </Box>
-                    <Business sx={{ fontSize: 40, color: 'secondary.main' }} />
                   </Box>
                 </CardContent>
               </Card>
@@ -765,92 +812,93 @@ function CompaniesPage() {
             </Grid>
           </Grid>
 
-        {/* Filters */}
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-              label="Search Companies"
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              size="small"
-              sx={{ minWidth: 250 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search />
-                  </InputAdornment>
-                )
-              }}
-            />
-            
-            {user?.role === 'ADMIN' && (
-              <FormControl size="small" sx={{ minWidth: 150 }}>
-                <InputLabel>Scope Type</InputLabel>
-                <Select
-                  value={filters.scopeType}
-                  onChange={(e) => handleFilterChange('scopeType', e.target.value)}
-                  label="Scope Type"
-                >
-                  <MenuItem value="all">All Scopes</MenuItem>
-                  <MenuItem value="BRANCH">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Business />
-                      Branch Companies
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="WAREHOUSE">
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <BusinessCenter />
-                      Warehouse Companies
-                    </Box>
-                  </MenuItem>
-                </Select>
-              </FormControl>
-            )}
+          {/* Filters */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+              <TextField
+                label="Search Companies"
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+                size="small"
+                sx={{ minWidth: 250 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  )
+                }}
+              />
+              
+              {user?.role === 'ADMIN' && (
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>Scope Type</InputLabel>
+                  <Select
+                    value={filters.scopeType}
+                    onChange={(e) => handleFilterChange('scopeType', e.target.value)}
+                    label="Scope Type"
+                  >
+                    <MenuItem value="all">All Scopes</MenuItem>
+                    <MenuItem value="BRANCH">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Business />
+                        Branch Companies
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="WAREHOUSE">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <BusinessCenter />
+                        Warehouse Companies
+                      </Box>
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+              )}
 
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Transaction Type</InputLabel>
-              <Select
-                value={filters.transactionType}
-                onChange={(e) => handleFilterChange('transactionType', e.target.value)}
-                label="Transaction Type"
-              >
-                <MenuItem value="all">All Types</MenuItem>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Transaction Type</InputLabel>
+                <Select
+                  value={filters.transactionType}
+                  onChange={(e) => handleFilterChange('transactionType', e.target.value)}
+                  label="Transaction Type"
+                >
+                  <MenuItem value="all">All Types</MenuItem>
                   <MenuItem value="CASH">Cash</MenuItem>
-                <MenuItem value="CREDIT">Credit</MenuItem>
+                  <MenuItem value="CREDIT">Credit</MenuItem>
                   <MenuItem value="CARD">Card</MenuItem>
                   <MenuItem value="DIGITAL">Digital</MenuItem>
-              </Select>
-            </FormControl>
+                </Select>
+              </FormControl>
 
-            {/* Active Filters Display */}
-            {(filters.scopeType !== 'all' || filters.transactionType !== 'all') && (
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                <Typography variant="body2" color="textSecondary">
-                  Active filters:
-                </Typography>
-                {user?.role === 'ADMIN' && filters.scopeType !== 'all' && (
-                  <Chip
-                    label={`Scope: ${filters.scopeType}`}
-                    size="small"
-                    onDelete={() => handleFilterChange('scopeType', 'all')}
-                  />
-                )}
-                {filters.transactionType !== 'all' && (
-                  <Chip
-                    label={`Type: ${filters.transactionType}`}
-                    size="small"
-                    onDelete={() => handleFilterChange('transactionType', 'all')}
-                  />
-                )}
-              </Box>
-            )}
-          </Box>
-        </Paper>
+              {/* Active Filters Display */}
+              {(filters.scopeType !== 'all' || filters.transactionType !== 'all') && (
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <Typography variant="body2" color="textSecondary">
+                    Active filters:
+                  </Typography>
+                  {user?.role === 'ADMIN' && filters.scopeType !== 'all' && (
+                    <Chip
+                      label={`Scope: ${filters.scopeType}`}
+                      size="small"
+                      onDelete={() => handleFilterChange('scopeType', 'all')}
+                    />
+                  )}
+                  {filters.transactionType !== 'all' && (
+                    <Chip
+                      label={`Type: ${filters.transactionType}`}
+                      size="small"
+                      onDelete={() => handleFilterChange('transactionType', 'all')}
+                    />
+                  )}
+                </Box>
+              )}
+            </Box>
+          </Paper>
 
           {/* Error Alert */}
           {error && (
             <Alert severity="error" sx={{ mb: 3 }}>
+              <AlertTitle>Error</AlertTitle>
               {error}
             </Alert>
           )}
@@ -947,7 +995,7 @@ function CompaniesPage() {
                             <TableCell>
                               <Chip 
                                 label={company.status || 'unknown'} 
-                                color={company.status === 'active' ? 'success' : 'default'}
+                                color={getStatusColor(company.status)}
                                 size="small"
                               />
                             </TableCell>
@@ -1061,7 +1109,6 @@ function CompaniesPage() {
                     onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
                     error={!!formErrors.code}
                     helperText={formErrors.code}
-                    required
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -1072,7 +1119,6 @@ function CompaniesPage() {
                     onChange={(e) => setFormData(prev => ({ ...prev, contactPerson: e.target.value }))}
                     error={!!formErrors.contactPerson}
                     helperText={formErrors.contactPerson}
-                    required
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -1121,7 +1167,6 @@ function CompaniesPage() {
                     onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
                     error={!!formErrors.address}
                     helperText={formErrors.address}
-                    required
                   />
                 </Grid>
                 {user?.role === 'ADMIN' ? (
@@ -1158,10 +1203,24 @@ function CompaniesPage() {
                         Scope Assignment
                       </Typography>
                       <Typography variant="body1" fontWeight="medium">
-                        Warehouse: {user?.warehouseName || 'Your Warehouse'}
+                        Warehouse: {user?.warehouseName || 'Your Warehouse'} (ID: {user?.warehouseId})
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Company will be automatically assigned to your warehouse scope
+                      </Typography>
+                    </Box>
+                  </Grid>
+                ) : user?.role === 'CASHIER' ? (
+                  <Grid item xs={12}>
+                    <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                        Scope Assignment
+                      </Typography>
+                      <Typography variant="body1" fontWeight="medium">
+                        Branch: {user?.branchName || 'Your Branch'} (ID: {user?.branchId})
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Company will be automatically assigned to your branch scope
                       </Typography>
                     </Box>
                   </Grid>
@@ -1184,9 +1243,9 @@ function CompaniesPage() {
             </DialogContent>
             <DialogActions>
               <Button onClick={handleFormClose}>Cancel</Button>
-            <Button onClick={handleFormSubmit} variant="contained" disabled={loading || isSubmitting}>
-              {isSubmitting ? <CircularProgress size={20} /> : (editingCompany ? 'Update' : 'Create')}
-            </Button>
+              <Button onClick={handleFormSubmit} variant="contained" disabled={loading || isSubmitting}>
+                {isSubmitting ? <CircularProgress size={20} /> : (editingCompany ? 'Update' : 'Create')}
+              </Button>
             </DialogActions>
           </Dialog>
 
