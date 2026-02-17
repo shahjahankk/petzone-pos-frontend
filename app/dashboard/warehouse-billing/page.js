@@ -288,7 +288,6 @@ function WarehouseBillingPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [showPrinterDialog, setShowPrinterDialog] = useState(false)
   const [showPrintDialog, setShowPrintDialog] = useState(false)
-  const urlParamsParsed = useRef(false)
 
   const retailerDisplayName = useMemo(() => {
     if (selectedRetailer?.name) {
@@ -487,29 +486,7 @@ function WarehouseBillingPage() {
         name: retailerInfo.name,
         phone: retailerInfo.phone
       },
-      outstandingPayments: outstandingIds,
-
-      // Scope: admin simulation uses scopeInfo, real roles use user fields
-      scopeType: scopeInfo?.scopeType
-        || (user?.role === 'CASHIER' ? 'BRANCH' : 'WAREHOUSE'),
-      scopeId: scopeInfo?.scopeId
-        || (user?.role === 'CASHIER' ? user?.branchId : user?.warehouseId),
-      warehouseId: (scopeInfo?.scopeType === 'WAREHOUSE'
-        ? scopeInfo.scopeId
-        : user?.warehouseId) || null,
-      branchId: (scopeInfo?.scopeType === 'BRANCH'
-        ? scopeInfo.scopeId
-        : user?.branchId) || null,
-
-      // Who actually made the sale — preserved even in admin simulation mode
-      cashierName: user?.originalUser?.name 
-        || user?.originalUser?.username 
-        || user?.name 
-        || user?.username 
-        || 'Admin',
-      cashierRole: user?.originalRole || user?.role || 'ADMIN',
-      cashierId: user?.originalUser?.id || user?.id || null,
-      isAdminSimulation: !!user?.isAdminMode,
+      outstandingPayments: outstandingIds
     }
 
     return { payload, retailerInfo, salespersonInfo }
@@ -867,23 +844,7 @@ function WarehouseBillingPage() {
 
   }, [barcodeInput, handleBarcodeScan])
 
-useEffect(() => {
-  if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search)
-    const role = params.get('role')
-    const scope = params.get('scope')
-    const id = params.get('id')
 
-    if (role && scope && id && originalUser?.role === 'ADMIN') {
-      setUrlParams({ role, scope, id })
-      setIsAdminMode(true)
-    } else {
-      setUrlParams({})
-      setIsAdminMode(false)
-    }
-    urlParamsParsed.current = true  // ← mark as parsed
-  }
-}, [originalUser])
 
   // Create new tab
 
@@ -1045,32 +1006,54 @@ useEffect(() => {
 
 
 
- // Effect 1: Load inventory based on user/scope
-useEffect(() => {
-  if (!user) return
-  if (!urlParamsParsed.current) return  // ← wait for URL parse
-  const params = { limit: 'all' }
+  // Load inventory and other data
 
-  if (user.role === 'CASHIER') {
-    params.scopeType = 'BRANCH'
-    if (user.branchId) params.scopeId = user.branchId
-  } else if (user.role === 'WAREHOUSE_KEEPER' && user.warehouseId) {
-    params.scopeType = 'WAREHOUSE'
-    params.scopeId = user.warehouseId
-  } else if (isAdminMode && scopeInfo) {
-    params.scopeType = scopeInfo.scopeType
-    params.scopeId = scopeInfo.scopeId
-  }
-  // Admin without admin mode: no restrictions (fetch all)
+  useEffect(() => {
 
-  dispatch(fetchInventory(params))
-  dispatch(fetchSales())
-}, [dispatch, user, isAdminMode, scopeInfo])
+    // Load inventory based on user's scope
 
-// Effect 2: Load printers once on mount
-useEffect(() => {
-  loadAvailablePrinters()
-}, [loadAvailablePrinters])
+    if (user) {
+
+      const params = {}
+
+      
+      // Fetch full inventory for billing/search (backend supports limit=all)
+      params.limit = 'all';
+      
+      if (user.role === 'CASHIER') {
+        // Cashiers can see inventory for their specific branch
+        params.scopeType = 'BRANCH'
+        if (user.branchId) {
+          params.scopeId = user.branchId
+        }
+      } else if (user.role === 'WAREHOUSE_KEEPER' && user.warehouseId) {
+        // Warehouse keepers can see inventory for their specific warehouse
+        params.scopeType = 'WAREHOUSE'
+        params.scopeId = user.warehouseId
+      } else if (user.role === 'ADMIN' && !isAdminMode) {
+        // Admin without role simulation can see all inventory
+        // No scope restrictions
+      }
+
+      
+      
+      dispatch(fetchInventory(params))
+
+    }
+
+    
+    
+    // Load sales data for customer search
+
+    dispatch(fetchSales())
+
+    
+    
+    // Load available printers
+
+    loadAvailablePrinters()
+
+  }, [dispatch, user, loadAvailablePrinters, isAdminMode])
 
 
 
@@ -4908,15 +4891,6 @@ const handleSaleOnly = async () => {
   }
 
 
-  useEffect(() => {
-    resetCachedSerialPort()
-  }, [user?.id])
-
-  useEffect(() => {
-    return () => {
-      resetCachedSerialPort()
-    }
-  }, [])
 
   // Tab component
 
@@ -4926,6 +4900,15 @@ const handleSaleOnly = async () => {
 
     const hasItems = itemCount > 0
 
+  useEffect(() => {
+    resetCachedSerialPort()
+  }, [user?.id])
+
+  useEffect(() => {
+    return () => {
+      resetCachedSerialPort()
+    }
+  }, [])
 
   return (
 
@@ -5046,7 +5029,7 @@ const handleSaleOnly = async () => {
 
   return (
 
-    <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER','WAREHOUSE_KEEPER']}>
+    <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}>
 
       <DashboardLayout>
         {/* Admin Mode Indicator */}

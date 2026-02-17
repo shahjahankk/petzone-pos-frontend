@@ -1183,9 +1183,9 @@ const rawInventory = Array.isArray(inventory) ? inventory : []
                 <CircularProgress />
               </Box>
             ) : error ? (
-               <Alert severity="error" sx={{ mb: 2 }}>
-    {typeof error === 'string' ? error : error?.message || 'Failed to load inventory'}
-  </Alert>
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
             ) : (
               <>
               <TableContainer component={Paper}>
