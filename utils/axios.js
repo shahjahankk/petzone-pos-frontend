@@ -87,6 +87,27 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    // ============================================================
+    // ADMIN SIMULATION HEADERS
+    // If admin has selected a warehouse/branch to simulate,
+    // inject the scope headers into every request automatically
+    // ============================================================
+    if (typeof window !== 'undefined') {
+      try {
+        const simulation = sessionStorage.getItem('adminSimulation')
+        if (simulation) {
+          const { scopeType, scopeId } = JSON.parse(simulation)
+          if (scopeType && scopeId) {
+            config.headers['x-simulate-scope-type'] = scopeType
+            config.headers['x-simulate-scope-id'] = String(scopeId)
+          }
+        }
+      } catch (e) {
+        // If sessionStorage parse fails, remove corrupted data
+        sessionStorage.removeItem('adminSimulation')
+      }
+    }
     
     return config
   },
@@ -248,6 +269,8 @@ export const authAPI = {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
+      // Clear simulation on logout
+      sessionStorage.removeItem('adminSimulation')
     }
   },
 
@@ -265,6 +288,8 @@ export const authAPI = {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
+      // Clear simulation when clearing tokens
+      sessionStorage.removeItem('adminSimulation')
     }
   },
 

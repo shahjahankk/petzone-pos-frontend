@@ -20,6 +20,8 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  Button,
+  Chip,
 } from '@mui/material'
 import {
   Store as StoreIcon,
@@ -32,7 +34,9 @@ import {
   Business as BusinessIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
-  Security as SecurityIcon
+  Security as SecurityIcon,
+  Clear as ClearIcon,
+  PlayArrow as SimulateIcon,
 } from '@mui/icons-material'
 
 import DashboardLayout from '../../../components/layout/DashboardLayout'
@@ -51,17 +55,47 @@ const AdminDashboardPage = () => {
   const [selectedScope, setSelectedScope] = useState('')
   const [selectedScopeType, setSelectedScopeType] = useState('')
   const [selectedScopeData, setSelectedScopeData] = useState(null)
+  const [isSimulationActive, setIsSimulationActive] = useState(false)
 
   // Load branches/warehouses on page load
   useEffect(() => {
     dispatch(fetchBranches())
     dispatch(fetchWarehouses())
+
+    // Restore simulation state from sessionStorage on page load
+    try {
+      const existing = sessionStorage.getItem('adminSimulation')
+      if (existing) {
+        const { scopeType, scopeId } = JSON.parse(existing)
+        setSelectedScopeType(scopeType)
+        setSelectedScope(String(scopeId))
+        setIsSimulationActive(true)
+      }
+    } catch (e) {
+      sessionStorage.removeItem('adminSimulation')
+    }
   }, [dispatch])
 
-  // Handle scope selection
+  // Restore selectedScopeData after branches/warehouses load
+  useEffect(() => {
+    if (!selectedScope || !selectedScopeType) return
+
+    const numericId = Number(selectedScope)
+    if (selectedScopeType === 'BRANCH' && branches.length > 0) {
+      const branch = branches.find(b => b.id === numericId)
+      if (branch) setSelectedScopeData(branch)
+    }
+    if (selectedScopeType === 'WAREHOUSE' && warehouses.length > 0) {
+      const warehouse = warehouses.find(w => w.id === numericId)
+      if (warehouse) setSelectedScopeData(warehouse)
+    }
+  }, [branches, warehouses, selectedScope, selectedScopeType])
+
+  // Handle scope selection - saves to sessionStorage so axios sends headers
   const handleScopeChange = (newScopeType, newScopeId) => {
     setSelectedScopeType(newScopeType)
     setSelectedScope(newScopeId)
+    setIsSimulationActive(false) // Reset until user clicks Activate
 
     const numericId = Number(newScopeId)
 
@@ -76,16 +110,36 @@ const AdminDashboardPage = () => {
     }
   }
 
+  // Activate simulation - saves to sessionStorage so all API calls use this scope
+  const handleActivateSimulation = () => {
+    if (!selectedScope || !selectedScopeType) return
+
+    try {
+      sessionStorage.setItem('adminSimulation', JSON.stringify({
+        scopeType: selectedScopeType,
+        scopeId: selectedScope
+      }))
+      setIsSimulationActive(true)
+    } catch (e) {
+      console.error('Failed to save simulation to sessionStorage', e)
+    }
+  }
+
+  // Clear simulation - removes from sessionStorage so API calls go back to normal
+  const handleClearSimulation = () => {
+    sessionStorage.removeItem('adminSimulation')
+    setSelectedScope('')
+    setSelectedScopeType('')
+    setSelectedScopeData(null)
+    setIsSimulationActive(false)
+  }
+
   const handlePOSAccess = () => {
     if (!selectedScope || selectedScopeType !== 'BRANCH') {
       alert('Please select a branch first')
       return
     }
-
-    const role = 'cashier'
-    const scope = 'branch'
-    const id = selectedScope
-    router.push(`/dashboard/pos/terminal?role=${role}&scope=${scope}&id=${id}`)
+    router.push(`/dashboard/pos/terminal?role=cashier&scope=branch&id=${selectedScope}`)
   }
 
   const handleWarehouseBillingAccess = () => {
@@ -93,11 +147,7 @@ const AdminDashboardPage = () => {
       alert('Please select a warehouse first')
       return
     }
-
-    const role = 'warehouse_keeper'
-    const scope = 'warehouse'
-    const id = selectedScope
-    router.push(`/dashboard/warehouse-billing?role=${role}&scope=${scope}&id=${id}`)
+    router.push(`/dashboard/warehouse-billing?role=warehouse_keeper&scope=warehouse&id=${selectedScope}`)
   }
 
   const handleInventoryAccess = () => {
@@ -105,11 +155,9 @@ const AdminDashboardPage = () => {
       alert('Please select a branch or warehouse first')
       return
     }
-
     const role = selectedScopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
     const scope = selectedScopeType.toLowerCase()
-    const id = selectedScope
-    router.push(`/dashboard/inventory?role=${role}&scope=${scope}&id=${id}`)
+    router.push(`/dashboard/inventory?role=${role}&scope=${scope}&id=${selectedScope}`)
   }
 
   const handleReportsAccess = () => {
@@ -117,11 +165,9 @@ const AdminDashboardPage = () => {
       alert('Please select a branch or warehouse first')
       return
     }
-
     const role = selectedScopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
     const scope = selectedScopeType.toLowerCase()
-    const id = selectedScope
-    router.push(`/dashboard/reports?role=${role}&scope=${scope}&id=${id}`)
+    router.push(`/dashboard/reports?role=${role}&scope=${scope}&id=${selectedScope}`)
   }
 
   const getScopeIcon = (type) => {
@@ -143,15 +189,42 @@ const AdminDashboardPage = () => {
 
       <Box sx={{ p: 3 }}>
         {/* Header */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <AdminIcon color="primary" />
-            Admin Dashboard
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Select a branch or warehouse to simulate working as that role.
-          </Typography>
+        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <AdminIcon color="primary" />
+              Admin Dashboard
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Select a branch or warehouse to simulate working as that role.
+            </Typography>
+          </Box>
+
+          {/* Active simulation badge */}
+          {isSimulationActive && (
+            <Chip
+              icon={<SimulateIcon />}
+              label={`Simulating: ${selectedScopeData?.name || selectedScopeType}`}
+              color={selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'}
+              variant="filled"
+              onDelete={handleClearSimulation}
+              deleteIcon={<ClearIcon />}
+              sx={{ fontWeight: 'bold', fontSize: '0.9rem', p: 1 }}
+            />
+          )}
         </Box>
+
+        {/* Active simulation warning banner */}
+        {isSimulationActive && (
+          <Alert severity="warning" sx={{ mb: 3 }} action={
+            <Button color="inherit" size="small" onClick={handleClearSimulation} startIcon={<ClearIcon />}>
+              Clear
+            </Button>
+          }>
+            <strong>Simulation Active:</strong> All API calls are now scoped to <strong>{selectedScopeData?.name}</strong>. 
+            You are acting as admin but within this {getScopeLabel(selectedScopeType).toLowerCase()}'s scope.
+          </Alert>
+        )}
 
         {/* Scope Selection */}
         <Grid container spacing={3}>
@@ -247,20 +320,48 @@ const AdminDashboardPage = () => {
                   {getScopeIcon(selectedScopeType)}
                 </Avatar>
 
-                <Box>
+                <Box sx={{ flex: 1 }}>
                   <Typography variant="h6">
-                    Simulating {getScopeLabel(selectedScopeType)} User
+                    {isSimulationActive ? '🟢 Simulation Active' : '⚪ Simulation Ready'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {selectedScopeData?.name} - {selectedScopeData?.location}
+                    {selectedScopeData?.name} — {selectedScopeData?.location}
                   </Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  {!isSimulationActive && (
+                    <Button
+                      variant="contained"
+                      color={selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'}
+                      startIcon={<SimulateIcon />}
+                      onClick={handleActivateSimulation}
+                    >
+                      Activate Simulation
+                    </Button>
+                  )}
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<ClearIcon />}
+                    onClick={handleClearSimulation}
+                  >
+                    Clear
+                  </Button>
                 </Box>
               </Box>
 
-              <Alert severity="info">
-                You will navigate to pages with simulation params in the URL. 
-                All operations will be scoped to <b>{selectedScopeData?.name}</b>.
-              </Alert>
+              {!isSimulationActive ? (
+                <Alert severity="info">
+                  Click <strong>Activate Simulation</strong> to scope all API calls to <strong>{selectedScopeData?.name}</strong>. 
+                  Once active, any action you take (create retailer, make sale, etc.) will be saved under your admin account but scoped to this {getScopeLabel(selectedScopeType).toLowerCase()}.
+                </Alert>
+              ) : (
+                <Alert severity="success">
+                  ✅ Simulation is active for <strong>{selectedScopeData?.name}</strong>. 
+                  All API calls are now scoped to this {getScopeLabel(selectedScopeType).toLowerCase()}. Records will be saved with your admin identity.
+                </Alert>
+              )}
             </CardContent>
           </Card>
         )}
@@ -341,9 +442,19 @@ const AdminDashboardPage = () => {
                 <ListItemIcon>
                   <SecurityIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText 
-                  primary="Select Scope" 
-                  secondary="Choose branch or warehouse to simulate" 
+                <ListItemText
+                  primary="1. Select Scope"
+                  secondary="Choose a branch or warehouse from the dropdowns above"
+                />
+              </ListItem>
+
+              <ListItem>
+                <ListItemIcon>
+                  <SimulateIcon color="success" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="2. Activate Simulation"
+                  secondary="Click Activate Simulation to start scoping all API calls to the selected branch/warehouse"
                 />
               </ListItem>
 
@@ -351,19 +462,19 @@ const AdminDashboardPage = () => {
                 <ListItemIcon>
                   <PersonIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText 
-                  primary="Role Simulation" 
-                  secondary="System will act as if you're a cashier/warehouse keeper" 
+                <ListItemText
+                  primary="3. Work Normally"
+                  secondary="Create retailers, make sales, manage inventory — all saved under your admin account"
                 />
               </ListItem>
 
               <ListItem>
                 <ListItemIcon>
-                  <BusinessIcon color="primary" />
+                  <ClearIcon color="error" />
                 </ListItemIcon>
-                <ListItemText 
-                  primary="Scope Filtering" 
-                  secondary="All data will be automatically filtered by selected scope" 
+                <ListItemText
+                  primary="4. Clear When Done"
+                  secondary="Click Clear to stop simulation and return to normal admin mode"
                 />
               </ListItem>
 
@@ -371,9 +482,9 @@ const AdminDashboardPage = () => {
                 <ListItemIcon>
                   <LocationIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText 
-                  primary="Switch Anytime" 
-                  secondary="Return here to switch to a different branch/warehouse" 
+                <ListItemText
+                  primary="Switch Anytime"
+                  secondary="Return here to switch to a different branch or warehouse"
                 />
               </ListItem>
             </List>
