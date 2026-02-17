@@ -13,7 +13,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Chip,
   Alert,
   Paper,
   Avatar,
@@ -49,8 +48,6 @@ const AdminDashboardPage = () => {
   const { data: branches, loading: branchesLoading } = useSelector(state => state.branches)
   const { data: warehouses, loading: warehousesLoading } = useSelector(state => state.warehouses)
 
-  const { scopeType, scopeId } = useSelector(state => state.scope)
-
   const [selectedScope, setSelectedScope] = useState('')
   const [selectedScopeType, setSelectedScopeType] = useState('')
   const [selectedScopeData, setSelectedScopeData] = useState(null)
@@ -61,48 +58,23 @@ const AdminDashboardPage = () => {
     dispatch(fetchWarehouses())
   }, [dispatch])
 
-  // If scope exists in redux, reflect it in UI state
-  useEffect(() => {
-    if (!scopeType || !scopeId) return
-
-    setSelectedScopeType(scopeType)
-    setSelectedScope(scopeId.toString())
-
-    if (scopeType === 'BRANCH') {
-      const branch = branches?.find(b => b.id === scopeId)
-      setSelectedScopeData(branch || null)
-    }
-
-    if (scopeType === 'WAREHOUSE') {
-      const warehouse = warehouses?.find(w => w.id === scopeId)
-      setSelectedScopeData(warehouse || null)
-    }
-  }, [scopeType, scopeId, branches, warehouses])
-
   // Handle scope selection
   const handleScopeChange = (newScopeType, newScopeId) => {
-  setSelectedScopeType(newScopeType)
-  setSelectedScope(newScopeId)
-  setError(null)
+    setSelectedScopeType(newScopeType)
+    setSelectedScope(newScopeId)
 
-  const numericId = Number(newScopeId)
-  const simulatedRole = newScopeType === 'BRANCH' ? 'CASHIER' : 'WAREHOUSE_KEEPER'
+    const numericId = Number(newScopeId)
 
-  // STORE IN REDUX
-  
-  // USE THE NEW HELPER METHOD
-  authAPI.setSimulationMode(newScopeType, numericId, simulatedRole)
+    if (newScopeType === 'BRANCH') {
+      const branch = branches.find(b => b.id === numericId)
+      setSelectedScopeData(branch)
+    }
 
-  if (newScopeType === 'BRANCH') {
-    const branch = branches.find(b => b.id === numericId)
-    setSelectedScopeData(branch)
+    if (newScopeType === 'WAREHOUSE') {
+      const warehouse = warehouses.find(w => w.id === numericId)
+      setSelectedScopeData(warehouse)
+    }
   }
-
-  if (newScopeType === 'WAREHOUSE') {
-    const warehouse = warehouses.find(w => w.id === numericId)
-    setSelectedScopeData(warehouse)
-  }
-}
 
   const handlePOSAccess = () => {
     if (!selectedScope || selectedScopeType !== 'BRANCH') {
@@ -110,7 +82,10 @@ const AdminDashboardPage = () => {
       return
     }
 
-    router.push(`/dashboard/pos/terminal`)
+    const role = 'cashier'
+    const scope = 'branch'
+    const id = selectedScope
+    router.push(`/dashboard/pos/terminal?role=${role}&scope=${scope}&id=${id}`)
   }
 
   const handleWarehouseBillingAccess = () => {
@@ -119,7 +94,10 @@ const AdminDashboardPage = () => {
       return
     }
 
-    router.push(`/dashboard/warehouse-billing`)
+    const role = 'warehouse_keeper'
+    const scope = 'warehouse'
+    const id = selectedScope
+    router.push(`/dashboard/warehouse-billing?role=${role}&scope=${scope}&id=${id}`)
   }
 
   const handleInventoryAccess = () => {
@@ -128,7 +106,10 @@ const AdminDashboardPage = () => {
       return
     }
 
-    router.push(`/dashboard/inventory`)
+    const role = selectedScopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
+    const scope = selectedScopeType.toLowerCase()
+    const id = selectedScope
+    router.push(`/dashboard/inventory?role=${role}&scope=${scope}&id=${id}`)
   }
 
   const handleReportsAccess = () => {
@@ -137,7 +118,10 @@ const AdminDashboardPage = () => {
       return
     }
 
-    router.push(`/dashboard/reports`)
+    const role = selectedScopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
+    const scope = selectedScopeType.toLowerCase()
+    const id = selectedScope
+    router.push(`/dashboard/reports?role=${role}&scope=${scope}&id=${id}`)
   }
 
   const getScopeIcon = (type) => {
@@ -165,7 +149,7 @@ const AdminDashboardPage = () => {
             Admin Dashboard
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Select a branch or warehouse to work under that scope.
+            Select a branch or warehouse to simulate working as that role.
           </Typography>
         </Box>
 
@@ -265,22 +249,17 @@ const AdminDashboardPage = () => {
 
                 <Box>
                   <Typography variant="h6">
-                    Working as {getScopeLabel(selectedScopeType)} User
+                    Simulating {getScopeLabel(selectedScopeType)} User
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {selectedScopeData?.name} - {selectedScopeData?.location}
                   </Typography>
                 </Box>
-
-                <Chip
-                  label={`Scope: ${getScopeLabel(selectedScopeType)}`}
-                  color={getScopeColor(selectedScopeType)}
-                  variant="outlined"
-                />
               </Box>
 
               <Alert severity="info">
-                All operations will now be saved under <b>{selectedScopeData?.name}</b>.
+                You will navigate to pages with simulation params in the URL. 
+                All operations will be scoped to <b>{selectedScopeData?.name}</b>.
               </Alert>
             </CardContent>
           </Card>
@@ -362,28 +341,40 @@ const AdminDashboardPage = () => {
                 <ListItemIcon>
                   <SecurityIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Select Scope" secondary="Choose branch or warehouse first" />
+                <ListItemText 
+                  primary="Select Scope" 
+                  secondary="Choose branch or warehouse to simulate" 
+                />
               </ListItem>
 
               <ListItem>
                 <ListItemIcon>
                   <PersonIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Scope Mode" secondary="All actions will save inside selected scope" />
+                <ListItemText 
+                  primary="Role Simulation" 
+                  secondary="System will act as if you're a cashier/warehouse keeper" 
+                />
               </ListItem>
 
               <ListItem>
                 <ListItemIcon>
                   <BusinessIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Data Filter" secondary="Inventory, sales, billing will be filtered automatically" />
+                <ListItemText 
+                  primary="Scope Filtering" 
+                  secondary="All data will be automatically filtered by selected scope" 
+                />
               </ListItem>
 
               <ListItem>
                 <ListItemIcon>
                   <LocationIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Switch Anytime" secondary="Admin can switch branch/warehouse anytime" />
+                <ListItemText 
+                  primary="Switch Anytime" 
+                  secondary="Return here to switch to a different branch/warehouse" 
+                />
               </ListItem>
             </List>
           </CardContent>
