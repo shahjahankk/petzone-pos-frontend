@@ -222,8 +222,7 @@ const AdminDashboardPage = () => {
             </Button>
           }>
             <strong>Simulation Active:</strong> All API calls are now scoped to <strong>{selectedScopeData?.name}</strong>. 
-            You are acting as admin but within this {getScopeLabel(selectedScopeType).toLowerCase()}'s scope.
-          </Alert>
+                You are acting as admin but within this {getScopeLabel(selectedScopeType).toLowerCase()}&apos;s scope.          </Alert>
         )}
 
         {/* Scope Selection */}
@@ -354,7 +353,7 @@ const AdminDashboardPage = () => {
               {!isSimulationActive ? (
                 <Alert severity="info">
                   Click <strong>Activate Simulation</strong> to scope all API calls to <strong>{selectedScopeData?.name}</strong>. 
-                  Once active, any action you take (create retailer, make sale, etc.) will be saved under your admin account but scoped to this {getScopeLabel(selectedScopeType).toLowerCase()}.
+                  Once active, any action you take (create retailer, make sale, etc.) will be saved under your admin account but scoped to this {getScopeLabel(selectedScopeType).toLowerCase()}&apos;s scope.
                 </Alert>
               ) : (
                 <Alert severity="success">
