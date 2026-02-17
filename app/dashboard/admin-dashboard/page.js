@@ -39,11 +39,8 @@ import {
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import PermissionCheck from '../../../components/auth/PermissionCheck'
-
 import { fetchBranches } from '../../store/slices/branchesSlice'
 import { fetchWarehouses } from '../../store/slices/warehousesSlice'
-import { setScope, clearScope } from '../../store/slices/scopeSlice'
-
 const AdminDashboardPage = () => {
   const dispatch = useDispatch()
   const router = useRouter()
@@ -91,7 +88,6 @@ const AdminDashboardPage = () => {
   const simulatedRole = newScopeType === 'BRANCH' ? 'CASHIER' : 'WAREHOUSE_KEEPER'
 
   // STORE IN REDUX
-  dispatch(setScope({ scopeType: newScopeType, scopeId: numericId }))
   
   // USE THE NEW HELPER METHOD
   authAPI.setSimulationMode(newScopeType, numericId, simulatedRole)

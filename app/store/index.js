@@ -27,7 +27,6 @@ import warehouseSalesAnalyticsSlice from './slices/warehouseSalesAnalyticsSlice'
 import customerLedgerSlice from './slices/customerLedgerSlice'
 import financialVoucherSlice from './slices/financialVoucherSlice'
 import purchaseOrdersSlice from './slices/purchaseOrdersSlice'
-import scopeSlice from './slices/scopeSlice'
 
 export const store = configureStore({
   reducer: {
@@ -59,7 +58,6 @@ export const store = configureStore({
     customerLedger: customerLedgerSlice,
     financialVouchers: financialVoucherSlice,
     purchaseOrders: purchaseOrdersSlice,
-    scope: scopeSlice
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
