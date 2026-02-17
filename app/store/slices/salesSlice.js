@@ -3,12 +3,18 @@ import api from '../../../utils/axios'
 
 const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
-// Async thunks
+// ============================
+// FETCH SALES (FIXED)
+// ============================
 export const fetchSales = createAsyncThunk(
   'sales/fetchSales',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const stateScope = getState().scope || {}
+
+      // fallback: take from params if redux scope not set
+      const scopeType = params.scopeType || stateScope.scopeType
+      const scopeId = params.scopeId || stateScope.scopeId
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -16,15 +22,17 @@ export const fetchSales = createAsyncThunk(
         })
       }
 
+      // remove scopeType/scopeId from query
+      const { scopeType: _st, scopeId: _sid, ...restParams } = params
+
       const paramsWithScope = {
-        ...params,
+        ...restParams,
         branchId: scopeType === 'BRANCH' ? scopeId : undefined,
         warehouseId: scopeType === 'WAREHOUSE' ? scopeId : undefined
       }
 
-      const cacheKey = JSON.stringify(paramsWithScope || {})
-      const { cache } = getState().sales || {}
-      const cached = cache?.[cacheKey]
+      const cacheKey = JSON.stringify(paramsWithScope)
+      const cached = getState().sales?.cache?.[cacheKey]
 
       if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
         return { ...cached.payload, _fromCache: true }
@@ -34,22 +42,12 @@ export const fetchSales = createAsyncThunk(
 
       const response = await api.get('/sales', { params: paramsWithScope })
 
-      console.log('[SalesSlice] fetchSales - Response:', {
-        success: response.data?.success,
-        count: response.data?.count,
-        dataLength: response.data?.data?.length,
-        hasData: !!response.data?.data
-      })
-
-      return response.data
+      return {
+        ...response.data,
+        _cacheKey: cacheKey
+      }
     } catch (error) {
-      console.error('[SalesSlice] fetchSales - Error:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        params
-      })
+      console.error('[SalesSlice] fetchSales - Error:', error)
 
       const status = error.response?.status
       const serverMsg = error.response?.data?.message || error.response?.data || null
@@ -63,11 +61,14 @@ export const fetchSales = createAsyncThunk(
   }
 )
 
+// ============================
+// CREATE SALE (FIXED)
+// ============================
 export const createSale = createAsyncThunk(
   'sales/createSale',
   async (saleData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const { scopeType, scopeId } = getState().scope || {}
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -83,36 +84,43 @@ export const createSale = createAsyncThunk(
 
       const response = await api.post('/sales', payload)
 
-      if (response.data.success) {
+      if (response.data?.success) {
         return response.data
-      } else {
-        const message = response.data.message || 'Failed to create sale'
-        return rejectWithValue({ message, status: response.status })
       }
+
+      return rejectWithValue({
+        message: response.data?.message || 'Failed to create sale',
+        status: response.status
+      })
     } catch (error) {
       const status = error.response?.status
       const apiMessage = error.response?.data?.message || error.response?.data?.errors
-      const defaultMessage = 'Failed to create sale'
 
       if (status === 403) {
-        const permissionMessage =
-          apiMessage || 'Permission denied: please ask an admin to grant sales permissions for this scope.'
-        return rejectWithValue({ message: permissionMessage, status })
+        return rejectWithValue({
+          message:
+            apiMessage ||
+            'Permission denied: please ask an admin to grant sales permissions for this scope.',
+          status
+        })
       }
 
-      console.error('[SalesSlice] createSale error:', error)
-
-      const errorMessage = apiMessage || error.message || defaultMessage
-      return rejectWithValue({ message: errorMessage, status })
+      return rejectWithValue({
+        message: apiMessage || error.message || 'Failed to create sale',
+        status
+      })
     }
   }
 )
 
+// ============================
+// CREATE WAREHOUSE SALE (FIXED)
+// ============================
 export const createWarehouseSale = createAsyncThunk(
   'sales/createWarehouseSale',
   async (saleData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const { scopeType, scopeId } = getState().scope || {}
 
       if (scopeType !== 'WAREHOUSE' || !scopeId) {
         return rejectWithValue({
@@ -126,31 +134,44 @@ export const createWarehouseSale = createAsyncThunk(
       }
 
       const response = await api.post('/warehouse-sales', payload)
-      return response.data
-    } catch (error) {
-      const status = error.response?.status
-      const apiMessage = error.response?.data?.message || error.response?.data?.errors
-      const defaultMessage = 'Failed to create warehouse sale'
 
-      if (status === 403) {
-        const permissionMessage =
-          apiMessage || 'Permission denied: please ask an admin to grant warehouse sales permissions for this scope.'
-        return rejectWithValue({ message: permissionMessage, status })
+      if (response.data?.success) {
+        return response.data
       }
 
       return rejectWithValue({
-        message: apiMessage || error.message || defaultMessage,
+        message: response.data?.message || 'Failed to create warehouse sale',
+        status: response.status
+      })
+    } catch (error) {
+      const status = error.response?.status
+      const apiMessage = error.response?.data?.message || error.response?.data?.errors
+
+      if (status === 403) {
+        return rejectWithValue({
+          message:
+            apiMessage ||
+            'Permission denied: please ask an admin to grant warehouse sales permissions for this scope.',
+          status
+        })
+      }
+
+      return rejectWithValue({
+        message: apiMessage || error.message || 'Failed to create warehouse sale',
         status
       })
     }
   }
 )
 
+// ============================
+// UPDATE SALE (FIXED)
+// ============================
 export const updateSale = createAsyncThunk(
   'sales/updateSale',
   async ({ id, data }, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const { scopeType, scopeId } = getState().scope || {}
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -167,11 +188,16 @@ export const updateSale = createAsyncThunk(
       const response = await api.put(`/sales/${id}`, payload)
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to update sale')
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to update sale'
+      })
     }
   }
 )
 
+// ============================
+// DELETE SALE
+// ============================
 export const deleteSale = createAsyncThunk(
   'sales/deleteSale',
   async (id, { rejectWithValue }) => {
@@ -179,11 +205,16 @@ export const deleteSale = createAsyncThunk(
       await api.delete(`/sales/${id}`)
       return id
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to delete sale')
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to delete sale'
+      })
     }
   }
 )
 
+// ============================
+// GET SINGLE SALE
+// ============================
 export const getSale = createAsyncThunk(
   'sales/getSale',
   async (id, { rejectWithValue }) => {
@@ -191,16 +222,21 @@ export const getSale = createAsyncThunk(
       const response = await api.get(`/sales/${id}`)
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch sale')
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to fetch sale'
+      })
     }
   }
 )
 
+// ============================
+// FETCH SALES RETURNS
+// ============================
 export const fetchSalesReturns = createAsyncThunk(
   'sales/fetchSalesReturns',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const { scopeType, scopeId } = getState().scope || {}
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -217,23 +253,21 @@ export const fetchSalesReturns = createAsyncThunk(
       const response = await api.get('/sales/returns', { params: paramsWithScope })
       return response.data
     } catch (error) {
-      const status = error.response?.status
-      const serverMsg = error.response?.data?.message || error.response?.data || null
-
       return rejectWithValue({
-        message: error.message || 'Failed to fetch sales returns',
-        status,
-        serverMsg
+        message: error.response?.data?.message || error.message || 'Failed to fetch sales returns'
       })
     }
   }
 )
 
+// ============================
+// CREATE SALES RETURN
+// ============================
 export const createSalesReturn = createAsyncThunk(
   'sales/createSalesReturn',
   async (returnData, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const { scopeType, scopeId } = getState().scope || {}
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -250,23 +284,21 @@ export const createSalesReturn = createAsyncThunk(
       const response = await api.post('/sales/returns', payload)
       return response.data
     } catch (error) {
-      const status = error.response?.status
-      const serverMsg = error.response?.data?.message || error.response?.data || null
-
       return rejectWithValue({
-        message: error.message || 'Failed to create sales return',
-        status,
-        serverMsg
+        message: error.response?.data?.message || error.message || 'Failed to create sales return'
       })
     }
   }
 )
 
+// ============================
+// FETCH LATEST SALES
+// ============================
 export const fetchLatestSales = createAsyncThunk(
   'sales/fetchLatestSales',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const { scopeType, scopeId } = getState().scope || {}
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -282,16 +314,21 @@ export const fetchLatestSales = createAsyncThunk(
       const response = await api.get('/sales/latest', { params: paramsWithScope })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch latest sales')
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to fetch latest sales'
+      })
     }
   }
 )
 
+// ============================
+// FETCH SALES SUMMARY
+// ============================
 export const fetchSalesSummary = createAsyncThunk(
   'sales/fetchSalesSummary',
   async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const { scopeType, scopeId } = getState().scope
+      const { scopeType, scopeId } = getState().scope || {}
 
       if (!scopeType || !scopeId) {
         return rejectWithValue({
@@ -308,11 +345,16 @@ export const fetchSalesSummary = createAsyncThunk(
       const response = await api.get('/sales/summary', { params: paramsWithScope })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch sales summary')
+      return rejectWithValue({
+        message: error.response?.data?.message || error.message || 'Failed to fetch sales summary'
+      })
     }
   }
 )
 
+// ============================
+// INITIAL STATE
+// ============================
 const initialState = {
   data: [],
   returns: [],
@@ -334,16 +376,23 @@ const initialState = {
   error: null
 }
 
+// ============================
+// SLICE
+// ============================
 const salesSlice = createSlice({
   name: 'sales',
   initialState,
   reducers: {
     clearError: (state) => {
       state.error = null
+    },
+    clearSalesCache: (state) => {
+      state.cache = {}
     }
   },
   extraReducers: (builder) => {
     builder
+      // FETCH SALES
       .addCase(fetchSales.pending, (state) => {
         state.loading = true
         state.error = null
@@ -352,23 +401,22 @@ const salesSlice = createSlice({
         state.loading = false
 
         const payload = action.payload || {}
-        const data = payload.data || payload
+        const data = payload.data || []
 
         state.data = data
         state.error = null
 
         state.pagination = {
           page: payload.page || action.meta?.arg?.page || 1,
-          limit: payload.limit || action.meta?.arg?.limit || data?.length || 50,
-          total: payload.count ?? payload.total ?? data?.length ?? 0,
+          limit: payload.limit || action.meta?.arg?.limit || 50,
+          total: payload.count ?? payload.total ?? data.length ?? 0,
           totalPages:
             payload.totalPages ||
-            Math.max(1, Math.ceil((payload.count ?? data?.length ?? 0) / (payload.limit || data?.length || 50)))
+            Math.max(1, Math.ceil((payload.count ?? payload.total ?? data.length ?? 0) / (payload.limit || 50)))
         }
 
-        state.summary = payload.summary || state.summary
-
-        const cacheKey = JSON.stringify(action.meta?.arg || {})
+        // cache save (FIXED)
+        const cacheKey = payload._cacheKey || JSON.stringify(action.meta?.arg || {})
         state.cache[cacheKey] = {
           timestamp: Date.now(),
           payload
@@ -376,24 +424,25 @@ const salesSlice = createSlice({
       })
       .addCase(fetchSales.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload
+        state.error = action.payload || action.error
       })
 
+      // CREATE SALE
       .addCase(createSale.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(createSale.fulfilled, (state, action) => {
         state.loading = false
-        const newSale = action.payload.data || action.payload
-        state.data.push(newSale)
-        state.error = null
+        const newSale = action.payload?.data || action.payload
+        if (newSale) state.data.unshift(newSale)
       })
       .addCase(createSale.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload
+        state.error = action.payload || action.error
       })
 
+      // CREATE WAREHOUSE SALE
       .addCase(createWarehouseSale.pending, (state) => {
         state.loading = true
         state.error = null
@@ -404,123 +453,89 @@ const salesSlice = createSlice({
       })
       .addCase(createWarehouseSale.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload
+        state.error = action.payload || action.error
       })
 
+      // UPDATE SALE
       .addCase(updateSale.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(updateSale.fulfilled, (state, action) => {
         state.loading = false
-        const updatedSale = action.payload.data || action.payload
-        const index = state.data.findIndex((sale) => sale.id === updatedSale.id)
+        const updatedSale = action.payload?.data || action.payload
+
+        const index = state.data.findIndex((sale) => sale._id === updatedSale._id || sale.id === updatedSale.id)
 
         if (index !== -1) {
           state.data[index] = updatedSale
         }
-
-        state.error = null
       })
       .addCase(updateSale.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload
+        state.error = action.payload || action.error
       })
 
+      // DELETE SALE
       .addCase(deleteSale.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(deleteSale.fulfilled, (state, action) => {
         state.loading = false
-        state.data = state.data.filter((sale) => sale.id !== action.payload)
-        state.error = null
+        state.data = state.data.filter((sale) => sale._id !== action.payload && sale.id !== action.payload)
       })
       .addCase(deleteSale.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload
+        state.error = action.payload || action.error
       })
 
+      // GET SINGLE SALE
       .addCase(getSale.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(getSale.fulfilled, (state, action) => {
         state.loading = false
-        state.error = null
+        const saleData = action.payload?.data || action.payload
 
-        const saleData = action.payload.data || action.payload
-        const index = state.data.findIndex((sale) => sale.id === saleData.id)
+        const index = state.data.findIndex((sale) => sale._id === saleData._id || sale.id === saleData.id)
 
         if (index !== -1) {
           state.data[index] = saleData
         } else {
-          state.data.push(saleData)
+          state.data.unshift(saleData)
         }
       })
       .addCase(getSale.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload
+        state.error = action.payload || action.error
       })
 
-      .addCase(fetchSalesReturns.pending, (state) => {
-        state.loading = true
-        state.error = null
-      })
+      // RETURNS
       .addCase(fetchSalesReturns.fulfilled, (state, action) => {
         state.loading = false
-        state.returns = action.payload.data || action.payload
-        state.error = null
-      })
-      .addCase(fetchSalesReturns.rejected, (state, action) => {
-        state.loading = false
-        state.error = action.payload
-      })
-
-      .addCase(createSalesReturn.pending, (state) => {
-        state.loading = true
-        state.error = null
+        state.returns = action.payload?.data || action.payload || []
       })
       .addCase(createSalesReturn.fulfilled, (state, action) => {
         state.loading = false
-        const newReturn = action.payload.data || action.payload
-        state.returns.push(newReturn)
-        state.error = null
-      })
-      .addCase(createSalesReturn.rejected, (state, action) => {
-        state.loading = false
-        state.error = action.payload
+        const newReturn = action.payload?.data || action.payload
+        if (newReturn) state.returns.unshift(newReturn)
       })
 
-      .addCase(fetchLatestSales.pending, (state) => {
-        state.loading = true
-        state.error = null
-      })
+      // LATEST SALES
       .addCase(fetchLatestSales.fulfilled, (state, action) => {
         state.loading = false
-        state.latestSales = action.payload.sales || action.payload
-        state.error = null
-      })
-      .addCase(fetchLatestSales.rejected, (state, action) => {
-        state.loading = false
-        state.error = action.payload
+        state.latestSales = action.payload?.sales || action.payload?.data || action.payload || []
       })
 
-      .addCase(fetchSalesSummary.pending, (state) => {
-        state.loading = true
-        state.error = null
-      })
+      // SUMMARY
       .addCase(fetchSalesSummary.fulfilled, (state, action) => {
         state.loading = false
-        state.summary = action.payload.data || action.payload
-        state.error = null
-      })
-      .addCase(fetchSalesSummary.rejected, (state, action) => {
-        state.loading = false
-        state.error = action.payload
+        state.summary = action.payload?.data || action.payload || state.summary
       })
   }
 })
 
-export const { clearError } = salesSlice.actions
+export const { clearError, clearSalesCache } = salesSlice.actions
 export default salesSlice.reducer
