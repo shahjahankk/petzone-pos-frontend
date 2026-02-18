@@ -549,10 +549,11 @@ const transactions = (
                             <Box sx={{ fontSize: '0.75rem', lineHeight: 1.3 }}>
                               {transaction.items && transaction.items.length > 0 ? (
                                 transaction.items.map((item, itemIndex) => {
-                                  const itemName = item.item_name || item.name || 'N/A'
-                                  const quantity = item.quantity || 0
-                                  const unitPrice = item.unit_price || item.price || 0
-                                  const total = item.total || (quantity * unitPrice)
+                                  const itemName = item.item_name ?? item.name ?? 'N/A'
+                                  const quantity = parseFloat(item.quantity ?? 0)
+                                  const unitPrice = parseFloat(item.unit_price ?? item.price ?? 0)
+                                  const total = parseFloat(item.total ?? (quantity * unitPrice))
+
                                   
                                   return (
                                     <Box key={itemIndex} sx={{ mb: 0.5, pb: 0.5, borderBottom: '1px solid #f0f0f0' }}>
