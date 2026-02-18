@@ -150,28 +150,41 @@ import PrintDialog from '../print/PrintDialog'
     }, [sale])
 
     // Load available inventory items
-    useEffect(() => {
-        if (open && inventoryItems) {
-        // Filter inventory items based on user scope
-        let filteredItems = inventoryItems
-        
-        if (user?.role === 'CASHIER' && user?.branchId) {
-            // Get branch name for comparison
-            const branchName = user.branchName || `Branch ${user.branchId}`
-            filteredItems = inventoryItems.filter(item => 
-            item.scopeType === 'BRANCH' && item.scopeId === branchName
-            )
-        } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
-            // Get warehouse name for comparison
-            const warehouseName = user.warehouseName || `Warehouse ${user.warehouseId}`
-            filteredItems = inventoryItems.filter(item => 
-            item.scopeType === 'WAREHOUSE' && item.scopeId === warehouseName
-            )
-        }
-        
-        setAvailableItems(filteredItems)
-        }
-    }, [open, inventoryItems, user])
+  // Load available inventory items
+useEffect(() => {
+  if (open && inventoryItems) {
+    let filteredItems = inventoryItems;
+    
+    if (user?.role === 'CASHIER' && user?.branchId) {
+      filteredItems = inventoryItems.filter(item => 
+        item.scopeType === 'BRANCH' && 
+        (String(item.scopeId) === String(user.branchId))
+      )
+    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+      filteredItems = inventoryItems.filter(item => 
+        item.scopeType === 'WAREHOUSE' && 
+        (String(item.scopeId) === String(user.warehouseId))
+      )
+    } else if (user?.role === 'ADMIN') {
+      // Admin simulation: check if there are simulatedScope params in URL
+      const urlParams = new URLSearchParams(window.location.search)
+      const simRole = urlParams.get('role')
+      const simScope = urlParams.get('scope')
+      const simId = urlParams.get('id')
+      
+      if (simRole && simScope && simId) {
+        const scopeType = simScope.toUpperCase() === 'WAREHOUSE' ? 'WAREHOUSE' : 'BRANCH'
+        filteredItems = inventoryItems.filter(item =>
+          item.scopeType === scopeType &&
+          String(item.scopeId) === String(simId)
+        )
+      }
+      // else: no simulation, admin sees all items (no filter)
+    }
+    
+    setAvailableItems(filteredItems)
+  }
+}, [open, inventoryItems, user])
 
     // Calculate totals
     const calculateTotals = useCallback(() => {
