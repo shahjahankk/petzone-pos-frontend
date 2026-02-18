@@ -148,8 +148,12 @@ import PrintDialog from '../print/PrintDialog'
         })
         }
     }, [sale])
-
-    // Load available inventory items
+useEffect(() => {
+  if (open && (!inventoryItems || inventoryItems.length === 0)) {
+    dispatch(fetchInventory())
+  }
+}, [open,dispatch])
+   
   // Load available inventory items
 useEffect(() => {
   if (open && inventoryItems) {
