@@ -335,23 +335,25 @@ function InventoryPage() {
   
   const [urlParams, setUrlParams] = useState({})
   const [isAdminMode, setIsAdminMode] = useState(false)
-  
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const role = params.get('role')
-      const scope = params.get('scope')
-      const id = params.get('id')
-      
-      if (role && scope && id && originalUser?.role === 'ADMIN') {
-        setUrlParams({ role, scope, id })
-        setIsAdminMode(true)
-      } else {
-        setUrlParams({})
-        setIsAdminMode(false)
-      }
+  const [initialized, setInitialized] = useState(false)
+
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search)
+    const role = params.get('role')
+    const scope = params.get('scope')
+    const id = params.get('id')
+    
+    if (role && scope && id && originalUser?.role === 'ADMIN') {
+      setUrlParams({ role, scope, id })
+      setIsAdminMode(true)
+    } else {
+      setUrlParams({})
+      setIsAdminMode(false)
     }
-  }, [originalUser])
+    setInitialized(true)  // ← mark ready after URL parsed
+  }
+}, [originalUser])
   
   const getEffectiveUser = useCallback((originalUser) => {
     if (!isAdminMode || !urlParams.role) {
@@ -414,8 +416,8 @@ function InventoryPage() {
 
   useEffect(() => {
     if (isAdminMode && scopeInfo) {
-      setScopeFilter(scopeInfo.scopeType)
-    } else if (user?.role === 'CASHIER') {
+    setScopeFilter(scopeInfo.scopeType)    } 
+    else if (user?.role === 'CASHIER') {
       setScopeFilter('BRANCH')
     } else if (user?.role === 'WAREHOUSE_KEEPER') {
       setScopeFilter('WAREHOUSE')
@@ -525,53 +527,47 @@ function InventoryPage() {
     }
   }, [])
 
-  const getFetchParams = useCallback(() => {
-    const params = { 
-      page, 
-      limit: rowsPerPage 
-    }
-    
-    if (searchTerm.trim()) params.search = searchTerm.trim()
-    if (categoryFilter !== 'all') params.category = categoryFilter
+const getFetchParams = useCallback(() => {
+  const params = { page, limit: rowsPerPage }
+  
+  if (searchTerm.trim()) params.search = searchTerm.trim()
+  if (categoryFilter !== 'all') params.category = categoryFilter
 
-    // Handle scope filtering based on user role
-    if (isAdminMode && scopeInfo) {
-      params.scopeType = scopeInfo.scopeType
-      params.scopeId = String(scopeInfo.scopeId)
-    } else if (user?.role === 'CASHIER' && user?.branchId) {
-      params.scopeType = 'BRANCH'
-      params.scopeId = String(user.branchId)
-    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+  // Admin simulation takes absolute priority
+  if (isAdminMode && urlParams.scope && urlParams.id) {
+    params.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
+    params.scopeId = String(urlParams.id)
+  } else if (originalUser?.role === 'CASHIER' && originalUser?.branchId) {
+    params.scopeType = 'BRANCH'
+    params.scopeId = String(originalUser.branchId)
+  } else if (originalUser?.role === 'WAREHOUSE_KEEPER' && originalUser?.warehouseId) {
+    params.scopeType = 'WAREHOUSE'
+    params.scopeId = String(originalUser.warehouseId)
+  } else if (originalUser?.role === 'ADMIN') {
+    if (scopeFilter === 'WAREHOUSE' && selectedWarehouseId) {
       params.scopeType = 'WAREHOUSE'
-      params.scopeId = String(user.warehouseId)
-    } else if (user?.role === 'ADMIN') {
-      // Admin can filter by scope
-      if (scopeFilter === 'WAREHOUSE' && selectedWarehouseId) {
-        params.scopeType = 'WAREHOUSE'
-        params.scopeId = String(selectedWarehouseId)
-      } else if (scopeFilter === 'BRANCH' && selectedBranchId) {
-        params.scopeType = 'BRANCH'
-        params.scopeId = String(selectedBranchId)
-      } else if (scopeFilter === 'WAREHOUSE') {
-        params.scopeType = 'WAREHOUSE'
-        // No scopeId - show all warehouses
-      } else if (scopeFilter === 'BRANCH') {
-        params.scopeType = 'BRANCH'
-        // No scopeId - show all branches
-      }
+      params.scopeId = String(selectedWarehouseId)
+    } else if (scopeFilter === 'BRANCH' && selectedBranchId) {
+      params.scopeType = 'BRANCH'
+      params.scopeId = String(selectedBranchId)
+    } else if (scopeFilter === 'WAREHOUSE') {
+      params.scopeType = 'WAREHOUSE'
+    } else if (scopeFilter === 'BRANCH') {
+      params.scopeType = 'BRANCH'
     }
+  }
 
-    // Add sorting params to server
-    params.sortBy = sortBy
-    params.sortOrder = sortOrder
-    
-    return params
-  }, [
-    page, rowsPerPage, searchTerm, categoryFilter, 
-    isAdminMode, scopeInfo, user, scopeFilter, 
-    selectedWarehouseId, selectedBranchId,
-    sortBy, sortOrder
-  ])
+  params.sortBy = sortBy
+  params.sortOrder = sortOrder
+  
+  return params
+}, [
+  page, rowsPerPage, searchTerm, categoryFilter,
+  isAdminMode, urlParams,           // ← use urlParams directly, not derived scopeInfo
+  originalUser,                     // ← use originalUser, not derived user
+  scopeFilter, selectedWarehouseId, selectedBranchId,
+  sortBy, sortOrder
+])
 
   const categories = useMemo(() => {
     const apiCats = categoriesFromApi.map(c => c.name).filter(Boolean)
@@ -634,9 +630,12 @@ function InventoryPage() {
     setPage(1)
   }, [searchTerm, categoryFilter, scopeFilter, selectedWarehouseId, selectedBranchId, sortBy, sortOrder])
 
-  useEffect(() => {
+useEffect(() => {
+  if (!initialized) return  // ← wait for URL params to be read
   dispatch(fetchInventory(getFetchParams()))
-}, [dispatch, getFetchParams])
+}, [dispatch, getFetchParams, initialized])
+
+
   const handleAdd = () => {
     const initialData = {}
     
