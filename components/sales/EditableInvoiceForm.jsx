@@ -148,47 +148,50 @@ import PrintDialog from '../print/PrintDialog'
         })
         }
     }, [sale])
+
+// Always fetch all items scoped correctly when dialog opens
 useEffect(() => {
-  if (open && (!inventoryItems || inventoryItems.length === 0)) {
-    dispatch(fetchInventory())
+  if (!open) return
+
+  // Build scope params for the fetch
+  const params = { limit: 'all' }
+
+  if (user?.role === 'CASHIER' && user?.branchId) {
+    params.scopeType = 'BRANCH'
+    params.scopeId = user.branchId
+  } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+    params.scopeType = 'WAREHOUSE'
+    params.scopeId = user.warehouseId
+  } else if (user?.role === 'ADMIN') {
+    // Check URL params first, then sessionStorage
+    const urlParams = new URLSearchParams(window.location.search)
+    const simScope = urlParams.get('scope')
+    const simId = urlParams.get('id')
+
+    if (simScope && simId) {
+      params.scopeType = simScope.toUpperCase() === 'WAREHOUSE' ? 'WAREHOUSE' : 'BRANCH'
+      params.scopeId = simId
+    } else {
+      try {
+        const sim = JSON.parse(sessionStorage.getItem('adminSimulation') || '{}')
+        if (sim.scopeType && sim.scopeId) {
+          params.scopeType = sim.scopeType
+          params.scopeId = sim.scopeId
+        }
+      } catch (e) {}
+    }
   }
-}, [open,dispatch])
+
+  dispatch(fetchInventory(params))
+}, [open, dispatch, user])
    
   // Load available inventory items
+// Set availableItems when inventoryItems updates
 useEffect(() => {
   if (open && inventoryItems) {
-    let filteredItems = inventoryItems;
-    
-    if (user?.role === 'CASHIER' && user?.branchId) {
-      filteredItems = inventoryItems.filter(item => 
-        item.scopeType === 'BRANCH' && 
-        (String(item.scopeId) === String(user.branchId))
-      )
-    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
-      filteredItems = inventoryItems.filter(item => 
-        item.scopeType === 'WAREHOUSE' && 
-        (String(item.scopeId) === String(user.warehouseId))
-      )
-    } else if (user?.role === 'ADMIN') {
-      // Admin simulation: check if there are simulatedScope params in URL
-      const urlParams = new URLSearchParams(window.location.search)
-      const simRole = urlParams.get('role')
-      const simScope = urlParams.get('scope')
-      const simId = urlParams.get('id')
-      
-      if (simRole && simScope && simId) {
-        const scopeType = simScope.toUpperCase() === 'WAREHOUSE' ? 'WAREHOUSE' : 'BRANCH'
-        filteredItems = inventoryItems.filter(item =>
-          item.scopeType === scopeType &&
-          String(item.scopeId) === String(simId)
-        )
-      }
-      // else: no simulation, admin sees all items (no filter)
-    }
-    
-    setAvailableItems(filteredItems)
+    setAvailableItems(inventoryItems)
   }
-}, [open, inventoryItems, user])
+}, [open, inventoryItems])
 
     // Calculate totals
     const calculateTotals = useCallback(() => {
@@ -409,23 +412,16 @@ useEffect(() => {
             inventoryChanges
         }
         
-        console.log('[EditableInvoiceForm] Sending update data:', updateData)
-        console.log('[EditableInvoiceForm] Inventory changes:', inventoryChanges)
-        
         // Call backend API to update sale
         const response = await api.put(`/sales/${sale.id}`, updateData)
-        
         if (response.data.success) {
             setSuccess('Sale updated successfully!')
-            
-            // Refresh inventory data
-            dispatch(fetchInventory())
-            
+          // After save, refresh with same scope
+           dispatch(fetchInventory({ limit: 'all', ...params }))            
             // Call parent callback
             if (onSave) {
             onSave(response.data.data)
             }
-            
             // Close dialog after a short delay
             setTimeout(() => {
             onClose()
