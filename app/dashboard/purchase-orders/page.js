@@ -1557,7 +1557,7 @@ function PurchaseOrdersPage() {
                       </Box>
 
                       {/* Qty — fixed 80px */}
-                      <Box sx={{ flexShrink: 0, width: 80 }}>
+                      <Box sx={{ flexShrink: 0, width: 110 }}>
                         <TextField
                           fullWidth size="small" label="Qty *" type="number"
                           value={item.quantityOrdered}
@@ -1569,7 +1569,7 @@ function PurchaseOrdersPage() {
                       </Box>
 
                       {/* Price — fixed 120px */}
-                      <Box sx={{ flexShrink: 0, width: 120 }}>
+                      <Box sx={{ flexShrink: 0, width: 160 }}>
                         <TextField
                           fullWidth size="small" label="Price *" type="number"
                           inputProps={{ step: '0.01' }}
@@ -1582,7 +1582,7 @@ function PurchaseOrdersPage() {
                       </Box>
 
                       {/* Total — fixed 120px */}
-                      <Box sx={{ flexShrink: 0, width: 120 }}>
+                      <Box sx={{ flexShrink: 0, width: 160 }}>
                         <TextField
                           fullWidth size="small" label="Total"
                           value={(item.quantityOrdered * item.unitPrice).toFixed(2)}
@@ -1592,7 +1592,7 @@ function PurchaseOrdersPage() {
                       </Box>
 
                       {/* Delete — fixed 40px */}
-                      <Box sx={{ flexShrink: 0, width: 40, textAlign: 'center' }}>
+                      <Box sx={{ flexShrink: 0, width: 50, textAlign: 'center' }}>
                         {formData.items.length > 1 && (
                           <IconButton size="small" onClick={() => removeItem(index)} color="error">
                             <DeleteIcon />
