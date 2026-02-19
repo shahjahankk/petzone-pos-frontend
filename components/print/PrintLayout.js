@@ -122,7 +122,7 @@ export default function PrintLayout({
     maxWidth: '1400px',
     fontFamily: 'Arial, sans-serif',
     fontSize: fontSize,
-    lineHeight: isWarehouse ? '1.35' : '1.65',
+    lineHeight: isWarehouse ? '1.1' : '1.2',
     color: '#000',
     backgroundColor: '#fff',
     padding: isWarehouse ? '18px 32px' : '32px 56px',
@@ -140,7 +140,7 @@ export default function PrintLayout({
     const effectiveOrientation = isWarehouse ? 'landscape' : orientation
     
     // Compact spacing for warehouse so it doesn't stretch vertically
-    const compactSpacing = isWarehouse
+    const compactSpacing = true
     
     return (
       <div className={`receipt-container ${layout}-layout`} style={containerStyles}>
@@ -217,13 +217,13 @@ export default function PrintLayout({
 
         {/* Items Table */}
         <div style={{ marginBottom: compactSpacing ? '18px' : '30px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ccc', fontSize: compactSpacing ? '13px' : '14px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ccc', fontSize: compactSpacing ? '11px' : '12px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f5f5f5' }}>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', textAlign: 'left', fontWeight: 'bold', fontSize: compactSpacing ? '13px' : '14px', width: '46%' }}>DESCRIPTION</th>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', textAlign: 'center', fontWeight: 'bold', fontSize: compactSpacing ? '13px' : '14px', width: '14%' }}>QTY</th>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', textAlign: 'right', fontWeight: 'bold', fontSize: compactSpacing ? '13px' : '14px', width: '20%' }}>UNIT PRICE</th>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', textAlign: 'right', fontWeight: 'bold', fontSize: compactSpacing ? '13px' : '14px', width: '20%' }}>TOTAL</th>
+                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'left', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '46%' }}>DESCRIPTION</th>
+                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'center', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '14%' }}>QTY</th>
+                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '20%' }}>UNIT PRICE</th>
+                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '20%' }}>TOTAL</th>
               </tr>
             </thead>
             <tbody>
@@ -265,15 +265,15 @@ export default function PrintLayout({
                 
                 return (
                   <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9f9f9' }}>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', fontSize: compactSpacing ? '13px' : '14px' }}>
+                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', fontSize: compactSpacing ? '11px' : '12px' }}>
                       <div style={{ fontWeight: 'bold' }}>{item.name}</div>
                       {item.discount > 0 && (
                         <div style={{ fontSize: compactSpacing ? '11px' : '12px', color: '#d32f2f' }}>Discount: -{formatCurrency(item.discount)}</div>
                       )}
                     </td>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', textAlign: 'center', fontSize: compactSpacing ? '13px' : '14px' }}>{formatCurrency(qty)}</td>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', textAlign: 'right', fontSize: compactSpacing ? '13px' : '14px' }}>{formatCurrency(unitPriceValue)}</td>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '10px' : '14px', textAlign: 'right', fontSize: compactSpacing ? '13px' : '14px', fontWeight: 'bold' }}>{formatCurrency(totalValue)}</td>
+                    <td style={{ border: '1px solid #ccc',padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'center', fontSize: compactSpacing ? '11px' : '12px' }}>{formatCurrency(qty)}</td>
+                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'right', fontSize: compactSpacing ? '11px' : '12px' }}>{formatCurrency(unitPriceValue)}</td>
+                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'right', fontSize: compactSpacing ? '11px' : '12px', fontWeight: 'bold' }}>{formatCurrency(totalValue)}</td>
                   </tr>
                 )
               }) : (
