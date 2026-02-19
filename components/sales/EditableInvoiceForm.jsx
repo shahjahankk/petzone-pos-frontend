@@ -935,7 +935,7 @@ useEffect(() => {
         </Dialog>
 
         {/* Print Dialog */}
-        {showPrintDialog && (
+{showPrintDialog && (
     <PrintDialog
         open={showPrintDialog}
         onClose={() => setShowPrintDialog(false)}
@@ -957,14 +957,15 @@ useEffect(() => {
             subtotal: totals.subtotal,
             tax: totals.tax,
             discount: totals.totalDiscount,
-            total: totals.total,
+            invoiceTotal: totals.total,                                         // ← ADD
+            oldBalance: parseFloat(sale.old_balance ?? sale.oldBalance ?? 0),   // ← FIX
+            total: totals.total + parseFloat(sale.old_balance ?? sale.oldBalance ?? 0), // ← ADD
             paymentMethod: formData.paymentMethod,
             paymentStatus: formData.paymentStatus,
             paymentAmount: sale.paymentAmount || sale.payment_amount || 0,
             creditAmount: sale.creditAmount || sale.credit_amount || 0,
             notes: formData.notes
         }}
-        // REMOVE the onPrint callback completely
     />
 )}
         </>
