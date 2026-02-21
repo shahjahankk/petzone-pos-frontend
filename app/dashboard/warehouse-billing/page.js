@@ -179,7 +179,9 @@ function WarehouseBillingPage() {
   const router = useRouter()
   
   const { user: originalUser } = useSelector((state) => state.auth)
-  
+  const [saleConfirmDialog, setSaleConfirmDialog] = useState(false)
+  const [completedSaleData, setCompletedSaleData] = useState(null) // holds sale result after saving
+
   // URL-based role switching (same as other pages)
   const [urlParams, setUrlParams] = useState({})
   const [isAdminMode, setIsAdminMode] = useState(false)
@@ -550,6 +552,231 @@ function WarehouseBillingPage() {
       paymentTypeValue
     }
   }
+  const handleCompleteSale = async () => {
+  if (isProcessingSaleOnly) return
+  setIsProcessingSaleOnly(true)
+
+  try {
+    // --- Validations ---
+    if (user.role === 'ADMIN' && !isAdminMode) {
+      alert('Please select a branch or warehouse from the Admin Dashboard to simulate a role before making sales.')
+      return
+    }
+    if (!selectedRetailer || selectedRetailer.id === undefined || selectedRetailer.id === null) {
+      alert('❌ Please select a retailer before completing this sale.')
+      return
+    }
+    if ((isPartialPayment || isFullyCredit) && !selectedRetailer?.id) {
+      alert('❌ Retailer selection is required for partial payments and credit sales.')
+      return
+    }
+    if (!user) {
+      alert('❌ User not authenticated. Please login again.')
+      return
+    }
+
+    // Settlement-only flow (no cart items)
+    if (!currentCart || currentCart.length === 0) {
+      if (selectedOutstandingPayments.length > 0) {
+        const { paymentAmount: settlementPaymentValue, creditAmount: settlementCreditValue, baseOutstanding } = calculateSettlementValues()
+
+        if (isSettlementPartial && settlementPaymentValue <= 0) {
+          alert('❌ Please enter a payment amount greater than 0 for partial settlement.')
+          return
+        }
+
+        const retailerNameDisplay = selectedRetailer?.name || customerName || 'Unknown'
+        const retailerPhoneDisplay = selectedRetailer?.phone || customerPhone || 'N/A'
+        const isCredit = baseOutstanding < 0
+
+        const confirmOk = confirm(
+          `${isCredit ? '💰 CREDIT REFUND' : '💰 OUTSTANDING PAYMENT SETTLEMENT'}\n\n` +
+          `Retailer: ${retailerNameDisplay}\n` +
+          `Phone: ${retailerPhoneDisplay}\n` +
+          `Total ${isCredit ? 'Credit' : 'Outstanding'}: ${Math.abs(baseOutstanding).toFixed(2)}\n` +
+          `${isCredit ? 'Refund' : 'Payment'} Amount: ${settlementPaymentValue.toFixed(2)}\n` +
+          `Balance After: ${settlementCreditValue.toFixed(2)}\n\n` +
+          `Do you want to proceed?`
+        )
+        if (!confirmOk) return
+
+        try {
+          const settlementResult = await settleOutstandingPayments()
+
+          if (settlementResult?.data?.settlementSale) {
+            const settlementSale = settlementResult.data.settlementSale
+            const { paymentAmount: spv, creditAmount: scv, baseOutstanding: ba } = calculateSettlementValues()
+
+            const spd = {
+              type: 'receipt',
+              title: isCredit ? 'CREDIT REFUND RECEIPT' : 'PAYMENT SETTLEMENT RECEIPT',
+              companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
+              companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
+              companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone,
+              companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
+              logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
+              receiptNumber: settlementSale.invoice_no || `SETTLE-${Date.now()}`,
+              date: new Date(settlementSale.created_at).toLocaleDateString(),
+              time: new Date(settlementSale.created_at).toLocaleTimeString(),
+              cashierName: user?.name || user?.username || 'Warehouse Keeper',
+              customerName: settlementSale.customer_name || retailerNameDisplay,
+              customerPhone: settlementSale.customer_phone || retailerPhoneDisplay,
+              items: [],
+              subtotal: 0, tax: 0, discount: 0, invoiceTotal: 0,
+              oldBalance: Math.round(Math.abs(ba)),
+              total: Math.round(parseFloat(settlementSale.total || 0)),
+              paymentMethod: settlementSale.payment_method || paymentMethod || 'CASH',
+              paymentAmount: Math.round(spv),
+              creditAmount: Math.round(scv),
+              remainingBalance: Math.round(scv),
+              change: 0,
+              notes: '',
+              footerMessage: isCredit ? 'Credit refund processed!' : 'Thank you for your payment!'
+            }
+
+            // Sale saved — show print choice dialog
+            setCompletedSaleData({ sale: settlementSale, printData: spd, isSaved: true })
+            setSaleConfirmDialog(true)
+          }
+
+          clearAllPOSState()
+          setTimeout(() => refreshOutstandingPayments(), 2000)
+        } catch (error) {
+          alert(`❌ Error processing settlement: ${error.message}`)
+        }
+        return
+      } else {
+        alert('❌ Cart is empty and no outstanding payments selected.')
+        return
+      }
+    }
+
+    if (total <= 0 && currentCart.length === 0) {
+      alert('❌ Cannot process a sale without items.')
+      return
+    }
+
+    // Calculate payment details
+    const {
+      totalWithOutstanding: normalizedBillTotal,
+      finalPaymentAmount,
+      finalCreditAmount,
+      finalPaymentStatus,
+      paymentTypeValue
+    } = calculateWarehousePaymentDetails({
+      billAmount,
+      outstandingTotal: 0,
+      isFullyCredit,
+      isPartialPayment,
+      isBalancePayment,
+      inputPaymentAmount: paymentAmount
+    })
+
+    if (isPartialPayment && paymentMethod !== 'FULLY_CREDIT') {
+      if (finalPaymentAmount <= 0) {
+        alert('❌ Payment amount must be greater than 0 for partial payments')
+        return
+      }
+      const sum = finalPaymentAmount + finalCreditAmount
+      if (Math.abs(sum - normalizedBillTotal) > 0.01) {
+        alert(`❌ Payment amounts don't add up.\nPaid: ${finalPaymentAmount.toFixed(2)}\nCredit: ${finalCreditAmount.toFixed(2)}\nBill: ${normalizedBillTotal.toFixed(2)}`)
+        return
+      }
+    }
+
+    const paymentMethodValue = isFullyCredit ? 'FULLY_CREDIT' : (paymentMethod || 'CASH')
+    const isSettlementOnly = selectedOutstandingPayments.length > 0 && currentCart.length === 0 && showSettlementOptions
+
+    const salePayloadInfo = buildWarehouseSalePayload({
+      billAmount,
+      totalWithOutstanding: normalizedBillTotal,
+      finalPaymentAmount,
+      finalCreditAmount,
+      finalPaymentStatus,
+      paymentMethodValue,
+      paymentTypeValue,
+      includeOutstandingPayments: isSettlementOnly
+    })
+
+    if (!salePayloadInfo) return
+
+    const { payload: saleData, retailerInfo } = salePayloadInfo
+
+    // ✅ SAVE SALE FIRST
+    const result = await dispatch(createWarehouseSale(saleData))
+
+    if (createWarehouseSale.fulfilled.match(result)) {
+      const sale = result.payload?.data || result.payload
+
+      // Process outstanding payments if needed
+      if (selectedOutstandingPayments.length > 0) {
+        const shouldClear = (currentCart.length === 0 && showSettlementOptions) ||
+          (paymentMethodValue === 'CASH' && selectedOutstandingPayments.length > 0 && finalPaymentAmount > 0)
+        if (shouldClear) {
+          try {
+            await settleOutstandingPayments()
+          } catch (error) {
+            console.error('[WAREHOUSE] Error settling outstanding:', error)
+          }
+        }
+      }
+
+      // Prepare print data
+      const printableItems = currentCart.map(normalizeCartItemForPrint)
+      const printableSubtotal = Math.round(Math.max(0, subtotal))
+      const printableTax = Math.round(Math.max(0, tax))
+      const printableDiscount = Math.round(Math.max(0, totalDiscount))
+      const printableInvoiceTotal = Math.max(0, (printableSubtotal + printableTax) - printableDiscount)
+
+      const pd = {
+        type: 'warehouse',
+        title: 'SALES RECEIPT',
+        companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
+        companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
+        companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone,
+        companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
+        logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
+        items: printableItems,
+        subtotal: printableSubtotal,
+        tax: printableTax,
+        discount: printableDiscount,
+        invoiceTotal: printableInvoiceTotal,
+        oldBalance: Math.round(outstandingTotal || 0),
+        total: Math.round(total),
+        customerName: retailerInfo.name || 'Walk-in Retailer',
+        customerPhone: retailerInfo.phone || '',
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+        receiptNumber: sale.invoice_no || `POS-${Date.now()}`,
+        warehouseName: user?.warehouseName || scopeInfo?.scopeName || '',
+        cashierName: user?.name || user?.username || 'Cashier',
+        paymentMethod: paymentMethodValue,
+        paymentAmount: Math.round(finalPaymentAmount),
+        creditAmount: Math.round(finalCreditAmount),
+        remainingBalance: Math.round(finalCreditAmount),
+        change: isPartialPayment ? 0 : Math.round(Math.max(0, (parseFloat(paymentAmount) || total) - total)),
+        notes: isPartialPayment ? `Partial Payment - Credit: ${Math.round(finalCreditAmount)}` : '',
+        footerMessage: 'Thank you for choosing PetZone!'
+      }
+
+      // ✅ SALE IS SAVED — now show confirmation with print option
+      setCompletedSaleData({ sale, printData: pd, retailerInfo, isSaved: true })
+      setSaleConfirmDialog(true)
+
+      clearAllPOSState()
+      setTimeout(() => refreshOutstandingPayments(), 2000)
+
+    } else if (createWarehouseSale.rejected.match(result)) {
+      const error = result.payload || result.error
+      showToast(error?.message || 'Sale failed. Please try again.', 'error')
+    }
+
+  } catch (error) {
+    alert(`❌ Sale failed: ${error.message || 'Unknown error'}`)
+  } finally {
+    setIsProcessingSaleOnly(false)
+  }
+}
   // Update current tab data - memoized to prevent recreation
   const updateCurrentTab = useCallback((updates) => {
     setTabs(prev => prev.map(tab => 
@@ -6234,6 +6461,7 @@ const handleSaleOnly = async () => {
   </Box>
 )}
 
+
               {/* Payment Fields */}
               {(isPartialPayment || isFullyCredit) && !(currentCart.length === 0 && showSettlementOptions) && (
                 <Box sx={{ mb: 2, p: 3, bgcolor: alpha(theme.palette.warning.main, 0.15), borderRadius: 2, border: '2px solid', borderColor: 'warning.main' }}>
@@ -6439,14 +6667,6 @@ const handleSaleOnly = async () => {
                 </Box>
 
               )}
-              
-              
-
-
-
-
-
-
 
               {/* Notes Section */}
 
@@ -6828,57 +7048,128 @@ const handleSaleOnly = async () => {
                 </Box>
 
                 {/* Action Buttons */}
-              <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                <Button
-                  variant="contained"
-                  size="small"
-                  color="success"
-                  startIcon={isProcessingSaleOnly ? <CircularProgress size={18} color="inherit" /> : <CartIcon sx={{ fontSize: 18 }} />}
-                  onClick={handleSaleOnly}
-                  disabled={
-                    isProcessingSaleOnly ||
-                    isProcessingSale ||
-                    (currentCart.length === 0 && selectedOutstandingPayments.length === 0)
-                    // Allow buttons to be enabled even when total is negative (customer has advance credit)
-                  }
-                  sx={{ fontFamily: 'monospace', py: 1, flex: 1 }}
-                >
-                  {isProcessingSaleOnly ? 'PROCESSING...' : (currentCart.length === 0 && selectedOutstandingPayments.length > 0 
-                    ? 'SETTLE' 
-                    : 'PRINT'
-                  )}
-                </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                  color="primary"
-                  startIcon={isProcessingSale ? <CircularProgress size={18} color="inherit" /> : <CartIcon sx={{ fontSize: 18 }} />}
-                  onClick={handleSaleWithoutPrint}
-                  disabled={
-                    isProcessingSale ||
-                    isProcessingSaleOnly ||
-                    (currentCart.length === 0 && selectedOutstandingPayments.length === 0)
-                    // Allow buttons to be enabled even when total is negative (customer has advance credit)
-                  }
-                  sx={{ fontFamily: 'monospace', py: 1, minWidth: 100 }}
-                >
-                  SALE ONLY
-                  </Button>
-                  <Button
-                  variant="outlined"
-                    size="small"
-                  startIcon={<PrintIcon sx={{ fontSize: 18 }} />}
-                  onClick={() => setShowPrinterDialog(true)}
-                  disabled={currentCart.length === 0}
-                  sx={{ fontFamily: 'monospace', py: 1, minWidth: 80 }}
-                  >
-                  PRINTER
-                  </Button>
-                </Box>
+              {/* Action Buttons */}
+<Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+  <Button
+    variant="contained"
+    size="small"
+    color="success"
+    startIcon={isProcessingSaleOnly ? <CircularProgress size={18} color="inherit" /> : <CartIcon sx={{ fontSize: 18 }} />}
+    onClick={handleCompleteSale}
+    disabled={
+      isProcessingSaleOnly ||
+      isProcessingSale ||
+      (currentCart.length === 0 && selectedOutstandingPayments.length === 0)
+    }
+    sx={{ fontFamily: 'monospace', py: 1, flex: 1 }}
+  >
+    {isProcessingSaleOnly ? 'SAVING...' : (currentCart.length === 0 && selectedOutstandingPayments.length > 0
+      ? 'SETTLE'
+      : 'COMPLETE SALE'
+    )}
+  </Button>
+  <Button
+    variant="outlined"
+    size="small"
+    startIcon={<PrintIcon sx={{ fontSize: 18 }} />}
+    onClick={() => setShowPrinterDialog(true)}
+    disabled={currentCart.length === 0}
+    sx={{ fontFamily: 'monospace', py: 1, minWidth: 80 }}
+  >
+    PRINTER
+  </Button>
+</Box>
               </Paper>
           </Box>
+          {/* Sale Confirmation Dialog - shown AFTER sale is saved */}
+          <Dialog
+            open={saleConfirmDialog}
+            onClose={() => {}} // Prevent accidental close
+            maxWidth="sm"
+            fullWidth
+            PaperProps={{ sx: { borderRadius: 3 } }}
+          >
+            <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                <CheckIcon sx={{ fontSize: 56, color: 'success.main' }} />
+                <Typography variant="h5" fontWeight="bold" color="success.main">
+                  Sale Saved Successfully!
+                </Typography>
+                {completedSaleData?.sale?.invoice_no && (
+                  <Chip
+                    label={`Invoice: ${completedSaleData.sale.invoice_no}`}
+                    color="primary"
+                    variant="outlined"
+                    sx={{ fontWeight: 'bold', fontSize: '1rem', px: 1 }}
+                  />
+                )}
+              </Box>
+            </DialogTitle>
+
+            <DialogContent sx={{ textAlign: 'center', pt: 2 }}>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                The sale has been recorded. Would you like to print a receipt?
+              </Typography>
+
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<PrintIcon />}
+                  color="primary"
+                  sx={{ minWidth: 160, py: 1.5, fontSize: '1rem' }}
+                  onClick={async () => {
+                    setSaleConfirmDialog(false)
+                    if (completedSaleData?.printData) {
+                      try {
+                        const { success, message, usedBrowserFallback } = await attemptReceiptPrint(
+                          completedSaleData.printData,
+                          'Sale receipt'
+                        )
+                        if (!success) {
+                          // Fall back to PrintDialog
+                          setPrintData(completedSaleData.printData)
+                          setSelectedLayout('color')
+                          setShowPrintDialog(true)
+                        }
+                      } catch (err) {
+                        // Fall back to PrintDialog
+                        setPrintData(completedSaleData.printData)
+                        setSelectedLayout('color')
+                        setShowPrintDialog(true)
+                      }
+                    }
+                    setCompletedSaleData(null)
+                  }}
+                >
+                  Print Receipt
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  size="large"
+                  color="success"
+                  sx={{ minWidth: 160, py: 1.5, fontSize: '1rem' }}
+                  onClick={() => {
+                    setSaleConfirmDialog(false)
+                    setCompletedSaleData(null)
+                  }}
+                >
+                  Skip Print
+                </Button>
+              </Box>
+            </DialogContent>
+
+            <DialogActions sx={{ justifyContent: 'center', pb: 3, pt: 0 }}>
+              <Typography variant="caption" color="text.secondary">
+                ✅ Sale is already saved regardless of your choice above
+              </Typography>
+            </DialogActions>
+          </Dialog>
+
           {/* Physical Scanner Modal */}
           <PhysicalScanner
+            
             open={showPhysicalScanner}
             onScan={(barcode) => {
               handleBarcodeScan(barcode)
@@ -7138,6 +7429,7 @@ const handleSaleOnly = async () => {
               {toast.message}
             </Alert>
           </Snackbar>
+          
         </Box>
       </DashboardLayout>
     </RouteGuard>
