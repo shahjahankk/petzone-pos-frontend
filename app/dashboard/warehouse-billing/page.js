@@ -336,6 +336,7 @@ function WarehouseBillingPage() {
   const manualInputRef = useRef(null)
   const lastScanTimeRef = useRef(0)
   const hydratingTabIdRef = useRef(null)
+  const isCompletingSaleRef = useRef(false)
 
   useEffect(() => {
     if (!user) {
@@ -553,8 +554,8 @@ function WarehouseBillingPage() {
     }
   }
   const handleCompleteSale = async () => {
-  if (isProcessingSaleOnly) return
-  setIsProcessingSaleOnly(true)
+    if (isCompletingSaleRef.current) return
+  isCompletingSaleRef.current = true
 
   try {
     // --- Validations ---
@@ -775,6 +776,7 @@ function WarehouseBillingPage() {
     alert(`❌ Sale failed: ${error.message || 'Unknown error'}`)
   } finally {
     setIsProcessingSaleOnly(false)
+    isCompletingSaleRef.current = false
   }
 }
   // Update current tab data - memoized to prevent recreation
@@ -4862,12 +4864,10 @@ const handleSaleOnly = async () => {
       }
 
       return { success: true, message: 'Opened browser print dialog' }
-    } catch (error) {
-      console.error('[WAREHOUSE] Browser print error:', error)
-      return { success: false, message: 'Failed to open print dialog' }
-    } finally {
-      // Always reset loading state
-      setIsProcessingSaleOnly(false)
+    } 
+    catch (error) {
+      console.error('[WAREHOUSE] Print to browser error:', error)
+      throw error
     }
   };
 
