@@ -6887,23 +6887,16 @@ const handleSaleWithoutPrint = async () => {
       variant="contained"
       color="primary"
       startIcon={<PrintIcon />}
-      onClick={async () => {
-        setPostSaleDialog(false)
-        if (completedSaleData?.printData) {
-          const { success, message: printMessage, usedBrowserFallback } = await attemptReceiptPrint(
-            completedSaleData.printData,
-            completedSaleData.isSettlement ? 'Settlement receipt' : 'Sale receipt'
-          )
-          if (!success) {
-            const fallbackNote = usedBrowserFallback
-              ? '\n\nBrowser print fallback attempted — check popup blockers.'
-              : '\n\nPlease connect the thermal printer or use the desktop app.'
-            alert(`⚠️ Sale recorded but print failed.\n\nReason: ${printMessage || 'Unknown'}${fallbackNote}`)
-          }
-        }
-        setCompletedSaleData(null)
-        if (barcodeInputRef.current) barcodeInputRef.current.focus()
-      }}
+onClick={() => {
+  setPostSaleDialog(false)
+  if (completedSaleData?.printData) {
+    setPrintData(completedSaleData.printData)
+    setSelectedLayout('thermal')
+    setShowPrintDialog(true)
+  }
+  setCompletedSaleData(null)
+  if (barcodeInputRef.current) barcodeInputRef.current.focus()
+}}
     >
       Print Receipt
     </Button>

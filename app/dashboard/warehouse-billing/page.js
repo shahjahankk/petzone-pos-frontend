@@ -7118,29 +7118,15 @@ const handleSaleOnly = async () => {
                   startIcon={<PrintIcon />}
                   color="primary"
                   sx={{ minWidth: 160, py: 1.5, fontSize: '1rem' }}
-                  onClick={async () => {
-                    setSaleConfirmDialog(false)
-                    if (completedSaleData?.printData) {
-                      try {
-                        const { success, message, usedBrowserFallback } = await attemptReceiptPrint(
-                          completedSaleData.printData,
-                          'Sale receipt'
-                        )
-                        if (!success) {
-                          // Fall back to PrintDialog
-                          setPrintData(completedSaleData.printData)
-                          setSelectedLayout('color')
-                          setShowPrintDialog(true)
-                        }
-                      } catch (err) {
-                        // Fall back to PrintDialog
-                        setPrintData(completedSaleData.printData)
-                        setSelectedLayout('color')
-                        setShowPrintDialog(true)
-                      }
-                    }
-                    setCompletedSaleData(null)
-                  }}
+onClick={() => {
+  setSaleConfirmDialog(false)
+  if (completedSaleData?.printData) {
+    setPrintData(completedSaleData.printData)
+    setSelectedLayout('color')
+    setShowPrintDialog(true)
+  }
+  setCompletedSaleData(null)
+}}
                 >
                   Print Receipt
                 </Button>
