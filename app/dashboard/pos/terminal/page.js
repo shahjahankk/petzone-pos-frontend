@@ -3180,280 +3180,140 @@ const handleCompleteSale = async () => {
     setPendingSaleData(null)
   }
 }
-  
- // Sale without print function - creates sale but skips printing
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SALE ONLY button handler — confirm-first flow (matches warehouse billing)
+//
+// CHANGES vs old implementation:
+//   • No more inline confirm() dialog
+//   • No more direct dispatch(createSale(...)) call here
+//   • Validates input, builds pendingSaleData, sets saleConfirmDialog = true
+//   • handleCompleteSale() (unchanged) does the actual backend call and then
+//     shows postSaleDialog with "Print / Skip" options
+//   • pendingSaleData.source = 'sale-only' is stored so future callers can
+//     distinguish if needed, but postSaleDialog already works for both flows
+// ─────────────────────────────────────────────────────────────────────────────
+
 const handleSaleWithoutPrint = async () => {
-  // Prevent duplicate submissions
   if (isProcessingSale) {
-    console.log('[POS] Sale without print already in progress, ignoring duplicate click')
+    console.log('[POS] handleSaleWithoutPrint: already in progress, ignoring')
     return
   }
-  
-  setIsProcessingSale(true)
-  console.log('[POS] handleSaleWithoutPrint start', { 
-    currentCartLength: currentCart.length, 
-    total, 
+
+  console.log('[POS] handleSaleWithoutPrint (confirm-first) start', {
+    currentCartLength: currentCart.length,
     billAmount,
-    outstandingTotal 
+    outstandingTotal,
+    total
   })
 
   try {
-    // Handle admin not in simulation mode
+    // --- Admin check ---
     if (user.role === 'ADMIN' && !isAdminMode) {
       alert('Please select a branch or warehouse from the Admin Dashboard to simulate a role before making sales.')
       return
     }
-    
-    // Validate customer info for partial payment or fully credit
-    if ((isPartialPayment || isFullyCredit) && (!customerName || !customerPhone)) {
-      alert('❌ Customer name and phone number are required for partial payments and credit sales.')
-      return
-    }
-    
-    // First validate required data
+
+    // --- Auth check ---
     if (!user) {
       alert('❌ User not authenticated. Please login again.')
       return
     }
-    
+
+    // --- Credit/partial customer info ---
+    if ((isPartialPayment || isFullyCredit) && (!customerName || !customerPhone)) {
+      alert('❌ Customer name and phone number are required for partial payments and credit sales.')
+      return
+    }
+
+    // --- Empty cart branch: outstanding-only settlement ---
     if (!currentCart || currentCart.length === 0) {
-      // ✅ FIXED: Allow settlement when outstanding payments are selected, even if showSettlementOptions is false
-      // This handles the case when user enters customer name and clicks "settle" for full settlement
-      if (selectedOutstandingPayments.length > 0 && currentCart.length === 0) {
-        console.log('[POS] Customer clearing outstanding payments only - no items in cart', {
-          showSettlementOptions,
-          selectedOutstandingPayments: selectedOutstandingPayments.length
-        })
+      if (selectedOutstandingPayments.length > 0) {
+        const { paymentAmount: settlementPaymentValue, creditAmount: settlementCreditValue, baseOutstanding } = calculateSettlementValues()
 
-        const { paymentAmount: settlementPaymentValue, creditAmount: settlementCreditValue, baseOutstanding } = calculateSettlementValues();
-
-        if (isSettlementPartial && settlementPaymentValue <= 0) {
-          alert('❌ Please enter a payment amount greater than 0 for partial settlement.');
-          return;
-        }
-
-        const confirmOutstandingOnly = confirm(
-          `💰 Outstanding Payment Settlement\n\n` +
-          `Customer: ${customerName || 'Unknown'}\n` +
-          `Phone: ${customerPhone || 'N/A'}\n` +
-          `Total Outstanding: ${baseOutstanding.toFixed(2)}\n` +
-          `Payment Amount: ${settlementPaymentValue.toFixed(2)}\n` +
-          `Balance After Settlement: ${settlementCreditValue.toFixed(2)}\n\n` +
-          `This will create a settlement transaction and mark all selected outstanding payments as COMPLETED.\n` +
-          `A receipt will be printed after settlement.\n\n` +
-          `Do you want to proceed with the settlement?`
-        )
-
-        if (!confirmOutstandingOnly) {
-          console.log('[POS] User cancelled outstanding-only settlement')
+        if (isSettlementPartial && settlementPaymentValue < 0) {
+          alert('❌ Payment amount cannot be negative.')
           return
         }
 
-        console.log('[POS] Proceeding with outstanding-only settlement')
-
-        try {
-          console.log('[POS] Processing outstanding payments only:', selectedOutstandingPayments)
-
-          const settlementResult = await settleOutstandingPayments();
-          
-          if (settlementResult?.data?.settlementSale) {
-            // Print receipt for settlement-only transaction
-            const settlementSale = settlementResult.data.settlementSale;
-            const { paymentAmount: settlementPaymentValue, creditAmount: settlementCreditValue, baseOutstanding } = calculateSettlementValues();
-            
-            // Calculate payment amount: if payment_amount is 0 or missing, calculate from total and credit_amount
-            const dbPaymentAmountRaw = parseFloat(settlementSale.payment_amount);
-            const dbCreditAmountRaw = parseFloat(settlementSale.credit_amount);
-            const dbTotal = parseFloat(settlementSale.total || 0) || 0;
-            
-            const fallbackPaymentAmount = parseFloat(settlementPaymentValue || 0) || 0;
-            const fallbackCreditAmount = parseFloat(settlementCreditValue || 0) || 0;
-            const dbPaymentAmount = Number.isFinite(dbPaymentAmountRaw) ? dbPaymentAmountRaw : NaN;
-            const dbCreditAmount = Number.isFinite(dbCreditAmountRaw) ? dbCreditAmountRaw : NaN;
- 
-            // If payment_amount is 0 but we have total and credit_amount, calculate payment
-            let finalPaymentAmount = dbPaymentAmount;
-            if (finalPaymentAmount === 0 && dbTotal > 0 && dbCreditAmount > 0) {
-              finalPaymentAmount = dbTotal - dbCreditAmount;
-              console.log('[POS] Calculated payment amount from total and credit:', {
-                total: dbTotal,
-                credit: dbCreditAmount,
-                calculatedPayment: finalPaymentAmount
-              });
-            }
-            
-            // Fallback to settlementPaymentValue if still 0
-            if (finalPaymentAmount === 0) {
-              finalPaymentAmount = fallbackPaymentAmount;
-            }
-            
-            let finalCreditAmount = !Number.isNaN(dbCreditAmount) ? dbCreditAmount : fallbackCreditAmount;
-            if (finalCreditAmount === 0 && dbTotal > 0 && finalPaymentAmount > 0 && !Number.isNaN(dbTotal)) {
-              finalCreditAmount = Math.max(dbTotal - finalPaymentAmount, 0);
-            }
-            
-            // Display total as payment + credit (amount being settled)
-            const finalTotal = parseFloat((finalPaymentAmount + finalCreditAmount).toFixed(2));
-            
-            const printData = {
-              type: 'receipt',
-              title: 'PAYMENT SETTLEMENT RECEIPT',
-              companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
-              companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
-              companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone,
-              companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
-              logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
-              receiptNumber: settlementSale.invoice_no || `SETTLE-${Date.now()}`,
-              date: new Date(settlementSale.created_at).toLocaleDateString(),
-              time: new Date(settlementSale.created_at).toLocaleTimeString(),
-              cashierName: user?.name || user?.username || 'Cashier',
-              customerName: settlementSale.customer_name || customerName || 'Unknown',
-              customerPhone: settlementSale.customer_phone || customerPhone || '',
-              items: [], // No items for settlement-only
-              subtotal: 0,
-              tax: 0,
-              discount: 0,
-              invoiceTotal: 0, // No invoice total for pure settlement
-              oldBalance: Math.round(Number.isFinite(baseOutstanding) ? Math.abs(baseOutstanding) : 0),
-              total: Math.round(finalTotal),
-              paymentMethod: settlementSale.payment_method || paymentMethod || 'CASH',
-              paymentAmount: Math.round(finalPaymentAmount),
-              creditAmount: Math.round(finalCreditAmount),
-              remainingBalance: Math.round(finalCreditAmount),
-              change: 0,
-              notes: '', // No notes for settlement receipts
-              footerMessage: 'Thank you for your payment!'
-            };
-
-            try {
-              const { success: printSuccess, message: printMessage, usedBrowserFallback } = await attemptReceiptPrint(printData, 'Outstanding settlement receipt')
-
-              if (printSuccess) {
-                console.log('[POS] Settlement receipt printed successfully')
-                if (usedBrowserFallback) {
-                  console.log('[POS] Browser print fallback used for outstanding settlement receipt')
-                }
-              } else {
-                console.warn('[POS] Settlement receipt print may have failed:', printMessage)
-                const fallbackNote = usedBrowserFallback
-                  ? '\n\nBrowser print fallback was attempted but may have been blocked. Please check popup blockers or manually trigger print.'
-                  : '\n\nPlease connect the thermal printer or use the desktop app for direct printing.'
-                alert(`⚠️ Settlement completed successfully but the receipt could not be printed.\n\nReason: ${printMessage || 'Unknown error'}${fallbackNote}`)
-              }
-            } catch (printError) {
-              console.error('[POS] Error printing settlement receipt:', printError)
-              alert(`⚠️ Settlement completed successfully but the receipt could not be printed.\n\nReason: ${printError.message || 'Unknown error'}\n\nPlease connect the thermal printer or try printing again.`)
-            }
-          }
-
-          alert(`✅ Outstanding Settlement Completed!\n\n` +
-                `Customer: ${customerName || 'Unknown'}\n` +
-                `Paid Amount: ${settlementPaymentValue.toFixed(2)}\n` +
-                `Balance After Settlement: ${settlementCreditValue.toFixed(2)}\n` +
-                `Payment Method: ${paymentMethod}\n\n` +
-                `All selected outstanding payments have been updated.`)
-
-          clearAllPOSState()
-
-          setTimeout(() => {
-            refreshOutstandingPayments()
-          }, 2000)
-
-          return
-
-        } catch (error) {
-          console.error('[POS] Error processing outstanding-only settlement:', error)
-          alert(`❌ Error processing outstanding payment settlement: ${error.message}`)
-          return
+        // Build pending settlement data and show confirm dialog
+        const pendingSettlement = {
+          type: 'settlement-only',
+          source: 'sale-only',
+          settlementPaymentValue,
+          settlementCreditValue,
+          baseOutstanding,
+          customerName: customerName || 'Unknown',
+          customerPhone: customerPhone || 'N/A',
+          paymentMethod,
+          selectedOutstandingPayments: [...selectedOutstandingPayments],
+          outstandingPayments: [...outstandingPayments]
         }
+
+        setPendingSaleData(pendingSettlement)
+        setSaleConfirmDialog(true)
+        return
       } else {
         alert('❌ Cart is empty. Please add items before processing sale.')
         return
       }
     }
 
-    // Allow negative total when customer has advance credit (outstanding payment with negative balance)
-    // Example: Customer has -29000 credit, buys 9000 item → Total = -20000 (still has 20000 credit remaining)
-    // Only validate if total is negative AND cart is empty (prevent empty cart sales)
+    // --- Total validation ---
     if (total <= 0 && currentCart.length === 0) {
       alert('❌ Cannot process a sale without items.')
       return
     }
 
-    // Validate outstanding payments selection
-    if (selectedOutstandingPayments.length > 0) {
-      const confirmOutstanding = confirm(
-        `⚠️ You have selected ${selectedOutstandingPayments.length} outstanding payment(s) totaling ${outstandingTotal.toFixed(2)} to settle.\n\n` +
-        `This will mark the selected outstanding payments as COMPLETED.\n\n` +
-        `Do you want to proceed with settling these outstanding payments?`
-      )
-      
-      if (!confirmOutstanding) {
-        console.log('[POS] User cancelled outstanding payment processing')
-        return
-      }
-    }
+    // --- Build amounts ---
+    const selectedOutstandingTotal = outstandingPayments
+      .filter(payment => selectedOutstandingPayments.includes(payment.id))
+      .reduce((total, payment) => {
+        const amount = payment.creditAmount !== undefined && payment.creditAmount !== null
+          ? parseFloat(payment.creditAmount)
+          : (payment.total !== undefined && payment.total !== null
+            ? parseFloat(payment.total)
+            : parseFloat(payment.outstandingAmount || 0) * (payment.isCredit ? -1 : 1))
+        return total + (Number.isFinite(amount) ? amount : 0)
+      }, 0)
 
-    // ✅ CORRECTED: Calculate payment amounts using billAmount
-    console.log('[POS] Payment calculation (handleSaleWithoutPrint):', {
-      billAmount,
-      outstandingTotal,
-      total,
-      isFullyCredit,
-      isBalancePayment,
-      isPartialPayment,
-      paymentAmount
-    })
+    const totalWithOutstanding = billAmount + selectedOutstandingTotal
 
     let finalPaymentAmount, finalCreditAmount
 
     if (isFullyCredit) {
       finalPaymentAmount = 0
-      finalCreditAmount = billAmount
+      finalCreditAmount = totalWithOutstanding
     } else if (isBalancePayment) {
-      // Balance payment: Uses customer's existing credit
-      // Payment: 0 (no cash), Credit: billAmount (uses from balance)
       finalPaymentAmount = 0
-      finalCreditAmount = billAmount
+      finalCreditAmount = totalWithOutstanding
     } else if (isPartialPayment) {
       finalPaymentAmount = parseFloat(paymentAmount) || 0
-      finalCreditAmount = billAmount - finalPaymentAmount
+      finalCreditAmount = totalWithOutstanding - finalPaymentAmount
     } else {
-      // Full payment
-      finalPaymentAmount = billAmount
+      finalPaymentAmount = totalWithOutstanding
       finalCreditAmount = 0
     }
 
-    console.log('[POS] Final amounts (handleSaleWithoutPrint):', {
-      billAmount,
-      finalPaymentAmount,
-      finalCreditAmount,
-      sum: finalPaymentAmount + finalCreditAmount,
-      matches: Math.abs((finalPaymentAmount + finalCreditAmount) - billAmount) < 0.01
-    })
-
-    // Payment status logic
     const finalPaymentStatus = (isFullyCredit || finalCreditAmount > 0) ? 'PENDING' : 'COMPLETED'
 
-    // Enhanced partial payment validation
+    // --- Partial payment validation ---
     if (isPartialPayment && paymentMethod !== 'FULLY_CREDIT') {
       if (finalPaymentAmount <= 0) {
-        alert('❌ Payment amount must be greater than 0 for partial payments.')
+        alert('❌ Payment amount must be greater than 0 for partial payments')
         return
       }
-      // Allow overpayment - if payment amount >= total, then credit is negative (customer has advance credit)
-      // Example: Total = 32000, Payment = 50000, Credit = -18000 (customer has 18000 credit for next purchase)
-      // Removed validation that blocks paymentAmount >= total
-      
-      // Allow negative credit amount (represents advance payment from customer)
-      // Negative credit = customer has paid more than the bill, has credit balance
-      // This will show as negative outstanding balance in customer ledger
+      const sum = finalPaymentAmount + finalCreditAmount
+      if (Math.abs(sum - totalWithOutstanding) > 0.01) {
+        alert(`❌ Payment amounts don't add up to total.\nPaid: ${finalPaymentAmount.toFixed(2)}\nCredit: ${finalCreditAmount.toFixed(2)}\nTotal: ${totalWithOutstanding.toFixed(2)}\nSum: ${sum.toFixed(2)}`)
+        return
+      }
     }
 
-    // ✅ CORRECTED: Create sale data with billAmount
+    // --- Build saleData ---
     const saleData = {
       items: currentCart.map(item => ({
-        inventoryItemId: item.id,
+        inventoryItemId: parseInt(item.id),
         name: item.name,
         quantity: parseFloat(item.quantity),
         unitPrice: parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0),
@@ -3465,7 +3325,7 @@ const handleSaleWithoutPrint = async () => {
       subtotal: parseFloat(subtotal),
       tax: parseFloat(tax),
       discount: parseFloat(totalDiscount),
-      total: parseFloat(billAmount), // ✅ Use billAmount here, not total
+      total: parseFloat(totalWithOutstanding),
       paymentMethod: isFullyCredit ? 'FULLY_CREDIT' : (paymentMethod || 'CASH'),
       paymentType: isPartialPayment ? 'PARTIAL_PAYMENT' : (isFullyCredit ? 'FULLY_CREDIT' : 'FULL_PAYMENT'),
       paymentStatus: finalPaymentStatus,
@@ -3475,55 +3335,62 @@ const handleSaleWithoutPrint = async () => {
         name: customerName || 'Walk-in Customer',
         phone: customerPhone || ''
       },
-      notes: notes || 'Sale completed without printing'
+      notes: notes || 'Sale completed without printing'   // ← preserves original intent
     }
 
-    console.log('[POS] handleSaleWithoutPrint saleData:', saleData)
-    const result = await dispatch(createSale(saleData))
-    
-    if (createSale.fulfilled.match(result)) {
-      const sale = result.payload.data || result.payload
-      
-      // Process outstanding payments if any are selected
-    if (selectedOutstandingPayments.length > 0 && currentCart.length === 0 && showSettlementOptions) {
-      try {
-        await settleOutstandingPayments();
-      } catch (error) {
-        console.error('[POS] Error processing outstanding payments:', error)
-        alert(`❌ Error processing outstanding payments: ${error.message}`)
-        return
-      }
+    // --- Build printData preview (receiptNumber filled after backend responds) ---
+    const printDataPreview = {
+      type: 'receipt',
+      title: 'SALES RECEIPT',
+      companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
+      companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
+      companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone,
+      companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
+      logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
+      receiptNumber: '',   // filled after backend responds
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString(),
+      cashierName: user?.name || user?.username || 'Cashier',
+      customerName: customerName || 'Walk-in Customer',
+      customerPhone: customerPhone || '',
+      items: currentCart.map(normalizeCartItemForPrint),
+      subtotal: Math.round(subtotal),
+      tax: Math.round(tax),
+      discount: Math.round(totalDiscount),
+      invoiceTotal: Math.round(billAmount),
+      oldBalance: Math.round(selectedOutstandingTotal || 0),
+      total: Math.round(totalWithOutstanding),
+      paymentMethod: isFullyCredit ? 'FULLY_CREDIT' : (paymentMethod || 'CASH'),
+      paymentAmount: Math.round(finalPaymentAmount),
+      creditAmount: Math.round(finalCreditAmount),
+      remainingBalance: Math.round(Math.max(0, totalWithOutstanding - finalPaymentAmount)),
+      change: isPartialPayment ? 0 : Math.round((parseFloat(paymentAmount) || finalPaymentAmount) - totalWithOutstanding),
+      customerLabel: 'Customer',
+      footerMessage: 'Thank you for choosing PetZone!'
     }
-      
-      // Show success message (no printing)
-      alert(`✅ Sale completed successfully!\n\n` +
-            `Invoice: ${sale.invoice_no}\n` +
-            `Total: ${total.toFixed(2)}\n` +
-            `Payment: ${paymentMethod.toUpperCase()}\n` +
-            `Customer: ${customerName || 'Walk-in Customer'}\n` +
-            `Phone: ${customerPhone || 'N/A'}\n\n` +
-            `Receipt was NOT printed.`)
-      
-      // Clear all POS terminal state after successful sale
-      clearAllPOSState()
-      
-      // Refresh outstanding payments data to ensure clean state
-      setTimeout(() => {
-        refreshOutstandingPayments()
-      }, 2000)
-    } else if (createSale.rejected.match(result)) {
-      const error = result.payload || result.error
-      const message = error?.message || 'Sale failed'
-      const severity = error?.status === 403 ? 'warning' : 'error'
-      showToast(message, severity)
-    }
+
+    // --- Store and show confirm dialog ---
+    setPendingSaleData({
+      type: 'sale',
+      source: 'sale-only',   // ← identifies which button triggered this
+      saleData,
+      printDataPreview,
+      finalPaymentAmount,
+      finalCreditAmount,
+      totalWithOutstanding,
+      selectedOutstandingTotal,
+      billAmount,
+      selectedOutstandingPayments: [...selectedOutstandingPayments],
+      showSettlementOptions
+    })
+    setSaleConfirmDialog(true)
+
   } catch (error) {
-    console.error('[POS] handleSaleWithoutPrint error:', error)
-    showToast(error?.message || 'Sale failed', 'error')
-  } finally {
-    // Always reset loading state
-    setIsProcessingSale(false)
+    console.error('[POS] handleSaleWithoutPrint validation error:', error)
+    showToast(error?.message || 'Validation failed', 'error')
   }
+  // NOTE: No finally block needed — we never set isProcessingSale here.
+  // isProcessingSale / isProcessingSaleOnly are managed inside handleCompleteSale.
 }
 
   // Direct print function - prints current cart without creating sale
