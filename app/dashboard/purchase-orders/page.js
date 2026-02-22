@@ -734,10 +734,12 @@ function PurchaseOrdersPage() {
                   </TableHead>
                   <TableBody>
                     {purchaseOrders.map((order, index) => {
-                      const rawStatus = order.status ?? order.order_status ?? ''
-                      const orderStatus = String(rawStatus).trim().toUpperCase()
-                      const statusCfg = statusConfig[orderStatus]
-                      const statusLabel = statusCfg?.label || (orderStatus || rawStatus) || '—'
+                    const rawStatus = order.status ?? order.order_status ?? order.orderStatus ?? order.order_status ?? ''
+                    const orderStatus = (rawStatus && String(rawStatus) !== 'null' && String(rawStatus) !== 'undefined')
+                      ? String(rawStatus).trim().toUpperCase()
+                      : 'PENDING'
+                    const statusCfg = statusConfig[orderStatus]
+                    const statusLabel = statusCfg?.label || orderStatus || '—'
                       return (
                       <TableRow key={order.id} hover>
                         <TableCell>
@@ -1745,8 +1747,10 @@ function PurchaseOrdersPage() {
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Typography variant="body2" fontWeight="bold" sx={{ minWidth: 100 }}>Status:</Typography>
                           {(() => {
-                            const raw = selectedOrder.status ?? selectedOrder.order_status ?? ''
-                            const key = String(raw).trim().toUpperCase()
+                           const raw = selectedOrder.status ?? selectedOrder.order_status ?? selectedOrder.orderStatus ?? ''
+                           const key = (raw && String(raw) !== 'null' && String(raw) !== 'undefined')
+                             ? String(raw).trim().toUpperCase()
+                             : 'PENDING'
                             const cfg = statusConfig[key]
                             return (
                               <Chip
