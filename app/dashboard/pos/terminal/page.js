@@ -6335,53 +6335,37 @@ const handleSaleWithoutPrint = async () => {
               </Box>
 
               {/* Action Buttons */}
-              <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                <Button
-                  variant="contained"
-                  size="small"
-                  color="success"
-                  startIcon={isProcessingSaleOnly ? <CircularProgress size={18} color="inherit" /> : <CartIcon sx={{ fontSize: 18 }} />}
-                  onClick={handleSaleOnly}
-                  disabled={
-                    isProcessingSaleOnly ||
-                    isProcessingSale ||
-                    (currentCart.length === 0 && selectedOutstandingPayments.length === 0)
-                    // Allow buttons to be enabled even when total is negative (customer has advance credit)
-                  }
-                  sx={{ fontFamily: 'monospace', py: 1, flex: 1 }}
-                >
-                  {isProcessingSaleOnly ? 'PROCESSING...' : (currentCart.length === 0 && selectedOutstandingPayments.length > 0 
-                    ? 'SETTLE' 
-                    : 'PRINT'
-                  )}
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  color="primary"
-                  startIcon={isProcessingSale ? <CircularProgress size={18} color="inherit" /> : <CartIcon sx={{ fontSize: 18 }} />}
-                  onClick={handleSaleWithoutPrint}
-                  disabled={
-                    isProcessingSale ||
-                    isProcessingSaleOnly ||
-                    (currentCart.length === 0 && selectedOutstandingPayments.length === 0)
-                    // Allow buttons to be enabled even when total is negative (customer has advance credit)
-                  }
-                  sx={{ fontFamily: 'monospace', py: 1, minWidth: 100 }}
-                >
-                  SALE ONLY
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<PrintIcon sx={{ fontSize: 18 }} />}
-                  onClick={() => setShowPrinterDialog(true)}
-                  disabled={currentCart.length === 0}
-                  sx={{ fontFamily: 'monospace', py: 1, minWidth: 80 }}
-                >
-                  PRINTER
-                </Button>
-              </Box>
+              {/* Action Buttons */}
+<Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+  <Button
+    variant="contained"
+    size="small"
+    color="success"
+    startIcon={isProcessingSaleOnly ? <CircularProgress size={18} color="inherit" /> : <CartIcon sx={{ fontSize: 18 }} />}
+    onClick={handleSaleOnly}
+    disabled={
+      isProcessingSaleOnly ||
+      isProcessingSale ||
+      (currentCart.length === 0 && selectedOutstandingPayments.length === 0)
+    }
+    sx={{ fontFamily: 'monospace', py: 1, flex: 1 }}
+  >
+    {isProcessingSaleOnly ? 'PROCESSING...' : (currentCart.length === 0 && selectedOutstandingPayments.length > 0
+      ? 'SETTLE'
+      : 'COMPLETE SALE'
+    )}
+  </Button>
+  <Button
+    variant="outlined"
+    size="small"
+    startIcon={<PrintIcon sx={{ fontSize: 18 }} />}
+    onClick={() => setShowPrinterDialog(true)}
+    disabled={currentCart.length === 0}
+    sx={{ fontFamily: 'monospace', py: 1, minWidth: 100 }}
+  >
+    PRINTER
+  </Button>
+</Box>
             </Paper>
           </Box>
           {/* Physical Scanner Modal */}
