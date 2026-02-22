@@ -125,7 +125,7 @@ export default function PrintLayout({
     lineHeight: isWarehouse ? '1.1' : '1.2',
     color: '#000',
     backgroundColor: '#fff',
-    padding: isWarehouse ? '18px 32px' : '32px 56px',
+    padding: isWarehouse ? '10px 16px' : '16px 24px',
     margin: '0 auto',
     boxSizing: 'border-box'
   }
@@ -174,11 +174,16 @@ export default function PrintLayout({
               {isWarehouse ? 'WAREHOUSE INVOICE' : 'INVOICE'}
             </div>
             {/* Show branch/warehouse name if available */}
-            {(branchName || warehouseName) && (
-              <div style={{ fontSize: compactSpacing ? '11px' : '12px', marginBottom: compactSpacing ? '2px' : '4px', fontWeight: 'bold', color: '#000' }}>
-                {branchName || warehouseName}
-              </div>
-            )}
+           {logoUrl && (
+             <div style={{ marginBottom: compactSpacing ? '4px' : '8px' }}>
+               <img 
+                 src={logoUrl} 
+                 alt={companyName} 
+                 style={{ maxHeight: '50px', maxWidth: '120px', objectFit: 'contain' }}
+                 onError={(e) => e.target.style.display = 'none'}
+               />
+             </div>
+           )}
             <div style={{ fontSize: compactSpacing ? '11px' : '12px', marginBottom: compactSpacing ? '2px' : '4px' }}>
               <strong>INVOICE #{receiptNumber || '[100]'}</strong>
             </div>
@@ -198,7 +203,7 @@ export default function PrintLayout({
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '12px' : '24px', gap: '18px' }}>
           {/* Left: Billing TO */}
           <div style={{ flex: 1, marginRight: compactSpacing ? '10px' : '20px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '12px' : '14px', marginBottom: compactSpacing ? '4px' : '8px' }}>TO:</div>
+            <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '10px' : '12px', marginBottom: compactSpacing ? '4px' : '8px' }}>TO:</div>
             <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>{customerName || '[Name]'}</div>
             {customerAddress && (
               <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>{customerAddress}</div>
@@ -292,35 +297,35 @@ export default function PrintLayout({
             maxWidth: isWarehouse ? '900px' : '820px',
             minWidth: compactSpacing ? '450px' : '520px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '8px' : '12px', fontSize: compactSpacing ? '13px' : '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
               <span style={{ fontWeight: 'bold' }}>SUBTOTAL</span>
               <span style={{ fontWeight: 'bold' }}>{formatCurrency(nSubtotal)}</span>
             </div>
             {nDiscount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '8px' : '12px', fontSize: compactSpacing ? '13px' : '15px', color: '#d32f2f' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px', color: '#d32f2f' }}>
                 <span style={{ fontWeight: 'bold' }}>DISCOUNT</span>
                 <span style={{ fontWeight: 'bold' }}>-{formatCurrency(nDiscount)}</span>
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '8px' : '12px', fontSize: compactSpacing ? '13px' : '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
               <span style={{ fontWeight: 'bold' }}>SALES TAX</span>
               <span style={{ fontWeight: 'bold' }}>{formatCurrency(nTax)}</span>
             </div>
             {nShipping > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '8px' : '12px', fontSize: compactSpacing ? '13px' : '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
                 <span style={{ fontWeight: 'bold' }}>SHIPPING & HANDLING</span>
                 <span style={{ fontWeight: 'bold' }}>{formatCurrency(nShipping)}</span>
               </div>
             )}
             {/* Always show OLD BALANCE for all invoices (branch + warehouse) */}
             {showOldBalance && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '8px' : '12px', fontSize: compactSpacing ? '13px' : '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
                 <span style={{ fontWeight: 'bold' }}>OLD BALANCE</span>
                 <span style={{ fontWeight: 'bold' }}>{formatCurrency(nOld)}</span>
               </div>
             )}
             <div style={{ borderTop: '2px solid #000', marginTop: compactSpacing ? '10px' : '16px', marginBottom: compactSpacing ? '10px' : '14px', paddingTop: compactSpacing ? '10px' : '14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: compactSpacing ? '16px' : '18px', fontWeight: 'bold' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: compactSpacing ? '13px' : '15px', fontWeight: 'bold' }}>
                 <span>TOTAL DUE</span>
                 <span>{formatCurrency(finalTotal)}</span>
               </div>
@@ -328,28 +333,28 @@ export default function PrintLayout({
             
             {/* Payment Details */}
             <div style={{ marginTop: compactSpacing ? '14px' : '24px', paddingTop: compactSpacing ? '12px' : '20px', borderTop: '1px dashed #000' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '12px' : '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
                 <span>Payment Method:</span>
                 <span style={{ fontWeight: 'bold' }}>{paymentMethod}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '12px' : '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
                 <span>Payment Amount:</span>
                 <span style={{ fontWeight: 'bold' }}>{formatCurrency(nPayment)}</span>
               </div>
               {(nCredit > 0 || paymentMethod === 'FULLY_CREDIT') && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '12px' : '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
                   <span>Credit Amount:</span>
                   <span style={{ fontWeight: 'bold' }}>{formatCurrency(nCredit || finalTotal)}</span>
                 </div>
               )}
               {shouldShowRemaining && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '12px' : '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
                   <span>Remaining Balance:</span>
                   <span style={{ fontWeight: 'bold' }}>{formatCurrency(computedRemaining)}</span>
                 </div>
               )}
               {change > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '12px' : '14px', color: 'green' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px', color: 'green' }}>
                   <span>Change:</span>
                   <span style={{ fontWeight: 'bold' }}>{formatCurrency(change)}</span>
                 </div>

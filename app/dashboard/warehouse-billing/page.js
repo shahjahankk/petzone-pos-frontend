@@ -2823,7 +2823,7 @@ const billAmount = useMemo(() => {
           setCompanyInfo({
               name: warehouse.name || fallbackInfo.name,
               address: warehouse.location || fallbackInfo.address,
-              phone: warehouse.phone || warehouse.managerPhone || warehouse.manager || fallbackInfo.phone,
+              phone: warehouse.phone || warehouse.managerPhone || fallbackInfo.phone,
               email: warehouse.email || fallbackInfo.email,
               logoUrl: warehouse.logoUrl || fallbackInfo.logoUrl
             })
