@@ -7047,8 +7047,9 @@ const handleSaleOnly = async () => {
                   </Box>
                 </Box>
 
-                {/* Action Buttons */}
-              {/* Action Buttons */}
+               
+              
+{/* Action Buttons */}
 <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
   <Button
     variant="contained"
@@ -7068,90 +7069,159 @@ const handleSaleOnly = async () => {
       : 'COMPLETE SALE'
     )}
   </Button>
-  <Button
-    variant="outlined"
-    size="small"
-    startIcon={<PrintIcon sx={{ fontSize: 18 }} />}
-    onClick={() => setShowPrinterDialog(true)}
-    disabled={currentCart.length === 0}
-    sx={{ fontFamily: 'monospace', py: 1, minWidth: 80 }}
-  >
-    PRINTER
-  </Button>
 </Box>
               </Paper>
           </Box>
           {/* Sale Confirmation Dialog - shown AFTER sale is saved */}
-          <Dialog
-            open={saleConfirmDialog}
-            onClose={() => {}} // Prevent accidental close
-            maxWidth="sm"
-            fullWidth
-            PaperProps={{ sx: { borderRadius: 3 } }}
-          >
-            <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                <CheckIcon sx={{ fontSize: 56, color: 'success.main' }} />
-                <Typography variant="h5" fontWeight="bold" color="success.main">
-                  Sale Saved Successfully!
-                </Typography>
-                {completedSaleData?.sale?.invoice_no && (
-                  <Chip
-                    label={`Invoice: ${completedSaleData.sale.invoice_no}`}
-                    color="primary"
-                    variant="outlined"
-                    sx={{ fontWeight: 'bold', fontSize: '1rem', px: 1 }}
-                  />
-                )}
-              </Box>
-            </DialogTitle>
+        {/* Sale Confirmation Dialog - shown AFTER sale is saved */}
+<Dialog
+  open={saleConfirmDialog}
+  onClose={() => {}} // Prevent accidental close
+  maxWidth="sm"
+  fullWidth
+  PaperProps={{ sx: { borderRadius: 3 } }}
+>
+  <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+      <CheckIcon sx={{ fontSize: 56, color: 'success.main' }} />
+      <Typography variant="h5" fontWeight="bold" color="success.main">
+        Sale Saved Successfully!
+      </Typography>
+      {completedSaleData?.sale?.invoice_no && (
+        <Chip
+          label={`Invoice: ${completedSaleData.sale.invoice_no}`}
+          color="primary"
+          variant="outlined"
+          sx={{ fontWeight: 'bold', fontSize: '1rem', px: 1 }}
+        />
+      )}
+    </Box>
+  </DialogTitle>
 
-            <DialogContent sx={{ textAlign: 'center', pt: 2 }}>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                The sale has been recorded. Would you like to print a receipt?
-              </Typography>
+  <DialogContent sx={{ textAlign: 'center', pt: 2 }}>
+    <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+      The sale has been recorded. Would you like to print a receipt?
+    </Typography>
 
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-                <Button
-                  variant="contained"
-                  size="large"
-                  startIcon={<PrintIcon />}
-                  color="primary"
-                  sx={{ minWidth: 160, py: 1.5, fontSize: '1rem' }}
-onClick={() => {
-  setSaleConfirmDialog(false)
-  if (completedSaleData?.printData) {
-    setPrintData(completedSaleData.printData)
-    setSelectedLayout('color')
-    setShowPrintDialog(true)
-  }
-  setCompletedSaleData(null)
-}}
-                >
-                  Print Receipt
-                </Button>
+    {/* Printer Options */}
+    <Box sx={{ mb: 4 }}>
+      <Typography variant="subtitle2" sx={{ mb: 2, color: 'primary.main' }}>
+        Select Print Option:
+      </Typography>
+      
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Button
+          variant="contained"
+          size="large"
+          startIcon={<PrintIcon />}
+          color="primary"
+          sx={{ py: 1.5, fontSize: '1rem', width: '100%' }}
+          onClick={() => {
+            setSaleConfirmDialog(false)
+            if (completedSaleData?.printData) {
+              setPrintData(completedSaleData.printData)
+              setSelectedLayout('thermal')
+              setShowPrintDialog(true)
+            }
+            setCompletedSaleData(null)
+          }}
+        >
+          Print Thermal Receipt (80mm)
+        </Button>
 
-                <Button
-                  variant="outlined"
-                  size="large"
-                  color="success"
-                  sx={{ minWidth: 160, py: 1.5, fontSize: '1rem' }}
-                  onClick={() => {
-                    setSaleConfirmDialog(false)
-                    setCompletedSaleData(null)
-                  }}
-                >
-                  Skip Print
-                </Button>
-              </Box>
-            </DialogContent>
+        <Button
+          variant="outlined"
+          size="large"
+          startIcon={<PrintIcon />}
+          color="secondary"
+          sx={{ py: 1.5, fontSize: '1rem', width: '100%' }}
+          onClick={() => {
+            setSaleConfirmDialog(false)
+            if (completedSaleData?.printData) {
+              setPrintData(completedSaleData.printData)
+              setSelectedLayout('color')
+              setShowPrintDialog(true)
+            }
+            setCompletedSaleData(null)
+          }}
+        >
+          Print Color Receipt (A4/Letter)
+        </Button>
 
-            <DialogActions sx={{ justifyContent: 'center', pb: 3, pt: 0 }}>
-              <Typography variant="caption" color="text.secondary">
-                ✅ Sale is already saved regardless of your choice above
-              </Typography>
-            </DialogActions>
-          </Dialog>
+        <Button
+          variant="outlined"
+          size="large"
+          startIcon={<PrintIcon />}
+          color="info"
+          sx={{ py: 1.5, fontSize: '1rem', width: '100%' }}
+          onClick={async () => {
+            setSaleConfirmDialog(false)
+            if (completedSaleData?.printData) {
+              try {
+                const { success, message, usedBrowserFallback } = await attemptReceiptPrint(
+                  completedSaleData.printData, 
+                  'Post-sale receipt'
+                )
+                
+                if (success) {
+                  if (usedBrowserFallback) {
+                    alert('✅ Receipt opened in browser print dialog!')
+                  } else {
+                    alert('✅ Receipt printed successfully!')
+                  }
+                } else {
+                  alert(`❌ Print failed: ${message || 'Unknown error'}`)
+                }
+              } catch (error) {
+                alert(`❌ Print failed: ${error.message}`)
+              }
+            }
+            setCompletedSaleData(null)
+          }}
+        >
+          Direct Print (Auto-detect Printer)
+        </Button>
+      </Box>
+    </Box>
+
+    {/* Printer Status Check */}
+    <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.100', borderRadius: 2 }}>
+      <Button
+        size="small"
+        variant="text"
+        onClick={async () => {
+          const status = await checkPrinterStatus()
+          alert(`Printer Status:\n\n${status.message}\n\n${status.hasSerialPorts ? 
+            `✅ Found ${status.portCount} serial port(s)` : 
+            '❌ No serial printers detected\n\nTry using Browser Print option.'}`
+          )
+        }}
+      >
+        Check Printer Status
+      </Button>
+    </Box>
+
+    {/* Skip Option */}
+    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+      <Button
+        variant="text"
+        color="inherit"
+        onClick={() => {
+          setSaleConfirmDialog(false)
+          setCompletedSaleData(null)
+        }}
+      >
+        Skip Printing
+      </Button>
+    </Box>
+  </DialogContent>
+
+  <DialogActions sx={{ justifyContent: 'center', pb: 3, pt: 0 }}>
+    <Typography variant="caption" color="text.secondary">
+      ✅ Sale is already saved regardless of your choice above
+    </Typography>
+  </DialogActions>
+</Dialog>
 
           {/* Physical Scanner Modal */}
           <PhysicalScanner
