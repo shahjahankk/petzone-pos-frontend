@@ -176,10 +176,6 @@ const purchaseOrderSchema = yup.object({
 // Status configuration - FIXED: Added APPROVED status
 const statusConfig = {
   PENDING: { color: 'warning', icon: <PendingIcon />, label: 'Pending' },
-  APPROVED: { color: 'info', icon: <CheckIcon />, label: 'Approved' },
-  ORDERED: { color: 'primary', icon: <ShoppingCartIcon />, label: 'Ordered' },
-  SHIPPED: { color: 'secondary', icon: <ShippingIcon />, label: 'Shipped' },
-  DELIVERED: { color: 'success', icon: <CheckIcon />, label: 'Delivered' },
   COMPLETED: { color: 'success', icon: <CheckIcon />, label: 'Completed' },
   CANCELLED: { color: 'error', icon: <CancelIcon />, label: 'Cancelled' }
 }
@@ -512,7 +508,7 @@ function PurchaseOrdersPage() {
       await dispatch(updatePurchaseOrderStatus({ 
         id: orderId, 
         status: newStatus,
-        actualDelivery: newStatus === 'DELIVERED' ? new Date().toISOString().split('T')[0] : null
+        actualDelivery: newStatus === 'COMPLETED' ? new Date().toISOString().split('T')[0] : null
       }))
       dispatch(fetchPurchaseOrders(filters))
     } catch (error) {
@@ -806,107 +802,51 @@ function PurchaseOrdersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            <Tooltip title="View Details">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleViewOrder(order)}
-                                color="primary"
-                              >
-                                <ViewIcon />
-                              </IconButton>
-                            </Tooltip>
-                            
-                            {/* Approve button for admin */}
-                            {user?.role === 'ADMIN' && orderStatus === 'PENDING' && (
-                              <Tooltip title="Approve Order">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleStatusUpdate(order.id, 'APPROVED')}
-                                  color="success"
-                                >
-                                  <CheckIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            
-                            {(user?.role === 'ADMIN' || (orderStatus === 'PENDING' &&
-                              ((user?.role === 'WAREHOUSE_KEEPER' && order.scopeType === 'WAREHOUSE' && order.scopeId === user.warehouseId) ||
-                               (user?.role === 'CASHIER' && order.scopeType === 'BRANCH' && order.scopeId === user.branchId)))) && (
-                              <Tooltip title="Edit Order">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleEditOrder(order)}
-                                  color="primary"
-                                >
-                                  <EditIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            
-                            {user?.role === 'ADMIN' && orderStatus === 'PENDING' && (
-                              <Tooltip title="Reject/Cancel Order">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleStatusUpdate(order.id, 'CANCELLED')}
-                                  color="error"
-                                >
-                                  <CancelIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            
-                            {orderStatus === 'APPROVED' && user?.role === 'ADMIN' && (
-                              <Tooltip title="Mark as Ordered">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleStatusUpdate(order.id, 'ORDERED')}
-                                  color="info"
-                                >
-                                  <ShoppingCartIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            
-                            {orderStatus === 'ORDERED' && user?.role === 'ADMIN' && (
-                              <Tooltip title="Mark as Shipped">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleStatusUpdate(order.id, 'SHIPPED')}
-                                  color="secondary"
-                                >
-                                  <ShippingIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            
-                            {orderStatus === 'SHIPPED' && user?.role === 'ADMIN' && (
-                              <Tooltip title="Mark as Delivered">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleStatusUpdate(order.id, 'DELIVERED')}
-                                  color="success"
-                                >
-                                  <CheckIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            
-                            {user?.role === 'ADMIN' && orderStatus === 'PENDING' && (
-                              <Tooltip title="Delete">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    setSelectedOrder(order)
-                                    setDeleteDialogOpen(true)
-                                  }}
-                                  color="error"
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
+<Box sx={{ display: 'flex', gap: 0.5 }}>
+  <Tooltip title="View Details">
+    <IconButton size="small" onClick={() => handleViewOrder(order)} color="primary">
+      <ViewIcon />
+    </IconButton>
+  </Tooltip>
+
+  {/* Edit — only PENDING orders */}
+  {(user?.role === 'ADMIN' || (orderStatus === 'PENDING' &&
+    ((user?.role === 'WAREHOUSE_KEEPER' && order.scopeType === 'WAREHOUSE' && order.scopeId === user.warehouseId) ||
+     (user?.role === 'CASHIER' && order.scopeType === 'BRANCH' && order.scopeId === user.branchId)))) && (
+    <Tooltip title="Edit Order">
+      <IconButton size="small" onClick={() => handleEditOrder(order)} color="primary">
+        <EditIcon />
+      </IconButton>
+    </Tooltip>
+  )}
+
+  {/* Complete — admin only, PENDING orders */}
+  {user?.role === 'ADMIN' && orderStatus === 'PENDING' && (
+    <Tooltip title="Mark as Completed (updates inventory)">
+      <IconButton size="small" onClick={() => handleStatusUpdate(order.id, 'COMPLETED')} color="success">
+        <CheckIcon />
+      </IconButton>
+    </Tooltip>
+  )}
+
+  {/* Cancel — admin only, PENDING orders */}
+  {user?.role === 'ADMIN' && orderStatus === 'PENDING' && (
+    <Tooltip title="Cancel Order">
+      <IconButton size="small" onClick={() => handleStatusUpdate(order.id, 'CANCELLED')} color="error">
+        <CancelIcon />
+      </IconButton>
+    </Tooltip>
+  )}
+
+  {/* Delete — admin only, PENDING orders */}
+  {user?.role === 'ADMIN' && orderStatus === 'PENDING' && (
+    <Tooltip title="Delete">
+      <IconButton size="small" onClick={() => { setSelectedOrder(order); setDeleteDialogOpen(true); }} color="error">
+        <DeleteIcon />
+      </IconButton>
+    </Tooltip>
+  )}
+</Box>
                         </TableCell>
                       </TableRow>
                     ); })}
