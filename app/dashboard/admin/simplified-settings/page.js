@@ -557,9 +557,9 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
   const settingsConfig = [
     { type: 'section', section: 'Basic Warehouse Operations' },
     {
-      key: 'allowWarehouseInventoryEdit',
-      label: 'Allow Warehouse Inventory Edit',
-      description: 'Warehouse keepers can edit inventory',
+      key: 'allowWarehouseInventoryAdd',
+      label: 'Allow Warehouse Inventory ADD',
+      description: 'Warehouse keepers can add new inventory items',
       type: 'switch'
     },
     {
