@@ -676,7 +676,16 @@ const handleCreate = async (data) => {
       const err = result.payload || result.error
       let message = 'Failed to create inventory item'
       if (err) {
-        if (Array.isArray(err.errors) && err.errors.length) {
+        if (err?.status === 403 || err?.statusCode === 403) {
+          // Role-specific 403 message
+          if (originalUser?.role === 'CASHIER') {
+            message = '🔒 Access denied. You do not have permission to add inventory items. Please contact your Admin to enable this permission.'
+          } else if (originalUser?.role === 'WAREHOUSE_KEEPER') {
+            message = '🔒 Access denied. You do not have permission to add inventory items. Please contact your Admin to enable this permission.'
+          } else {
+            message = '🔒 Access denied. Please select a valid Branch or Warehouse scope from the Admin Dashboard before adding items.'
+          }
+        } else if (Array.isArray(err.errors) && err.errors.length) {
           message = err.errors.map(e => e.msg || e.message || String(e)).join(', ')
         } else if (typeof err.apiError === 'string') {
           message = err.apiError
@@ -688,7 +697,7 @@ const handleCreate = async (data) => {
           message = JSON.stringify(err.message)
         }
       }
-      const severity = err?.status === 403 ? 'warning' : 'error'
+      const severity = err?.status === 403 || err?.statusCode === 403 ? 'warning' : 'error'
       showToast(message, severity)
     }
   } catch (error) {
@@ -701,35 +710,50 @@ const handleCreate = async (data) => {
   }
 }
 
-  const handleUpdate = async (data) => {
-    setFormSubmitting(true)
-    try {
-      const result = await dispatch(updateInventoryItem({ id: selectedEntity.id, data }))
-      if (updateInventoryItem.fulfilled.match(result)) {
-        handleFormClose()
-  
-        dispatch(fetchInventory(getFetchParams()))
-        showToast('Inventory item updated', 'success')
-      } else if (updateInventoryItem.rejected.match(result)) {
-        const err = result.payload || result.error
-        const formatMessage = (err) => {
-          if (!err) return 'Failed to update inventory item'
-          if (Array.isArray(err.errors) && err.errors.length) return err.errors.map(e => e.msg || e.message || JSON.stringify(e)).join(', ')
-          if (typeof err.apiError === 'string') return err.apiError
-          if (typeof err.message === 'object') return JSON.stringify(err.message)
-          return err.message || 'Failed to update inventory item'
+const handleUpdate = async (data) => {
+  setFormSubmitting(true)
+  try {
+    const result = await dispatch(updateInventoryItem({ id: selectedEntity.id, data }))
+    if (updateInventoryItem.fulfilled.match(result)) {
+      handleFormClose()
+      dispatch(fetchInventory(getFetchParams()))
+      showToast('Inventory item updated', 'success')
+    } else if (updateInventoryItem.rejected.match(result)) {
+      const err = result.payload || result.error
+      let message = 'Failed to update inventory item'
+      if (err) {
+        if (err?.status === 403 || err?.statusCode === 403) {
+          if (originalUser?.role === 'CASHIER') {
+            message = '🔒 Access denied. You do not have permission to edit inventory items. Please contact your Admin to enable this permission.'
+          } else if (originalUser?.role === 'WAREHOUSE_KEEPER') {
+            message = '🔒 Access denied. You do not have permission to edit inventory items. Please contact your Admin to enable this permission.'
+          } else {
+            message = '🔒 Access denied. Please ensure you have the correct scope selected.'
+          }
+        } else if (Array.isArray(err.errors) && err.errors.length) {
+          message = err.errors.map(e => e.msg || e.message || String(e)).join(', ')
+        } else if (typeof err.apiError === 'string') {
+          message = err.apiError
+        } else if (typeof err.message === 'string') {
+          message = err.message
+        } else if (typeof err.error === 'string') {
+          message = err.error
+        } else if (typeof err.message === 'object') {
+          message = JSON.stringify(err.message)
         }
-        const message = formatMessage(err)
-        const severity = err?.status === 403 ? 'warning' : 'error'
-        showToast(message, severity)
       }
-    } catch (error) {
-      const msg = (error && error.message) ? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message)) : 'Error updating inventory item'
-      showToast(msg, 'error')
-    } finally {
-      setFormSubmitting(false)
+      const severity = err?.status === 403 || err?.statusCode === 403 ? 'warning' : 'error'
+      showToast(message, severity)
     }
+  } catch (error) {
+    const msg = (error && error.message)
+      ? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message))
+      : 'Error updating inventory item'
+    showToast(msg, 'error')
+  } finally {
+    setFormSubmitting(false)
   }
+}
 
   const handleDelete = async () => {
     try {
@@ -801,7 +825,27 @@ const handleFormSubmit = (formData) => {
     }
   })
 
-  // scopeType/scopeId are now fully removed if empty — backend will accept without them
+  // ── ADMIN scope guard ──────────────────────────────────────────────
+  // Admin must select a branch/warehouse before creating items
+  if (originalUser?.role === 'ADMIN' && !isAdminMode) {
+    if (!normalized.scopeType || !normalized.scopeId) {
+      showToast(
+        '⚠️ Please select a Scope Type and Scope Name (Branch or Warehouse) before adding an item. If managing a specific branch/warehouse, use the Admin Dashboard to navigate to that scope first.',
+        'warning'
+      )
+      return
+    }
+  }
+
+  // ── CASHIER / WAREHOUSE_KEEPER scope guard ─────────────────────────
+  if (user?.role === 'CASHIER' && !user?.branchId) {
+    showToast('Your account is not assigned to a branch. Please contact your Admin.', 'warning')
+    return
+  }
+  if (user?.role === 'WAREHOUSE_KEEPER' && !user?.warehouseId) {
+    showToast('Your account is not assigned to a warehouse. Please contact your Admin.', 'warning')
+    return
+  }
 
   const requiredFields = [{ key: 'name', label: 'Item Name' }]
 
