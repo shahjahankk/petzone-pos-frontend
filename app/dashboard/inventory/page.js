@@ -67,53 +67,41 @@ import { usePermissions } from '../../../hooks/usePermissions'
 const inventorySchema = yup.object({
   name: yup.string()
     .trim()
-    .min(1, 'Item name must be between 1 and 200 characters')
+    .min(1, 'Item name is required')
     .max(200, 'Item name must be between 1 and 200 characters')
     .required('Item name is required'),
   sku: yup.string()
     .nullable()
-    .transform((value) => value === '' ? null : value)
-    .test('sku-validation', 'SKU must be between 1 and 20 characters and can only contain letters, numbers, and hyphens', function(value) {
-      if (!value) return true // Allow empty/null values
-      if (value.length < 1 || value.length > 20) return false
-      return /^[A-Za-z0-9-]+$/.test(value)
-    }),
+    .transform((value) => value === '' ? null : value),
   barcode: yup.string()
     .nullable()
-    .transform((value) => value === '' ? null : value)
-    .test('barcode-length', 'Barcode must be between 1 and 50 characters', function(value) {
-      if (!value) return true // Allow empty/null values
-      return value.length >= 1 && value.length <= 50
-    }),
+    .transform((value) => value === '' ? null : value),
   description: yup.string()
     .nullable()
     .transform((value) => value === '' ? null : value),
   category: yup.string()
-    .trim()
-    .min(1, 'Category must be between 1 and 100 characters')
-    .max(100, 'Category must be between 1 and 100 characters')
-    .required('Category is required'),
+    .nullable()
+    .transform((value) => value === '' ? null : value),
   unit: yup.string()
-    .trim()
-    .min(1, 'Unit must be between 1 and 20 characters')
-    .max(20, 'Unit must be between 1 and 20 characters')
-    .required('Unit is required'),
+    .nullable()
+    .transform((value) => value === '' ? null : value),
   costPrice: yup.number()
-    .min(0, 'Cost price must be a positive number')
-    .required('Cost price is required'),
+    .nullable()
+    .transform((value) => value === '' || isNaN(value) ? null : value)
+    .min(0, 'Cost price must be a positive number'),
   sellingPrice: yup.number()
-    .min(0, 'Selling price must be a positive number')
-    .required('Selling price is required'),
+    .nullable()
+    .transform((value) => value === '' || isNaN(value) ? null : value)
+    .min(0, 'Selling price must be a positive number'),
   currentStock: yup.number()
-    .integer('Current stock must be an integer')
-    .required('Current stock is required'),
+    .nullable()
+    .transform((value) => value === '' || isNaN(value) ? null : value),
   scopeType: yup.string()
-    .oneOf(['BRANCH', 'WAREHOUSE'], 'Scope type must be BRANCH or WAREHOUSE')
-    .required('Scope type is required'),
+    .nullable()
+    .transform((value) => value === '' ? null : value),
   scopeId: yup.string()
-    .min(1, 'Scope name must be between 1 and 100 characters')
-    .max(100, 'Scope name must be between 1 and 100 characters')
-    .required('Scope name is required'),
+    .nullable()
+    .transform((value) => value === '' ? null : value),
   supplierId: yup.number()
     .nullable()
     .transform((value) => value === '' ? null : value),
@@ -134,14 +122,10 @@ const inventorySchema = yup.object({
         }
       }
       return value;
-    })
-    .test('is-valid-date', 'Please enter a valid date (DD/MM/YY or use date picker)', function(value) {
-      if (!value) return true;
-      return value instanceof Date && !isNaN(value.getTime());
     }),
   purchasePrice: yup.number()
     .nullable()
-    .transform((value) => value === '' ? null : value)
+    .transform((value) => value === '' || isNaN(value) ? null : value)
     .min(0, 'Purchase price must be a positive number'),
 })
 
@@ -802,18 +786,8 @@ useEffect(() => {
     if (!normalized.scopeType) normalized.scopeType = fallbackScopeType || userScopeType
     if (!normalized.scopeId) normalized.scopeId = fallbackScopeId || userScopeId
 
-    const requiredFields = isEdit
-      ? [{ key: 'name', label: 'Item Name' }]
-      : [
-          { key: 'name', label: 'Item Name' },
-          { key: 'category', label: 'Category' },
-          { key: 'unit', label: 'Unit' },
-          { key: 'costPrice', label: 'Cost Price' },
-          { key: 'sellingPrice', label: 'Selling Price' },
-          { key: 'currentStock', label: 'Current Stock' },
-          { key: 'scopeType', label: 'Scope Type' },
-          { key: 'scopeId', label: 'Scope ID' },
-        ]
+  const requiredFields = [{ key: 'name', label: 'Item Name' }]
+
 
     const missing = requiredFields.filter(f => {
       const v = normalized[f.key]
