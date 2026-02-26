@@ -664,38 +664,42 @@ useEffect(() => {
     setExcelUploadOpen(false)
   }
 
-  const handleCreate = async (data) => {
-    setFormSubmitting(true)
-    try {
-      const result = await dispatch(createInventoryItem(data))
-      if (createInventoryItem.fulfilled.match(result)) {
-        handleFormClose()
-        // Clear cache and refresh
-        dispatch(fetchInventory(getFetchParams()))
-        showToast('Inventory item created', 'success')
-      } else if (createInventoryItem.rejected.match(result)) {
-        const err = result.payload || result.error
-const formatMessage = (err) => {
-  if (!err) return 'Failed to create inventory item'
-  if (Array.isArray(err.errors) && err.errors.length) {
-    return err.errors.map(e => e.msg || e.message || String(e)).join(', ')
-  }
-  if (typeof err.apiError === 'string') return err.apiError
-  if (typeof err.message === 'string') return err.message
-  if (typeof err.message === 'object') return JSON.stringify(err.message)
-  return 'Failed to create inventory item'
-}
-        const message = formatMessage(err)
-        const severity = err?.status === 403 ? 'warning' : 'error'
-        showToast(message, severity)
+const handleCreate = async (data) => {
+  setFormSubmitting(true)
+  try {
+    const result = await dispatch(createInventoryItem(data))
+    if (createInventoryItem.fulfilled.match(result)) {
+      handleFormClose()
+      dispatch(fetchInventory(getFetchParams()))
+      showToast('Inventory item created', 'success')
+    } else if (createInventoryItem.rejected.match(result)) {
+      const err = result.payload || result.error
+      let message = 'Failed to create inventory item'
+      if (err) {
+        if (Array.isArray(err.errors) && err.errors.length) {
+          message = err.errors.map(e => e.msg || e.message || String(e)).join(', ')
+        } else if (typeof err.apiError === 'string') {
+          message = err.apiError
+        } else if (typeof err.message === 'string') {
+          message = err.message
+        } else if (typeof err.error === 'string') {
+          message = err.error
+        } else if (typeof err.message === 'object') {
+          message = JSON.stringify(err.message)
+        }
       }
-    } catch (error) {
-      const msg = (error && error.message) ? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message)) : 'Error creating inventory item'
-      showToast(msg, 'error')
-    } finally {
-      setFormSubmitting(false)
+      const severity = err?.status === 403 ? 'warning' : 'error'
+      showToast(message, severity)
     }
+  } catch (error) {
+    const msg = (error && error.message)
+      ? (typeof error.message === 'string' ? error.message : JSON.stringify(error.message))
+      : 'Error creating inventory item'
+    showToast(msg, 'error')
+  } finally {
+    setFormSubmitting(false)
   }
+}
 
   const handleUpdate = async (data) => {
     setFormSubmitting(true)
