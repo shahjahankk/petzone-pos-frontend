@@ -675,13 +675,16 @@ useEffect(() => {
         showToast('Inventory item created', 'success')
       } else if (createInventoryItem.rejected.match(result)) {
         const err = result.payload || result.error
-        const formatMessage = (err) => {
-          if (!err) return 'Failed to create inventory item'
-          if (Array.isArray(err.errors) && err.errors.length) return err.errors.map(e => e.msg || e.message || JSON.stringify(e)).join(', ')
-          if (typeof err.apiError === 'string') return err.apiError
-          if (typeof err.message === 'object') return JSON.stringify(err.message)
-          return err.message || 'Failed to create inventory item'
-        }
+const formatMessage = (err) => {
+  if (!err) return 'Failed to create inventory item'
+  if (Array.isArray(err.errors) && err.errors.length) {
+    return err.errors.map(e => e.msg || e.message || String(e)).join(', ')
+  }
+  if (typeof err.apiError === 'string') return err.apiError
+  if (typeof err.message === 'string') return err.message
+  if (typeof err.message === 'object') return JSON.stringify(err.message)
+  return 'Failed to create inventory item'
+}
         const message = formatMessage(err)
         const severity = err?.status === 403 ? 'warning' : 'error'
         showToast(message, severity)
@@ -744,67 +747,76 @@ useEffect(() => {
     }
   }
 
-  const handleFormSubmit = (formData) => {
-    const normNum = (val) => {
-      if (val === '' || val === null || val === undefined) return undefined
-      const n = Number(val)
-      return Number.isNaN(n) ? undefined : n
+const handleFormSubmit = (formData) => {
+  const normNum = (val) => {
+    if (val === '' || val === null || val === undefined) return undefined
+    const n = Number(val)
+    return Number.isNaN(n) ? undefined : n
+  }
+
+  const fallbackScopeType = isEdit && selectedEntity?.scopeType 
+    ? String(selectedEntity.scopeType).trim().toUpperCase() 
+    : ''
+  const fallbackScopeId = isEdit && selectedEntity?.scopeId !== undefined && selectedEntity?.scopeId !== null
+    ? String(selectedEntity.scopeId).trim()
+    : ''
+  const userScopeType = user?.role === 'WAREHOUSE_KEEPER'
+    ? 'WAREHOUSE'
+    : (user?.role === 'CASHIER' ? 'BRANCH' : '')
+  const userScopeId = user?.role === 'WAREHOUSE_KEEPER'
+    ? (user?.warehouseId ? String(user.warehouseId) : '')
+    : (user?.role === 'CASHIER' ? (user?.branchId ? String(user.branchId) : '') : '')
+
+  const normalized = {
+    ...formData,
+    scopeId: formData.scopeId !== undefined && formData.scopeId !== null && String(formData.scopeId).trim() !== ''
+      ? String(formData.scopeId).trim()
+      : fallbackScopeId,
+    scopeType: formData.scopeType && String(formData.scopeType).trim() !== ''
+      ? String(formData.scopeType).trim().toUpperCase()
+      : fallbackScopeType,
+    costPrice: normNum(formData.costPrice),
+    sellingPrice: normNum(formData.sellingPrice),
+    currentStock: normNum(formData.currentStock),
+    purchasePrice: normNum(formData.purchasePrice),
+  }
+
+  // Apply fallback scope from user role if still empty
+  if (!normalized.scopeType || normalized.scopeType === '') {
+    normalized.scopeType = fallbackScopeType || userScopeType || null
+  }
+  if (!normalized.scopeId || normalized.scopeId === '') {
+    normalized.scopeId = fallbackScopeId || userScopeId || null
+  }
+
+  // Clean up all empty/null/undefined/NaN values
+  Object.keys(normalized).forEach((key) => {
+    const v = normalized[key]
+    if (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v))) {
+      delete normalized[key]
     }
+  })
 
-    const fallbackScopeType = isEdit && selectedEntity?.scopeType ? String(selectedEntity.scopeType).trim().toUpperCase() : ''
-    const fallbackScopeId = isEdit && selectedEntity?.scopeId !== undefined && selectedEntity?.scopeId !== null
-      ? String(selectedEntity.scopeId).trim()
-      : ''
-    const userScopeType = user?.role === 'WAREHOUSE_KEEPER'
-      ? 'WAREHOUSE'
-      : (user?.role === 'CASHIER' ? 'BRANCH' : '')
-    const userScopeId = user?.role === 'WAREHOUSE_KEEPER'
-      ? (user?.warehouseId ? String(user.warehouseId) : '')
-      : (user?.role === 'CASHIER' ? (user?.branchId ? String(user.branchId) : '') : '')
-
-    const normalized = {
-      ...formData,
-      scopeId: formData.scopeId !== undefined && formData.scopeId !== null && String(formData.scopeId).trim() !== ''
-        ? String(formData.scopeId).trim()
-        : fallbackScopeId,
-      scopeType: formData.scopeType && String(formData.scopeType).trim() !== ''
-        ? String(formData.scopeType).trim().toUpperCase()
-        : fallbackScopeType,
-      costPrice: normNum(formData.costPrice),
-      sellingPrice: normNum(formData.sellingPrice),
-      currentStock: normNum(formData.currentStock),
-      purchasePrice: normNum(formData.purchasePrice),
-    }
-
-    Object.keys(normalized).forEach((key) => {
-      const v = normalized[key]
-      if (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v))) {
-        delete normalized[key]
-      }
-    })
-
-    if (!normalized.scopeType) normalized.scopeType = fallbackScopeType || userScopeType
-    if (!normalized.scopeId) normalized.scopeId = fallbackScopeId || userScopeId
+  // scopeType/scopeId are now fully removed if empty — backend will accept without them
 
   const requiredFields = [{ key: 'name', label: 'Item Name' }]
 
+  const missing = requiredFields.filter(f => {
+    const v = normalized[f.key]
+    return v === undefined || v === null || v === '' || Number.isNaN(v)
+  })
 
-    const missing = requiredFields.filter(f => {
-      const v = normalized[f.key]
-      return v === undefined || v === null || v === '' || Number.isNaN(v)
-    })
-
-    if (missing.length > 0) {
-      showToast(`Please fill: ${missing.map(m => m.label).join(', ')}`, 'warning')
-      return
-    }
-
-    if (isEdit) {
-      handleUpdate(normalized)
-    } else {
-      handleCreate(normalized)
-    }
+  if (missing.length > 0) {
+    showToast(`Please fill: ${missing.map(m => m.label).join(', ')}`, 'warning')
+    return
   }
+
+  if (isEdit) {
+    handleUpdate(normalized)
+  } else {
+    handleCreate(normalized)
+  }
+}
   
   // Raw data from server (paginated)
 const rawInventory = Array.isArray(inventory) ? inventory : []
