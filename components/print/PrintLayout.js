@@ -145,13 +145,35 @@ export default function PrintLayout({
     return (
       <div className={`receipt-container ${layout}-layout`} style={containerStyles}>
         <div style={{ maxWidth: '1350px', margin: '0 auto', width: '100%' }}>
-        {/* Header Section - Company Info Left, Invoice Info Right */}
+        {/* Header Section - Logo + Company Info Left, Invoice Info Right */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '12px' : '24px', alignItems: 'flex-start', gap: '18px' }}>
-          {/* Left: Company Information */}
+          
+          {/* Left: Logo first, then Company Information below */}
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '20px' : '24px', marginBottom: compactSpacing ? '2px' : '4px', color: '#000' }}>
-              {companyName || 'Your Company Name'}
-            </div>
+            {/* Logo at the top of left column */}
+            {logoUrl && (
+              <div style={{ marginBottom: compactSpacing ? '6px' : '10px' }}>
+                <img
+                  src={logoUrl}
+                  alt={companyName}
+                  style={{ maxHeight: '70px', maxWidth: '160px', objectFit: 'contain', display: 'block' }}
+                  onError={(e) => {
+                    e.target.style.display = 'none'
+                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'block'
+                  }}
+                />
+                {/* Fallback company name text shown only if logo fails */}
+                <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '20px' : '24px', color: '#000', display: 'none' }}>
+                  {companyName || 'Your Company Name'}
+                </div>
+              </div>
+            )}
+            {/* Company name text (shown when no logoUrl provided) */}
+            {!logoUrl && (
+              <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '20px' : '24px', marginBottom: compactSpacing ? '2px' : '4px', color: '#000' }}>
+                {companyName || 'Your Company Name'}
+              </div>
+            )}
             {companySlogan && (
               <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#666', marginBottom: compactSpacing ? '4px' : '12px' }}>
                 {companySlogan}
@@ -168,22 +190,11 @@ export default function PrintLayout({
             )}
           </div>
           
-          {/* Right: Invoice Details */}
+          {/* Right: Invoice Details only (logo removed from here) */}
           <div style={{ textAlign: 'right', flex: 1 }}>
             <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '20px' : '24px', marginBottom: compactSpacing ? '2px' : '4px', color: '#000' }}>
               {isWarehouse ? 'WAREHOUSE INVOICE' : 'INVOICE'}
             </div>
-            {/* Show branch/warehouse name if available */}
-           {logoUrl && (
-             <div style={{ marginBottom: compactSpacing ? '4px' : '8px' }}>
-               <img 
-                 src={logoUrl} 
-                 alt={companyName} 
-                 style={{ maxHeight: '50px', maxWidth: '120px', objectFit: 'contain' }}
-                 onError={(e) => e.target.style.display = 'none'}
-               />
-             </div>
-           )}
             <div style={{ fontSize: compactSpacing ? '11px' : '12px', marginBottom: compactSpacing ? '2px' : '4px' }}>
               <strong>INVOICE #{receiptNumber || '[100]'}</strong>
             </div>
@@ -216,8 +227,7 @@ export default function PrintLayout({
             )}
           </div>
           
-          {/* Right: Shipping SHIP TO - Hidden for warehouse invoices and color prints */}
-          {/* Removed SHIP TO section for all color prints */}
+          {/* Right: SHIP TO - Hidden for all color prints */}
         </div>
 
         {/* Items Table */}
@@ -236,7 +246,6 @@ export default function PrintLayout({
                 const qty = Number.isFinite(item.quantity) ? item.quantity : 0
                 
                 // Use the normalized values from normalizeCartItemForPrint directly
-                // These should already be calculated correctly
                 let unitPriceValue = Number.isFinite(item.unitPrice) ? item.unitPrice : 
                                     (Number.isFinite(item.price) ? item.price : 0)
                 
@@ -245,13 +254,10 @@ export default function PrintLayout({
                 
                 // If values are still 0 or missing, try to calculate
                 if ((!Number.isFinite(unitPriceValue) || unitPriceValue === 0) && qty > 0) {
-                  // Try to calculate from total if available
                   if (Number.isFinite(totalValue) && totalValue !== 0) {
                     const discountAmount = safeNumber(item.discount || 0)
                     unitPriceValue = (totalValue + discountAmount) / qty
-                  }
-                  // Otherwise try direct price fields
-                  else {
+                  } else {
                     unitPriceValue = Number.isFinite(item.price) ? item.price :
                                     (Number.isFinite(item.sellingPrice) ? item.sellingPrice :
                                     (Number.isFinite(item.customPrice) ? item.customPrice : 0))
@@ -264,7 +270,6 @@ export default function PrintLayout({
                   totalValue = (unitPriceValue * qty) - discountAmount
                 }
                 
-                // Final validation
                 if (!Number.isFinite(unitPriceValue)) unitPriceValue = 0
                 if (!Number.isFinite(totalValue)) totalValue = 0
                 
@@ -276,7 +281,7 @@ export default function PrintLayout({
                         <div style={{ fontSize: compactSpacing ? '11px' : '12px', color: '#d32f2f' }}>Discount: -{formatCurrency(item.discount)}</div>
                       )}
                     </td>
-                    <td style={{ border: '1px solid #ccc',padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'center', fontSize: compactSpacing ? '11px' : '12px' }}>{formatCurrency(qty)}</td>
+                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'center', fontSize: compactSpacing ? '11px' : '12px' }}>{formatCurrency(qty)}</td>
                     <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'right', fontSize: compactSpacing ? '11px' : '12px' }}>{formatCurrency(unitPriceValue)}</td>
                     <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'right', fontSize: compactSpacing ? '11px' : '12px', fontWeight: 'bold' }}>{formatCurrency(totalValue)}</td>
                   </tr>
@@ -411,7 +416,7 @@ export default function PrintLayout({
     )
   }
 
-  // ✅ THERMAL PRINTER LAYOUT (Original)
+  // ✅ THERMAL PRINTER LAYOUT (Original - unchanged)
   return (
     <div className={`receipt-container ${layout}-layout`} style={containerStyles}>
       <div style={{ textAlign: layout === 'thermal' ? 'center' : 'left', marginBottom: layout === 'thermal' ? '8px' : '16px' }}>
@@ -661,4 +666,4 @@ export default function PrintLayout({
       </div>
     </div>
   )
-} 
+}

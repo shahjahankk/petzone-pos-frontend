@@ -935,16 +935,39 @@ useEffect(() => {
         </Dialog>
 
         {/* Print Dialog */}
+// ============================================================
+// REPLACE the PrintDialog block at the bottom of EditableInvoiceForm.jsx
+// (the block starting with: {/* Print Dialog */} )
+// with the following:
+// ============================================================
+
+{/* Print Dialog */}
 {showPrintDialog && (
     <PrintDialog
         open={showPrintDialog}
         onClose={() => setShowPrintDialog(false)}
         printData={{
             type: sale.scopeType === 'WAREHOUSE' ? 'warehouse' : 'pos',
-            invoiceNo: sale.invoice_no || sale.id,
-            date: sale.created_at || new Date().toISOString(),
+            title: 'SALES RECEIPT',
+            // ✅ Company info - pulled from sale or fallback defaults
+            companyName: sale.companyName || sale.company_name || 'PetZone',
+            companyAddress: sale.companyAddress || sale.company_address || 'Shop no 42 unit no 2 latifabad near musarrat banquet Hyderabad',
+            companyPhone: sale.companyPhone || sale.company_phone || '03111100355',
+            companyEmail: sale.companyEmail || sale.company_email || 'info@petzone.com',
+            logoUrl: sale.logoUrl || sale.logo_url || '/petzonelogo.png',
+            // ✅ Receipt meta
+            receiptNumber: sale.invoice_no || sale.id,
+            date: sale.created_at
+                ? new Date(sale.created_at).toLocaleDateString()
+                : new Date().toLocaleDateString(),
+            time: sale.created_at
+                ? new Date(sale.created_at).toLocaleTimeString()
+                : new Date().toLocaleTimeString(),
+            cashierName: sale.cashierName || sale.cashier_name || user?.name || user?.username || 'Cashier',
+            // ✅ Customer info
             customerName: formData.customerName,
             customerPhone: formData.customerPhone,
+            // ✅ Items
             items: formData.items.map(item => ({
                 name: item.itemName || item.name,
                 sku: item.sku,
@@ -954,17 +977,21 @@ useEffect(() => {
                 discount: item.discount || 0,
                 total: (item.quantity * item.unitPrice) - (item.discount || 0)
             })),
+            // ✅ Totals
             subtotal: totals.subtotal,
             tax: totals.tax,
             discount: totals.totalDiscount,
-            invoiceTotal: totals.total,                                         // ← ADD
-            oldBalance: parseFloat(sale.old_balance ?? sale.oldBalance ?? 0),   // ← FIX
-            total: totals.total + parseFloat(sale.old_balance ?? sale.oldBalance ?? 0), // ← ADD
+            invoiceTotal: totals.total,
+            oldBalance: parseFloat(sale.old_balance ?? sale.oldBalance ?? 0),
+            total: totals.total + parseFloat(sale.old_balance ?? sale.oldBalance ?? 0),
+            // ✅ Payment info
             paymentMethod: formData.paymentMethod,
             paymentStatus: formData.paymentStatus,
-            paymentAmount: sale.paymentAmount || sale.payment_amount || 0,
-            creditAmount: sale.creditAmount || sale.credit_amount || 0,
-            notes: formData.notes
+            paymentAmount: parseFloat(sale.paymentAmount || sale.payment_amount || 0),
+            creditAmount: parseFloat(sale.creditAmount || sale.credit_amount || 0),
+            // ✅ Notes & footer
+            notes: formData.notes,
+            footerMessage: 'Thank you for choosing PetZone!'
         }}
     />
 )}
