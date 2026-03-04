@@ -528,10 +528,13 @@ const calculateSummaryTotals = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
+    // Parse the date part directly from the string to avoid UTC→local timezone shift.
+    // new Date() would convert UTC to local time and potentially show tomorrow's date
+    // for sales made in the evening in timezones ahead of UTC (e.g. UTC+5).
+    const datePart = String(dateString).substring(0, 10); // "2026-03-04"
+    const parts = datePart.split('-');
+    if (parts.length !== 3) return 'N/A';
+    const [year, month, day] = parts;
     return `${day}/${month}/${year}`;
   }
 
