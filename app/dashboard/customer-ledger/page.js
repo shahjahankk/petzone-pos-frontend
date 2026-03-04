@@ -425,16 +425,12 @@ const calculateSummaryTotals = () => {
     totalCredit: 0
   })
   
-  // Outstanding balance = running_balance of the chronologically latest transaction
-  // Find explicitly (not by trusting array order) so backdated sales don't skew it
-  const outstandingBalance = transactions.length > 0
-    ? parseFloat(transactions.reduce((max, t) => {
-        const tDate = new Date(String(t.transaction_date || t.created_at || 0).substring(0, 19)).getTime()
-        const mDate = new Date(String(max.transaction_date || max.created_at || 0).substring(0, 19)).getTime()
-        if (tDate > mDate) return t
-        if (tDate === mDate) return (t.transaction_id || t.id || 0) > (max.transaction_id || max.id || 0) ? t : max
-        return max
-      }).running_balance || 0)
+  // Use the running balance from the most recent transaction as outstanding balance
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    new Date(b.transaction_date) - new Date(a.transaction_date)
+  )
+  const outstandingBalance = sortedTransactions.length > 0 
+    ? parseFloat(sortedTransactions[0].running_balance || 0)
     : totals.totalAmount - totals.totalPaid
   
   console.log('Fallback totals:', { ...totals, outstandingBalance })
