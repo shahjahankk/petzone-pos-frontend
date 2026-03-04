@@ -177,6 +177,7 @@ const createEmptyTabState = (overrides = {}) => ({
   taxRate: 0,
   totalDiscount: 0,
   notes: '',
+  saleDate: '',
   ...overrides
 })
 
@@ -314,6 +315,7 @@ function POSTerminal() {
   const [taxRate, setTaxRate] = useState(0) // Tax rate as percentage (0-100)
   const [totalDiscount, setTotalDiscount] = useState(0) // Total discount amount
   const [notes, setNotes] = useState('')
+  const [saleDate, setSaleDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [showSettings, setShowSettings] = useState(false)
@@ -403,7 +405,8 @@ const [isProcessingSale, setIsProcessingSale] = useState(false)
       showSettlementOptions,
       taxRate,
       totalDiscount,
-      notes
+      notes,
+      saleDate
     }
 
     const hasChanges = Object.entries(updates).some(([key, value]) => {
@@ -722,6 +725,7 @@ const [isProcessingSale, setIsProcessingSale] = useState(false)
     setTaxRate(newTab.taxRate)
     setTotalDiscount(newTab.totalDiscount)
     setNotes(newTab.notes)
+    setSaleDate(newTab.saleDate || '')
 
   }, [tabCounter])
 
@@ -2681,7 +2685,8 @@ const saleData = {
     name: customerName || 'Walk-in Customer',
     phone: customerPhone || ''
   },
-  notes: notes || 'Sale completed without printing'
+  notes: notes || 'Sale completed without printing',
+  saleDate: saleDate || null
 }
 
       console.log('[POS] Sale data being sent:', saleData);      
@@ -5939,6 +5944,22 @@ const handleSaleWithoutPrint = async () => {
 
 
 
+
+              {/* Sale Date Section */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Sale Date <Typography component="span" variant="caption" color="text.secondary">(optional – leave blank for today)</Typography>
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="date"
+                  value={saleDate}
+                  onChange={(e) => setSaleDate(e.target.value)}
+                  inputProps={{ max: new Date().toISOString().split('T')[0] }}
+                  size="small"
+                  helperText={saleDate ? `Backdated to ${saleDate}` : 'Using today\'s date'}
+                />
+              </Box>
 
               {/* Notes Section */}
 

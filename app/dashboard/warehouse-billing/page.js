@@ -170,6 +170,7 @@ const createEmptyTabState = (overrides = {}) => ({
   taxRate: 0,
   totalDiscount: 0,
   notes: '',
+  saleDate: '',
   ...overrides
 })
 
@@ -285,6 +286,7 @@ function WarehouseBillingPage() {
   const [taxRate, setTaxRate] = useState(0) // Tax rate as percentage (0-100)
   const [totalDiscount, setTotalDiscount] = useState(0) // Total discount amount
   const [notes, setNotes] = useState('')
+  const [saleDate, setSaleDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [showSettings, setShowSettings] = useState(false)
@@ -484,6 +486,7 @@ function WarehouseBillingPage() {
       paymentAmount: normalizedPaymentAmount,
       creditAmount: normalizedCreditAmount,
       notes: notes || '',
+      saleDate: saleDate || null,
       customerInfo: {
         id: retailerInfo.id,
         name: retailerInfo.name,
@@ -496,6 +499,7 @@ function WarehouseBillingPage() {
   }, [
     currentCart,
     notes,
+    saleDate,
     retailerDisplayName,
     retailerDisplayPhone,
     selectedOutstandingPayments,
@@ -817,7 +821,8 @@ function WarehouseBillingPage() {
       showSettlementOptions,
       taxRate,
       totalDiscount,
-      notes
+      notes,
+      saleDate
     }
 
     const hasChanges = Object.entries(updates).some(([key, value]) => {
@@ -1138,6 +1143,7 @@ function WarehouseBillingPage() {
     setTaxRate(newTab.taxRate)
     setTotalDiscount(newTab.totalDiscount)
     setNotes(newTab.notes)
+    setSaleDate(newTab.saleDate || '')
 
   }, [tabCounter])
 
@@ -6667,6 +6673,22 @@ const handleSaleOnly = async () => {
                 </Box>
 
               )}
+
+              {/* Sale Date Section */}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Sale Date <Typography component="span" variant="caption" color="text.secondary">(optional – leave blank for today)</Typography>
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="date"
+                  value={saleDate}
+                  onChange={(e) => setSaleDate(e.target.value)}
+                  inputProps={{ max: new Date().toISOString().split('T')[0] }}
+                  size="small"
+                  helperText={saleDate ? `Backdated to ${saleDate}` : 'Using today\'s date'}
+                />
+              </Box>
 
               {/* Notes Section */}
 
