@@ -25,7 +25,7 @@ import {
   deleteHeldBill,
   setActiveTab,
   toggleInventoryModal
-} from '../../store/slices/posSlice'
+} from '../store/slices/posSlice'
 
 // Validation schemas
 const posSchema = yup.object({

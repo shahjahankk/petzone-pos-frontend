@@ -83,9 +83,9 @@ import PrintDialog from '../../components/print/PrintDialog'
 
 import RouteGuard from '../../components/auth/RouteGuard'
 import PhysicalScanner from '../../components/pos/PhysicalScanner'
-import { fetchInventory } from '../../store/slices/inventorySlice'
-import { createWarehouseSale, fetchSales } from '../../store/slices/salesSlice'
-import { fetchRetailers } from '../../store/slices/retailersSlice'
+import { fetchInventory } from '../store/slices/inventorySlice'
+import { createWarehouseSale, fetchSales } from '../store/slices/salesSlice'
+import { fetchRetailers } from '../store/slices/retailersSlice'
 
 // Tab management utilities
 const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
