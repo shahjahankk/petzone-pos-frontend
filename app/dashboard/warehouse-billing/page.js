@@ -6675,7 +6675,7 @@ const handleSaleOnly = async () => {
               )}
 
               {/* Sale Date Section */}
-              <Box sx={{ mb: 2 }}>
+              {/* <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Sale Date <Typography component="span" variant="caption" color="text.secondary">(optional – leave blank for today)</Typography>
                 </Typography>
@@ -6688,7 +6688,7 @@ const handleSaleOnly = async () => {
                   size="small"
                   helperText={saleDate ? `Backdated to ${saleDate}` : 'Using today\'s date'}
                 />
-              </Box>
+              </Box> */}
 
               {/* Notes Section */}
 
