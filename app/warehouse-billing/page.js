@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import api from '../../../utils/axios'
+import api from '../../utils/axios'
 import { useRouter } from 'next/navigation'
 import {
   Box,
@@ -79,13 +79,13 @@ import {
   Phone as PhoneIcon,
   AttachMoney as MoneyIcon
 } from '@mui/icons-material'
-import PrintDialog from '../../../components/print/PrintDialog'
-import DashboardLayout from '../../../components/layout/DashboardLayout'
-import RouteGuard from '../../../components/auth/RouteGuard'
-import PhysicalScanner from '../../../components/pos/PhysicalScanner'
-import { fetchInventory } from '../../store/slices/inventorySlice'
-import { createWarehouseSale, fetchSales } from '../../store/slices/salesSlice'
-import { fetchRetailers } from '../../store/slices/retailersSlice'
+import PrintDialog from '../../components/print/PrintDialog'
+import DashboardLayout from '../../components/layout/DashboardLayout'
+import RouteGuard from '../../components/auth/RouteGuard'
+import PhysicalScanner from '../../components/pos/PhysicalScanner'
+import { fetchInventory } from '../store/slices/inventorySlice'
+import { createWarehouseSale, fetchSales } from '../store/slices/salesSlice'
+import { fetchRetailers } from '../store/slices/retailersSlice'
 
 // Tab management utilities
 const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
