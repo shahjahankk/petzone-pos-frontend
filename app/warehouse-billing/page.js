@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import api from '../../../utils/axios'
+import api from '../../utils/axios'
 import { useRouter } from 'next/navigation'
 import {
   Box,
@@ -79,10 +79,10 @@ import {
   Phone as PhoneIcon,
   AttachMoney as MoneyIcon
 } from '@mui/icons-material'
-import PrintDialog from '../../../components/print/PrintDialog'
-import DashboardLayout from '../../../components/layout/DashboardLayout'
-import RouteGuard from '../../../components/auth/RouteGuard'
-import PhysicalScanner from '../../../components/pos/PhysicalScanner'
+import PrintDialog from '../../components/print/PrintDialog'
+
+import RouteGuard from '../../components/auth/RouteGuard'
+import PhysicalScanner from '../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../../store/slices/inventorySlice'
 import { createWarehouseSale, fetchSales } from '../../store/slices/salesSlice'
 import { fetchRetailers } from '../../store/slices/retailersSlice'
@@ -1549,8 +1549,7 @@ function WarehouseBillingPage() {
   // RENDER
   // ──────────────────────────────────────────────────────────────────────────
   return (
-    <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}>
-      <DashboardLayout>
+    <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}> 
         {isAdminMode && scopeInfo && (
           <Box sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', p: 0.75, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main' }}>
             <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
@@ -2021,7 +2020,6 @@ function WarehouseBillingPage() {
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>
 
-      </DashboardLayout>
     </RouteGuard>
   )
 }
