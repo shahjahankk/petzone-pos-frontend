@@ -311,6 +311,8 @@ function POSTerminal() {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false)
   const [searchResults, setSearchResults] = useState([])
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchHighlightIndex, setSearchHighlightIndex] = useState(-1)
+  const [customerHighlightIndex, setCustomerHighlightIndex] = useState(-1)
   const [showPhysicalScanner, setShowPhysicalScanner] = useState(false)
   const [taxRate, setTaxRate] = useState(0) // Tax rate as percentage (0-100)
   const [totalDiscount, setTotalDiscount] = useState(0) // Total discount amount
@@ -4437,6 +4439,40 @@ const handleSaleWithoutPrint = async () => {
     }
   }, [])
 
+  // Reset search highlight when dropdown opens/closes
+  useEffect(() => {
+    if (!showSearchResults) {
+      setSearchHighlightIndex(-1)
+    } else if (searchResults.length > 0) {
+      setSearchHighlightIndex(0)
+    }
+  }, [searchResults, showSearchResults])
+
+  // Scroll highlighted search item into view
+  useEffect(() => {
+    if (showSearchResults && searchHighlightIndex >= 0) {
+      const el = document.getElementById(`search-item-${searchHighlightIndex}`)
+      if (el) el.scrollIntoView({ block: 'nearest' })
+    }
+  }, [searchHighlightIndex, showSearchResults])
+
+  // Reset customer highlight when dropdown opens/closes
+  useEffect(() => {
+    if (!showCustomerSearch) {
+      setCustomerHighlightIndex(-1)
+    } else if (customerSearchResults.length > 0) {
+      setCustomerHighlightIndex(0)
+    }
+  }, [customerSearchResults, showCustomerSearch])
+
+  // Scroll highlighted customer item into view
+  useEffect(() => {
+    if (showCustomerSearch && customerHighlightIndex >= 0) {
+      const el = document.getElementById(`customer-${customerHighlightIndex}`)
+      if (el) el.scrollIntoView({ block: 'nearest' })
+    }
+  }, [customerHighlightIndex, showCustomerSearch])
+
   return (
 
       <Paper
@@ -4613,6 +4649,28 @@ const handleSaleWithoutPrint = async () => {
 
                   }}
 
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setShowSearchResults(false)
+                      setSearchHighlightIndex(-1)
+                    }
+                    if (showSearchResults && searchResults.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setSearchHighlightIndex(prev => Math.min(prev + 1, searchResults.length - 1))
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setSearchHighlightIndex(prev => Math.max(prev - 1, 0))
+                      } else if (e.key === 'Enter' && searchHighlightIndex >= 0) {
+                        e.preventDefault()
+                        addToCart(searchResults[searchHighlightIndex])
+                        setShowSearchResults(false)
+                        setManualInput('')
+                        setSearchQuery('')
+                      }
+                    }
+                  }}
+
                   onKeyPress={handleKeyPress}
 
                   InputProps={{
@@ -4661,9 +4719,11 @@ const handleSaleWithoutPrint = async () => {
 
                   >
 
-                    {searchResults.map((product) => (
+                    {searchResults.map((product, pi) => (
 
                       <Box
+
+                        id={`search-item-${pi}`}
 
                         key={product.id}
 
@@ -4674,6 +4734,8 @@ const handleSaleWithoutPrint = async () => {
                           cursor: 'pointer',
 
                           borderBottom: `1px solid ${theme.palette.divider}`,
+
+                          bgcolor: pi === searchHighlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
 
                           '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
 
@@ -5082,6 +5144,25 @@ const handleSaleWithoutPrint = async () => {
 
                 }}
 
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setShowCustomerSearch(false)
+                    setCustomerHighlightIndex(-1)
+                  }
+                  if (showCustomerSearch && customerSearchResults.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      setCustomerHighlightIndex(prev => Math.min(prev + 1, customerSearchResults.length - 1))
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      setCustomerHighlightIndex(prev => Math.max(prev - 1, 0))
+                    } else if (e.key === 'Enter' && customerHighlightIndex >= 0) {
+                      e.preventDefault()
+                      selectCustomer(customerSearchResults[customerHighlightIndex])
+                    }
+                  }
+                }}
+
                 sx={{ mb: 1 }}
 
               />
@@ -5104,6 +5185,8 @@ const handleSaleWithoutPrint = async () => {
 
                     <Box
 
+                      id={`customer-${index}`}
+
                       key={index}
 
                       sx={{
@@ -5115,6 +5198,8 @@ const handleSaleWithoutPrint = async () => {
                         borderColor: 'divider',
 
                         cursor: 'pointer',
+
+                        bgcolor: index === customerHighlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
 
                         '&:hover': { bgcolor: 'action.hover' }
 

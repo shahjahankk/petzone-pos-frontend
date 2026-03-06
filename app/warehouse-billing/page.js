@@ -615,8 +615,10 @@ function WarehouseBillingPage() {
   const [salespeople, setSalespeople] = useState([])
   const [retailerSearchResults, setRetailerSearchResults] = useState([])
   const [showRetailerSearch, setShowRetailerSearch] = useState(false)
+  const [retailerHighlightIndex, setRetailerHighlightIndex] = useState(-1)
   const [searchResults, setSearchResults] = useState([])
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [inventoryHighlightIndex, setInventoryHighlightIndex] = useState(-1)
   const [showPhysicalScanner, setShowPhysicalScanner] = useState(false)
   const [taxRate, setTaxRate] = useState(0)
   const [totalDiscount, setTotalDiscount] = useState(0)
@@ -1065,7 +1067,22 @@ function WarehouseBillingPage() {
     else if (retailer.name && retailer.name.trim().length >= 3) searchOutstandingPayments('', retailer.name.trim())
   }, [searchOutstandingPayments])
 
-  // ── Totals ────────────────────────────────────────────────────────────────
+  // Reset highlight when retailer search dropdown visibility changes
+  useEffect(() => {
+    if (!showRetailerSearch) {
+      setRetailerHighlightIndex(-1)
+    } else if (retailerSearchResults.length > 0) {
+      setRetailerHighlightIndex(0)
+    }
+  }, [showRetailerSearch, retailerSearchResults])
+
+  // Scroll highlighted retailer into view
+  useEffect(() => {
+    if (showRetailerSearch && retailerHighlightIndex >= 0) {
+      const el = document.getElementById(`retailer-${retailerHighlightIndex}`)
+      if (el) el.scrollIntoView({ block: 'nearest' })
+    }
+  }, [retailerHighlightIndex, showRetailerSearch])
   const subtotal = useMemo(() => {
     return currentCart.reduce((sum, item) => {
       const itemPrice = parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0)
@@ -1632,6 +1649,24 @@ function WarehouseBillingPage() {
                     placeholder="Search retailer..."
                     value={customerName}
                     onChange={(e) => { setCustomerName(e.target.value); setSelectedRetailer(null); searchRetailers(e.target.value) }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setShowRetailerSearch(false)
+                        setRetailerHighlightIndex(-1)
+                      }
+                      if (showRetailerSearch && retailerSearchResults.length > 0) {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault()
+                          setRetailerHighlightIndex(prev => Math.min(prev + 1, retailerSearchResults.length - 1))
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault()
+                          setRetailerHighlightIndex(prev => Math.max(prev - 1, 0))
+                        } else if (e.key === 'Enter' && retailerHighlightIndex >= 0) {
+                          e.preventDefault()
+                          selectRetailer(retailerSearchResults[retailerHighlightIndex])
+                        }
+                      }
+                    }}
                     disabled={retailersLoading}
                     sx={{ '& .MuiOutlinedInput-root': { height: 44, fontSize: '0.9rem', bgcolor: selectedRetailer ? alpha(theme.palette.success.main, 0.08) : 'white' } }}
                     InputProps={{
@@ -1641,8 +1676,8 @@ function WarehouseBillingPage() {
                   {showRetailerSearch && retailerSearchResults.length > 0 && (
                     <Paper sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1400, maxHeight: 240, overflowY: 'auto', boxShadow: 6, border: `1px solid ${theme.palette.primary.main}`, borderRadius: '0 0 8px 8px' }}>
                       {retailerSearchResults.map((retailer, i) => (
-                        <Box key={`r-${retailer.id || i}`} onClick={() => selectRetailer(retailer)}
-                          sx={{ px: 2, py: 1.25, cursor: 'pointer', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) }, '&:last-child': { borderBottom: 'none' } }}>
+                        <Box key={`r-${retailer.id || i}`} id={`retailer-${i}`} onClick={() => selectRetailer(retailer)}
+                          sx={{ px: 2, py: 1.25, cursor: 'pointer', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, bgcolor: i === retailerHighlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) }, '&:last-child': { borderBottom: 'none' } }}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>{retailer.name}</Typography>
                           <Typography variant="caption" color="text.secondary">{retailer.phone ? `📞 ${retailer.phone}` : ''}{retailer.city ? ` · ${retailer.city}` : ''}</Typography>
                         </Box>
