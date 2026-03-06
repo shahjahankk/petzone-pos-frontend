@@ -458,6 +458,7 @@ const [isProcessingSale, setIsProcessingSale] = useState(false)
     taxRate,
     totalDiscount,
     notes,
+    saleDate,
     updateCurrentTab
   ])
 
@@ -4431,7 +4432,7 @@ const handleSaleWithoutPrint = async () => {
 
   useEffect(() => {
     resetCachedSerialPort()
-  }, [user?.id])
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -4446,7 +4447,8 @@ const handleSaleWithoutPrint = async () => {
     } else if (searchResults.length > 0) {
       setSearchHighlightIndex(0)
     }
-  }, [searchResults, showSearchResults])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSearchResults, searchResults.length])
 
   // Scroll highlighted search item into view
   useEffect(() => {
@@ -4454,6 +4456,7 @@ const handleSaleWithoutPrint = async () => {
       const el = document.getElementById(`search-item-${searchHighlightIndex}`)
       if (el) el.scrollIntoView({ block: 'nearest' })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchHighlightIndex, showSearchResults])
 
   // Reset customer highlight when dropdown opens/closes
@@ -4463,7 +4466,8 @@ const handleSaleWithoutPrint = async () => {
     } else if (customerSearchResults.length > 0) {
       setCustomerHighlightIndex(0)
     }
-  }, [customerSearchResults, showCustomerSearch])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCustomerSearch, customerSearchResults.length])
 
   // Scroll highlighted customer item into view
   useEffect(() => {
@@ -4471,6 +4475,7 @@ const handleSaleWithoutPrint = async () => {
       const el = document.getElementById(`customer-${customerHighlightIndex}`)
       if (el) el.scrollIntoView({ block: 'nearest' })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerHighlightIndex, showCustomerSearch])
 
   return (

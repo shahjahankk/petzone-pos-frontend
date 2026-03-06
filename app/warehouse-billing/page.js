@@ -712,11 +712,11 @@ function WarehouseBillingPage() {
   const handleRowRemove = useCallback((rowIndex) => {
     const newCart = currentCart.filter((_, i) => i !== rowIndex)
     updateCurrentTabCart(newCart)
-  }, [currentCart])
+  }, [currentCart, updateCurrentTabCart])
 
   const handleAddRow = useCallback(() => {
     setNewRowIndex(currentCart.length) // will focus the placeholder row
-  }, [currentCart.length])
+  }, [currentCart.length, updateCurrentTabCart])
 
   // ── Build payload ──────────────────────────────────────────────────────────
   const buildWarehouseSalePayload = useCallback(({

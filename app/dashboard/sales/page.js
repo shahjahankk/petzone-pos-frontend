@@ -1226,7 +1226,7 @@ const returnsColumns = [
         baseScopeParams
       })
     }
-  }, [sales, totalItems, page, rowsPerPage, scopeTypeFilter, searchTerm, paymentMethodFilter, statusFilter, startDate, endDate, user, baseScopeParams, salesLoading, paginatedSales.length])
+  }, [sales, totalItems, page, rowsPerPage, scopeTypeFilter, searchTerm, paymentMethodFilter, statusFilter, startDate, endDate, user, baseScopeParams, salesLoading, paginatedSales.length, startIndex, endIndex, totalPages])
 
   // Handle page change
   const handlePageChange = (event, newPage) => {
