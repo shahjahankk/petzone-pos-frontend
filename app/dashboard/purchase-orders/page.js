@@ -177,7 +177,6 @@ const statusConfig = {
 }
 
 // ── Enhanced Order Items Table ──────────────────────────────────────────────
-// Shared between Create and Edit dialogs
 function OrderItemsTable({
   items,
   formErrors,
@@ -189,16 +188,16 @@ function OrderItemsTable({
   selectedRows,
   onRowSelect,
   onSelectAll,
-  getItemSearchState,       // ← add
-  updateItemSearchState,    // ← add
-  handleItemSearchChange,   // ← add
-  handleItemSelect          // ← add
+  getItemSearchState,
+  updateItemSearchState,
+  handleItemSearchChange,
+  handleItemSelect
 }) {
   const allSelected = items.length > 0 && selectedRows.length === items.length
   const someSelected = selectedRows.length > 0 && selectedRows.length < items.length
 
   return (
- <Box sx={{ overflow: 'visible' }}>
+    <Box sx={{ overflow: 'visible' }}>
       {/* Toolbar */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
         <Typography variant="h6" fontWeight="bold">Order Items</Typography>
@@ -224,7 +223,6 @@ function OrderItemsTable({
         mb: 0.5,
         color: 'text.secondary'
       }}>
-        {/* Select all checkbox */}
         <Box sx={{ flexShrink: 0, width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Checkbox
             size="small"
@@ -246,25 +244,25 @@ function OrderItemsTable({
       </Box>
 
       {items.map((item, index) => (
-       <ItemRow
-    key={index}
-    index={index}
-    item={item}
-    formErrors={formErrors}
-    inventoryOptions={inventoryOptions}
-    categoryOptions={categoryOptions}
-    isSelected={selectedRows.includes(index)}
-    isLast={index === items.length - 1}
-    onItemChange={onItemChange}
-    onAddBelow={() => onAddItemBelow(index)}
-    onSelect={(checked) => onRowSelect(index, checked)}
-    totalItems={items.length}
-    getItemSearchState={getItemSearchState}         // ← add
-    updateItemSearchState={updateItemSearchState}   // ← add
-    handleItemSearchChange={handleItemSearchChange} // ← add
-    handleItemSelect={handleItemSelect}             // ← add
-  />
-))}
+        <ItemRow
+          key={index}
+          index={index}
+          item={item}
+          formErrors={formErrors}
+          inventoryOptions={inventoryOptions}
+          categoryOptions={categoryOptions}
+          isSelected={selectedRows.includes(index)}
+          isLast={index === items.length - 1}
+          onItemChange={onItemChange}
+          onAddBelow={() => onAddItemBelow(index)}
+          onSelect={(checked) => onRowSelect(index, checked)}
+          totalItems={items.length}
+          getItemSearchState={getItemSearchState}
+          updateItemSearchState={updateItemSearchState}
+          handleItemSearchChange={handleItemSearchChange}
+          handleItemSelect={handleItemSelect}
+        />
+      ))}
     </Box>
   )
 }
@@ -282,10 +280,10 @@ function ItemRow({
   onAddBelow,
   onSelect,
   totalItems,
-  getItemSearchState,       // ← add
-  updateItemSearchState,    // ← add
-  handleItemSearchChange,   // ← add
-  handleItemSelect          // ← add
+  getItemSearchState,
+  updateItemSearchState,
+  handleItemSearchChange,
+  handleItemSelect
 }) {
   const theme = useTheme()
   const addBtnRef = useRef(null)
@@ -297,7 +295,6 @@ function ItemRow({
     }
   }
 
-  // Filtered items for search dropdown
   const filteredItems = useMemo(() => {
     const searchValue = item.itemName || ''
     if (!searchValue || searchValue.length < 1) return []
@@ -311,7 +308,6 @@ function ItemRow({
       .slice(0, 12)
   }, [item.itemName, inventoryOptions])
 
-  // Reset highlight when dropdown contents change or it closes
   useEffect(() => {
     const state = getItemSearchState(index)
     if (!state.open) {
@@ -321,7 +317,6 @@ function ItemRow({
     }
   }, [filteredItems, index])
 
-  // Ensure highlighted item is scrolled into view
   useEffect(() => {
     const state = getItemSearchState(index)
     if (state.open && state.highlightIndex >= 0) {
@@ -335,19 +330,9 @@ function ItemRow({
       sx={{
         mb: 1.5,
         overflow: 'visible',
-        border: isSelected
-          ? '1.5px solid'
-          : isLast
-          ? '1px solid'
-          : '1px solid transparent',
-        borderColor: isSelected
-          ? 'error.main'
-          : isLast
-          ? 'primary.main'
-          : 'divider',
-        bgcolor: isSelected
-          ? (theme) => alpha(theme.palette.error.main, 0.04)
-          : 'background.paper',
+        border: isSelected ? '1.5px solid' : isLast ? '1px solid' : '1px solid transparent',
+        borderColor: isSelected ? 'error.main' : isLast ? 'primary.main' : 'divider',
+        bgcolor: isSelected ? (theme) => alpha(theme.palette.error.main, 0.04) : 'background.paper',
         transition: 'border-color 0.15s, background-color 0.15s'
       }}
     >
@@ -484,9 +469,9 @@ function ItemRow({
                 boxShadow: 4,
                 borderRadius: '0 0 8px 8px'
               }}>
-               <Typography variant="body2" color="text.secondary">
-  {`No items found matching "${item.itemName}"`}
-</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {`No items found matching "${item.itemName}"`}
+                </Typography>
               </Paper>
             )}
           </Box>
@@ -532,7 +517,7 @@ function ItemRow({
             />
           </Box>
 
-          {/* Price */}
+          {/* Price — no $ adornment */}
           <Box sx={{ flexShrink: 0, width: 160 }}>
             <TextField
               fullWidth size="small" label="Price *" type="number"
@@ -541,19 +526,15 @@ function ItemRow({
               onChange={(e) => onItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
               error={!!formErrors[`items[${index}].unitPrice`]}
               helperText={formErrors[`items[${index}].unitPrice`]}
-              InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
             />
           </Box>
 
-          {/* Total */}
+          {/* Total — no $ adornment */}
           <Box sx={{ flexShrink: 0, width: 160 }}>
             <TextField
               fullWidth size="small" label="Total"
               value={(item.quantityOrdered * item.unitPrice).toFixed(2)}
-              InputProps={{
-                readOnly: true,
-                startAdornment: <InputAdornment position="start">$</InputAdornment>
-              }}
+              InputProps={{ readOnly: true }}
               sx={{
                 '& .MuiInputBase-input.Mui-readOnly': {
                   bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04)
@@ -562,7 +543,7 @@ function ItemRow({
             />
           </Box>
 
-          {/* Add row below button (replaces delete) */}
+          {/* Add row below button */}
           <Box sx={{ flexShrink: 0, width: 50, textAlign: 'center' }}>
             <Tooltip title="Add row below (Enter)" arrow>
               <IconButton
@@ -612,7 +593,6 @@ function PurchaseOrdersPage() {
   const [editingOrder, setEditingOrder] = useState(null) 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
-  // Row selection state (shared — reset when dialog opens/closes)
   const [selectedRows, setSelectedRows] = useState([])
 
   const emptyItem = () => ({
@@ -634,7 +614,7 @@ function PurchaseOrdersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inventoryOptions, setInventoryOptions] = useState([])
   const [categoriesFromApi, setCategoriesFromApi] = useState([])
-  const [itemSearchStates, setItemSearchStates] = useState({}) // { [itemIndex]: { search: '', open: false, highlightIndex: -1 } }
+  const [itemSearchStates, setItemSearchStates] = useState({})
 
   useEffect(() => {
     dispatch(fetchPurchaseOrders(filters))
@@ -695,7 +675,6 @@ function PurchaseOrdersPage() {
     return merged
   }, [categoriesFromApi, inventoryOptions])
 
-  // Reset item search states when dialog closes
   useEffect(() => {
     if (!formDialogOpen && !editDialogOpen) {
       setItemSearchStates({})
@@ -716,7 +695,6 @@ function PurchaseOrdersPage() {
     }))
   }
 
-  // Item search state management
   const getItemSearchState = (index) => {
     return itemSearchStates[index] || { search: '', open: false, highlightIndex: -1 }
   }
@@ -740,7 +718,6 @@ function PurchaseOrdersPage() {
     updateItemSearchState(index, { search: item.name, open: false, highlightIndex: -1 })
   }
 
-  // Add new item row (at end or after a specific index)
   const addItem = (afterIndex = null) => {
     setFormData(prev => {
       const newItems = [...prev.items]
@@ -748,13 +725,11 @@ function PurchaseOrdersPage() {
       newItems.splice(insertAt, 0, emptyItem())
       return { ...prev, items: newItems }
     })
-    // Deselect all when structure changes
     setSelectedRows([])
   }
 
-  // Delete selected rows
   const deleteSelectedRows = () => {
-    if (formData.items.length - selectedRows.length < 1) return // keep at least 1
+    if (formData.items.length - selectedRows.length < 1) return
     setFormData(prev => ({
       ...prev,
       items: prev.items.filter((_, i) => !selectedRows.includes(i))
@@ -762,7 +737,6 @@ function PurchaseOrdersPage() {
     setSelectedRows([])
   }
 
-  // Row selection handlers
   const handleRowSelect = (index, checked) => {
     setSelectedRows(prev =>
       checked ? [...prev, index] : prev.filter(i => i !== index)
@@ -934,23 +908,22 @@ function PurchaseOrdersPage() {
     dispatch(setPagination({ page: newPage }))
   }
 
-  // Shared items section props
-const itemsTableProps = {
-  items: formData.items,
-  formErrors,
-  inventoryOptions,
-  categoryOptions,
-  onItemChange: handleItemChange,
-  onAddItemBelow: (index) => addItem(index),
-  onDeleteSelected: deleteSelectedRows,
-  selectedRows,
-  onRowSelect: handleRowSelect,
-  onSelectAll: handleSelectAll,
-  getItemSearchState,       // ← add
-  updateItemSearchState,    // ← add
-  handleItemSearchChange,   // ← add
-  handleItemSelect          // ← add
-}
+  const itemsTableProps = {
+    items: formData.items,
+    formErrors,
+    inventoryOptions,
+    categoryOptions,
+    onItemChange: handleItemChange,
+    onAddItemBelow: (index) => addItem(index),
+    onDeleteSelected: deleteSelectedRows,
+    selectedRows,
+    onRowSelect: handleRowSelect,
+    onSelectAll: handleSelectAll,
+    getItemSearchState,
+    updateItemSearchState,
+    handleItemSearchChange,
+    handleItemSelect
+  }
 
   return (
     <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
@@ -1174,7 +1147,7 @@ const itemsTableProps = {
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2" fontWeight="medium">
-                              ${parseFloat(order.totalAmount || 0).toFixed(2)}
+                              {parseFloat(order.totalAmount || 0).toFixed(2)}
                             </Typography>
                           </TableCell>
                           <TableCell>
@@ -1267,139 +1240,131 @@ const itemsTableProps = {
             </IconButton>
           </DialogTitle>
           
-<DialogContent sx={{ pt: 3, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-  <Box sx={{ overflowY: 'auto', overflowX: 'visible', flex: 1 }}>            {/* Header fields */}
-            <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04), borderRadius: 2 }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth error={!!formErrors.supplierId} sx={{ minWidth: 180 }}>
-                    <InputLabel id="create-supplier-label">Supplier *</InputLabel>
-                    <Select
-                      labelId="create-supplier-label"
-                      value={formData.supplierId}
-                      label="Supplier *"
-                      onChange={(e) => handleFieldChange('supplierId', e.target.value)}
-                      size="small"
-                      renderValue={(v) => {
-                        if (!v) return ''
-                        const s = suppliers.find(sup => sup.id === v || sup.id === Number(v))
-                        return s ? s.name : ''
-                      }}
-                    >
-                      {suppliers.map(supplier => (
-                        <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>
-                      ))}
-                    </Select>
-                    {formErrors.supplierId && (
-                      <Typography variant="caption" color="error">{formErrors.supplierId}</Typography>
-                    )}
-                  </FormControl>
-                </Grid>
+          <DialogContent sx={{ pt: 3, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ overflowY: 'auto', overflowX: 'visible', flex: 1 }}>
+              {/* Header fields */}
+              <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04), borderRadius: 2 }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={4}>
+                    <FormControl fullWidth error={!!formErrors.supplierId} sx={{ minWidth: 180 }}>
+                      <InputLabel id="create-supplier-label">Supplier *</InputLabel>
+                      <Select
+                        labelId="create-supplier-label"
+                        value={formData.supplierId}
+                        label="Supplier *"
+                        onChange={(e) => handleFieldChange('supplierId', e.target.value)}
+                        size="small"
+                        renderValue={(v) => {
+                          if (!v) return ''
+                          const s = suppliers.find(sup => sup.id === v || sup.id === Number(v))
+                          return s ? s.name : ''
+                        }}
+                      >
+                        {suppliers.map(supplier => (
+                          <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>
+                        ))}
+                      </Select>
+                      {formErrors.supplierId && (
+                        <Typography variant="caption" color="error">{formErrors.supplierId}</Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <FormControl fullWidth error={!!formErrors.scopeType} sx={{ minWidth: 160 }}>
-                    <InputLabel id="create-scope-label">Scope Type *</InputLabel>
-                    <Select
-                      labelId="create-scope-label"
-                      value={formData.scopeType}
-                      label="Scope Type *"
-                      onChange={(e) => handleFieldChange('scopeType', e.target.value)}
-                      disabled={user?.role !== 'ADMIN'}
-                      size="small"
-                      renderValue={(v) => (v === 'BRANCH' ? 'Branch' : v === 'WAREHOUSE' ? 'Warehouse' : '')}
-                    >
-                      <MenuItem value="BRANCH">Branch</MenuItem>
-                      <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
-                    </Select>
-                    {formErrors.scopeType && (
-                      <Typography variant="caption" color="error">{formErrors.scopeType}</Typography>
-                    )}
-                  </FormControl>
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <FormControl fullWidth error={!!formErrors.scopeType} sx={{ minWidth: 160 }}>
+                      <InputLabel id="create-scope-label">Scope Type *</InputLabel>
+                      <Select
+                        labelId="create-scope-label"
+                        value={formData.scopeType}
+                        label="Scope Type *"
+                        onChange={(e) => handleFieldChange('scopeType', e.target.value)}
+                        disabled={user?.role !== 'ADMIN'}
+                        size="small"
+                        renderValue={(v) => (v === 'BRANCH' ? 'Branch' : v === 'WAREHOUSE' ? 'Warehouse' : '')}
+                      >
+                        <MenuItem value="BRANCH">Branch</MenuItem>
+                        <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
+                      </Select>
+                      {formErrors.scopeType && (
+                        <Typography variant="caption" color="error">{formErrors.scopeType}</Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
-                      label="Order Date *"
-                      value={formData.orderDate ? new Date(formData.orderDate) : null}
-                      onChange={(newValue) => {
-                        handleFieldChange('orderDate', newValue ? newValue.toISOString().split('T')[0] : '')
-                      }}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true, size: 'small',
-                          error: !!formErrors.orderDate,
-                          helperText: formErrors.orderDate
-                        }
-                      }}
+                  <Grid item xs={12} md={2}>
+                    <LocalizationProvider dateAdapter={AdapterDateFns}>
+                      <DatePicker
+                        label="Order Date *"
+                        value={formData.orderDate ? new Date(formData.orderDate) : null}
+                        onChange={(newValue) => {
+                          handleFieldChange('orderDate', newValue ? newValue.toISOString().split('T')[0] : '')
+                        }}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true, size: 'small',
+                            error: !!formErrors.orderDate,
+                            helperText: formErrors.orderDate
+                          }
+                        }}
+                      />
+                    </LocalizationProvider>
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <LocalizationProvider dateAdapter={AdapterDateFns}>
+                      <DatePicker
+                        label="Expected Delivery"
+                        value={formData.expectedDelivery ? new Date(formData.expectedDelivery) : null}
+                        onChange={(newValue) => {
+                          handleFieldChange('expectedDelivery', newValue ? newValue.toISOString().split('T')[0] : '')
+                        }}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true, size: 'small',
+                            error: !!formErrors.expectedDelivery,
+                            helperText: formErrors.expectedDelivery
+                          }
+                        }}
+                      />
+                    </LocalizationProvider>
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth size="small" label="Notes"
+                      placeholder="Additional notes..."
+                      value={formData.notes}
+                      onChange={(e) => handleFieldChange('notes', e.target.value)}
                     />
-                  </LocalizationProvider>
+                  </Grid>
                 </Grid>
+              </Paper>
+              
+              {/* Items table */}
+              <OrderItemsTable {...itemsTableProps} />
 
-                <Grid item xs={12} md={2}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
-                      label="Expected Delivery"
-                      value={formData.expectedDelivery ? new Date(formData.expectedDelivery) : null}
-                      onChange={(newValue) => {
-                        handleFieldChange('expectedDelivery', newValue ? newValue.toISOString().split('T')[0] : '')
-                      }}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true, size: 'small',
-                          error: !!formErrors.expectedDelivery,
-                          helperText: formErrors.expectedDelivery
-                        }
-                      }}
-                    />
-                  </LocalizationProvider>
-                </Grid>
-
-                <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth size="small" label="Notes"
-                    placeholder="Additional notes..."
-                    value={formData.notes}
-                    onChange={(e) => handleFieldChange('notes', e.target.value)}
-                  />
-                </Grid>
-              </Grid>
-            </Paper>
-            
-            {/* Items table */}
-            <OrderItemsTable {...itemsTableProps} />
-
-            {/* Total */}
-            <Paper elevation={0} sx={{
-              p: 2, mt: 2,
-              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
-              borderRadius: 2,
-              display: 'flex', justifyContent: 'flex-end', alignItems: 'center'
-            }}>
-              <Typography variant="h5" fontWeight="bold">
-                Total Amount: <Box component="span" color="primary.main">${totalAmount.toFixed(2)}</Box>
-              </Typography>
-            </Paper>
-          </Box>
+              {/* Total — no $ */}
+              <Paper elevation={0} sx={{
+                p: 2, mt: 2,
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                borderRadius: 2,
+                display: 'flex', justifyContent: 'flex-end', alignItems: 'center'
+              }}>
+                <Typography variant="h5" fontWeight="bold">
+                  Total Amount: <Box component="span" color="primary.main">{totalAmount.toFixed(2)}</Box>
+                </Typography>
+              </Paper>
+            </Box>
           </DialogContent>
           
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={() => addItem()}
-                size="large"
-              >
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={() => addItem()} size="large">
                 Add Item
               </Button>
               <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteSweepIcon />}
-                size="large"
-                disabled={selectedRows.length === 0}
-                onClick={deleteSelectedRows}
+                variant="outlined" color="error" startIcon={<DeleteSweepIcon />}
+                size="large" disabled={selectedRows.length === 0} onClick={deleteSelectedRows}
               >
                 Delete Selected {selectedRows.length > 0 ? `(${selectedRows.length})` : ''}
               </Button>
@@ -1409,12 +1374,9 @@ const itemsTableProps = {
                 Cancel
               </Button>
               <Button
-                variant="contained"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
+                variant="contained" onClick={handleSubmit} disabled={isSubmitting}
                 startIcon={isSubmitting ? <CircularProgress size={20} /> : <CheckIcon />}
-                size="large"
-                sx={{ minWidth: 150 }}
+                size="large" sx={{ minWidth: 150 }}
               >
                 {isSubmitting ? 'Creating...' : 'Create Order'}
               </Button>
@@ -1449,139 +1411,131 @@ const itemsTableProps = {
             </IconButton>
           </DialogTitle>
           
-<DialogContent sx={{ pt: 3, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-  <Box sx={{ overflowY: 'auto', overflowX: 'visible', flex: 1 }}>            {/* Header fields — same as Create */}
-            <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04), borderRadius: 2 }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={4}>
-                  <FormControl fullWidth error={!!formErrors.supplierId} sx={{ minWidth: 180 }}>
-                    <InputLabel id="edit-supplier-label">Supplier *</InputLabel>
-                    <Select
-                      labelId="edit-supplier-label"
-                      value={formData.supplierId}
-                      label="Supplier *"
-                      onChange={(e) => handleFieldChange('supplierId', e.target.value)}
-                      size="small"
-                      renderValue={(v) => {
-                        if (!v) return ''
-                        const s = suppliers.find(sup => sup.id === v || sup.id === Number(v))
-                        return s ? s.name : ''
-                      }}
-                    >
-                      {suppliers.map(supplier => (
-                        <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>
-                      ))}
-                    </Select>
-                    {formErrors.supplierId && (
-                      <Typography variant="caption" color="error">{formErrors.supplierId}</Typography>
-                    )}
-                  </FormControl>
-                </Grid>
+          <DialogContent sx={{ pt: 3, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ overflowY: 'auto', overflowX: 'visible', flex: 1 }}>
+              {/* Header fields */}
+              <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04), borderRadius: 2 }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={4}>
+                    <FormControl fullWidth error={!!formErrors.supplierId} sx={{ minWidth: 180 }}>
+                      <InputLabel id="edit-supplier-label">Supplier *</InputLabel>
+                      <Select
+                        labelId="edit-supplier-label"
+                        value={formData.supplierId}
+                        label="Supplier *"
+                        onChange={(e) => handleFieldChange('supplierId', e.target.value)}
+                        size="small"
+                        renderValue={(v) => {
+                          if (!v) return ''
+                          const s = suppliers.find(sup => sup.id === v || sup.id === Number(v))
+                          return s ? s.name : ''
+                        }}
+                      >
+                        {suppliers.map(supplier => (
+                          <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>
+                        ))}
+                      </Select>
+                      {formErrors.supplierId && (
+                        <Typography variant="caption" color="error">{formErrors.supplierId}</Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <FormControl fullWidth error={!!formErrors.scopeType} sx={{ minWidth: 160 }}>
-                    <InputLabel id="edit-scope-label">Scope Type *</InputLabel>
-                    <Select
-                      labelId="edit-scope-label"
-                      value={formData.scopeType}
-                      label="Scope Type *"
-                      onChange={(e) => handleFieldChange('scopeType', e.target.value)}
-                      disabled={user?.role !== 'ADMIN'}
-                      size="small"
-                      renderValue={(v) => (v === 'BRANCH' ? 'Branch' : v === 'WAREHOUSE' ? 'Warehouse' : '')}
-                    >
-                      <MenuItem value="BRANCH">Branch</MenuItem>
-                      <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
-                    </Select>
-                    {formErrors.scopeType && (
-                      <Typography variant="caption" color="error">{formErrors.scopeType}</Typography>
-                    )}
-                  </FormControl>
-                </Grid>
+                  <Grid item xs={12} md={2}>
+                    <FormControl fullWidth error={!!formErrors.scopeType} sx={{ minWidth: 160 }}>
+                      <InputLabel id="edit-scope-label">Scope Type *</InputLabel>
+                      <Select
+                        labelId="edit-scope-label"
+                        value={formData.scopeType}
+                        label="Scope Type *"
+                        onChange={(e) => handleFieldChange('scopeType', e.target.value)}
+                        disabled={user?.role !== 'ADMIN'}
+                        size="small"
+                        renderValue={(v) => (v === 'BRANCH' ? 'Branch' : v === 'WAREHOUSE' ? 'Warehouse' : '')}
+                      >
+                        <MenuItem value="BRANCH">Branch</MenuItem>
+                        <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
+                      </Select>
+                      {formErrors.scopeType && (
+                        <Typography variant="caption" color="error">{formErrors.scopeType}</Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
 
-                <Grid item xs={12} md={2}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
-                      label="Order Date *"
-                      value={formData.orderDate ? new Date(formData.orderDate) : null}
-                      onChange={(newValue) => {
-                        handleFieldChange('orderDate', newValue ? newValue.toISOString().split('T')[0] : '')
-                      }}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true, size: 'small',
-                          error: !!formErrors.orderDate,
-                          helperText: formErrors.orderDate
-                        }
-                      }}
+                  <Grid item xs={12} md={2}>
+                    <LocalizationProvider dateAdapter={AdapterDateFns}>
+                      <DatePicker
+                        label="Order Date *"
+                        value={formData.orderDate ? new Date(formData.orderDate) : null}
+                        onChange={(newValue) => {
+                          handleFieldChange('orderDate', newValue ? newValue.toISOString().split('T')[0] : '')
+                        }}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true, size: 'small',
+                            error: !!formErrors.orderDate,
+                            helperText: formErrors.orderDate
+                          }
+                        }}
+                      />
+                    </LocalizationProvider>
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <LocalizationProvider dateAdapter={AdapterDateFns}>
+                      <DatePicker
+                        label="Expected Delivery"
+                        value={formData.expectedDelivery ? new Date(formData.expectedDelivery) : null}
+                        onChange={(newValue) => {
+                          handleFieldChange('expectedDelivery', newValue ? newValue.toISOString().split('T')[0] : '')
+                        }}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true, size: 'small',
+                            error: !!formErrors.expectedDelivery,
+                            helperText: formErrors.expectedDelivery
+                          }
+                        }}
+                      />
+                    </LocalizationProvider>
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth size="small" label="Notes"
+                      placeholder="Additional notes..."
+                      value={formData.notes}
+                      onChange={(e) => handleFieldChange('notes', e.target.value)}
                     />
-                  </LocalizationProvider>
+                  </Grid>
                 </Grid>
+              </Paper>
+              
+              {/* Items table */}
+              <OrderItemsTable {...itemsTableProps} />
 
-                <Grid item xs={12} md={2}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
-                      label="Expected Delivery"
-                      value={formData.expectedDelivery ? new Date(formData.expectedDelivery) : null}
-                      onChange={(newValue) => {
-                        handleFieldChange('expectedDelivery', newValue ? newValue.toISOString().split('T')[0] : '')
-                      }}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true, size: 'small',
-                          error: !!formErrors.expectedDelivery,
-                          helperText: formErrors.expectedDelivery
-                        }
-                      }}
-                    />
-                  </LocalizationProvider>
-                </Grid>
-
-                <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth size="small" label="Notes"
-                    placeholder="Additional notes..."
-                    value={formData.notes}
-                    onChange={(e) => handleFieldChange('notes', e.target.value)}
-                  />
-                </Grid>
-              </Grid>
-            </Paper>
-            
-            {/* Items table */}
-            <OrderItemsTable {...itemsTableProps} />
-
-            {/* Total */}
-            <Paper elevation={0} sx={{
-              p: 2, mt: 2,
-              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
-              borderRadius: 2,
-              display: 'flex', justifyContent: 'flex-end', alignItems: 'center'
-            }}>
-              <Typography variant="h5" fontWeight="bold">
-                Total Amount: <Box component="span" color="primary.main">${totalAmount.toFixed(2)}</Box>
-              </Typography>
-            </Paper>
+              {/* Total — no $ */}
+              <Paper elevation={0} sx={{
+                p: 2, mt: 2,
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                borderRadius: 2,
+                display: 'flex', justifyContent: 'flex-end', alignItems: 'center'
+              }}>
+                <Typography variant="h5" fontWeight="bold">
+                  Total Amount: <Box component="span" color="primary.main">{totalAmount.toFixed(2)}</Box>
+                </Typography>
+              </Paper>
             </Box>
           </DialogContent>
           
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              <Button
-                variant="outlined"
-                startIcon={<AddIcon />}
-                onClick={() => addItem()}
-                size="large"
-              >
+              <Button variant="outlined" startIcon={<AddIcon />} onClick={() => addItem()} size="large">
                 Add Item
               </Button>
               <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteSweepIcon />}
-                size="large"
-                disabled={selectedRows.length === 0}
-                onClick={deleteSelectedRows}
+                variant="outlined" color="error" startIcon={<DeleteSweepIcon />}
+                size="large" disabled={selectedRows.length === 0} onClick={deleteSelectedRows}
               >
                 Delete Selected {selectedRows.length > 0 ? `(${selectedRows.length})` : ''}
               </Button>
@@ -1591,12 +1545,9 @@ const itemsTableProps = {
                 Cancel
               </Button>
               <Button
-                variant="contained"
-                onClick={handleUpdateSubmit}
-                disabled={isSubmitting}
+                variant="contained" onClick={handleUpdateSubmit} disabled={isSubmitting}
                 startIcon={isSubmitting ? <CircularProgress size={20} /> : <CheckIcon />}
-                size="large"
-                sx={{ minWidth: 150 }}
+                size="large" sx={{ minWidth: 150 }}
               >
                 {isSubmitting ? 'Updating...' : 'Update Order'}
               </Button>
@@ -1674,7 +1625,7 @@ const itemsTableProps = {
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Typography variant="body2" fontWeight="bold" sx={{ minWidth: 100 }}>Total Amount:</Typography>
                           <Typography variant="body2" fontWeight="bold" color="primary.main">
-                            ${parseFloat(selectedOrder.totalAmount || 0).toFixed(2)}
+                            {parseFloat(selectedOrder.totalAmount || 0).toFixed(2)}
                           </Typography>
                         </Box>
                       </Stack>
@@ -1719,8 +1670,8 @@ const itemsTableProps = {
                             <Chip label={item.itemCategory || 'General'} size="small" variant="outlined" />
                           </TableCell>
                           <TableCell align="right">{item.quantityOrdered}</TableCell>
-                          <TableCell align="right">${parseFloat(item.unitPrice || 0).toFixed(2)}</TableCell>
-                          <TableCell align="right">${parseFloat(item.totalPrice || 0).toFixed(2)}</TableCell>
+                          <TableCell align="right">{parseFloat(item.unitPrice || 0).toFixed(2)}</TableCell>
+                          <TableCell align="right">{parseFloat(item.totalPrice || 0).toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                       <TableRow>
@@ -1729,7 +1680,7 @@ const itemsTableProps = {
                         </TableCell>
                         <TableCell align="right">
                           <Typography variant="body2" fontWeight="bold" color="primary.main">
-                            ${parseFloat(selectedOrder.totalAmount || 0).toFixed(2)}
+                            {parseFloat(selectedOrder.totalAmount || 0).toFixed(2)}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -1771,4 +1722,4 @@ const itemsTableProps = {
   )
 }
 
-export default PurchaseOrdersPage 
+export default PurchaseOrdersPage
