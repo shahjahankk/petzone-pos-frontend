@@ -159,7 +159,7 @@ const createEmptyTabState = (overrides = {}) => ({
   customerName: '',
   customerPhone: '',
   selectedRetailer: null,
-  paymentMethod: 'CASH',
+  paymentMethod: '',
   paymentAmount: '',
   creditAmount: '',
   isPartialPayment: false,
@@ -606,7 +606,7 @@ function WarehouseBillingPage() {
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [selectedRetailer, setSelectedRetailer] = useState(null)
-  const [paymentMethod, setPaymentMethod] = useState('CASH')
+  const [paymentMethod, setPaymentMethod] = useState('')
   const [paymentAmount, setPaymentAmount] = useState('')
   const [creditAmount, setCreditAmount] = useState('')
   const [isPartialPayment, setIsPartialPayment] = useState(false)
@@ -1391,6 +1391,10 @@ function WarehouseBillingPage() {
       if (!selectedRetailer || selectedRetailer.id === undefined || selectedRetailer.id === null) { alert('❌ Please select a retailer before completing this sale.'); return }
       if ((isPartialPayment || isFullyCredit) && !selectedRetailer?.id) { alert('❌ Retailer selection is required for partial payments and credit sales.'); return }
       if (!user) { alert('❌ User not authenticated. Please login again.'); return }
+      if (!paymentMethod) { alert('❌ Please select a Payment Method before completing this sale.'); return }
+      if (!isPartialPayment && !isFullyCredit && !isBalancePayment) {
+        // "Full" is the default type — allowed, no extra check needed
+      }
 
       if (!currentCart || currentCart.length === 0) {
         if (selectedOutstandingPayments.length > 0) {
@@ -1444,7 +1448,7 @@ function WarehouseBillingPage() {
         if (Math.abs(sum - normalizedBillTotal) > 0.01) { alert(`❌ Payment amounts don't add up.\nPaid: ${finalPaymentAmount.toFixed(2)}\nCredit: ${finalCreditAmount.toFixed(2)}\nBill: ${normalizedBillTotal.toFixed(2)}`); return }
       }
 
-      const paymentMethodValue = isFullyCredit ? 'FULLY_CREDIT' : (paymentMethod || 'CASH')
+      const paymentMethodValue = isFullyCredit ? 'FULLY_CREDIT' : paymentMethod
       const isSettlementOnly = selectedOutstandingPayments.length > 0 && currentCart.length === 0 && showSettlementOptions
 
       const salePayloadInfo = buildWarehouseSalePayload({
@@ -1728,14 +1732,15 @@ function WarehouseBillingPage() {
 
                 {/* Payment Method */}
                 <Box sx={{ flex: '1 1 140px', minWidth: 130 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
-                    PAYMENT METHOD
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: !paymentMethod ? 'error.main' : 'text.secondary', mb: 0.5, display: 'block' }}>
+                    PAYMENT METHOD {!paymentMethod && <span style={{ fontSize: '0.7rem' }}>*</span>}
                   </Typography>
                   <TextField fullWidth size="small" select
                     value={paymentMethod}
                     disabled={isFullyCredit}
                     onChange={(e) => setPaymentMethod(e.target.value)}
-                    sx={{ '& .MuiOutlinedInput-root': { height: 44, fontSize: '0.9rem', bgcolor: 'white' } }}>
+                    sx={{ '& .MuiOutlinedInput-root': { height: 44, fontSize: '0.9rem', bgcolor: 'white', borderColor: !paymentMethod ? 'error.main' : undefined } }}>
+                    <MenuItem value=""><em style={{ color: '#aaa' }}>Select method...</em></MenuItem>
                     <MenuItem value="CASH">Cash</MenuItem>
                     <MenuItem value="CARD">Card</MenuItem>
                     <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
@@ -1748,21 +1753,21 @@ function WarehouseBillingPage() {
 
                 {/* Payment Type */}
                 <Box sx={{ flex: '1 1 260px', minWidth: 240 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: (!isPartialPayment && !isFullyCredit && !isBalancePayment && currentCart.length > 0) ? 'text.secondary' : 'text.secondary', mb: 0.5, display: 'block' }}>
                     PAYMENT TYPE
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
                     {[
-                      { key: 'full', label: 'Full', active: !isPartialPayment && !isFullyCredit && !isBalancePayment },
+                      { key: 'full', label: 'Full', active: !isPartialPayment && !isFullyCredit && !isBalancePayment && paymentMethod !== '' && paymentMethod !== 'FULLY_CREDIT' },
                       { key: 'partial', label: 'Partial', active: isPartialPayment },
                       { key: 'credit', label: 'Credit', active: isFullyCredit },
                       { key: 'balance', label: 'Balance', active: isBalancePayment, disabled: outstandingTotal >= 0 }
                     ].map(btn => (
                       <Button key={btn.key} size="small" variant={btn.active ? 'contained' : 'outlined'} disabled={btn.disabled}
                         onClick={() => {
-                          if (btn.key === 'full') { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(false); setPaymentAmount(''); setCreditAmount(''); setPaymentMethod('CASH'); handleSettlementPaymentType('full') }
+                          if (btn.key === 'full') { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(false); setPaymentAmount(''); setCreditAmount(''); if (paymentMethod === 'FULLY_CREDIT') setPaymentMethod(''); handleSettlementPaymentType('full') }
                           if (btn.key === 'partial') { setIsPartialPayment(true); setIsFullyCredit(false); setIsBalancePayment(false); if (!paymentAmount) { setPaymentAmount(''); setCreditAmount(total.toFixed(2)) }; if (selectedOutstandingPayments.length > 0) handleSettlementPaymentType('partial') }
-                          if (btn.key === 'credit') { setIsPartialPayment(false); setIsFullyCredit(true); setIsBalancePayment(false); setPaymentAmount(''); setCreditAmount(total.toString()); handleSettlementPaymentType('fullyCredit') }
+                          if (btn.key === 'credit') { setIsPartialPayment(false); setIsFullyCredit(true); setIsBalancePayment(false); setPaymentMethod('FULLY_CREDIT'); setPaymentAmount(''); setCreditAmount(total.toString()); handleSettlementPaymentType('fullyCredit') }
                           if (btn.key === 'balance' && !btn.disabled) { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(true); setPaymentAmount('0'); setCreditAmount(billAmount.toString()); handleSettlementPaymentType('balance') }
                         }}
                         sx={{ flex: 1, height: 44, fontSize: '0.78rem', fontFamily: 'monospace', whiteSpace: 'nowrap', fontWeight: btn.active ? 700 : 400 }}>
@@ -1837,7 +1842,7 @@ function WarehouseBillingPage() {
 
               {/* Outstanding payments panel */}
               {outstandingPayments.length > 0 && (
-                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px dashed ${theme.palette.warning.main}`, display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px dashed ${theme.palette.warning.main}`, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <OutstandingIcon sx={{ color: 'warning.main', fontSize: 18 }} />
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark' }}>
@@ -1847,33 +1852,38 @@ function WarehouseBillingPage() {
                       <RefreshIcon fontSize="small" />
                     </IconButton>
                   </Box>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flex: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flex: 1, alignItems: 'center' }}>
                     {outstandingPayments.map(payment => (
                       <Chip key={payment.id}
                         icon={<Checkbox size="small" checked={selectedOutstandingPayments.includes(payment.id)} onChange={() => handleOutstandingPaymentToggle(payment.id)} sx={{ p: 0 }} />}
-                        label={<span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{payment.isCredit ? 'CREDIT' : 'DUE'}: {Math.abs(parseFloat(payment.outstandingAmount || 0)).toFixed(0)}</span>}
-                        variant="outlined"
+                        label={
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.95rem' }}>
+                            {payment.isCredit ? 'CREDIT' : 'DUE'}: {Math.abs(parseFloat(payment.outstandingAmount || 0)).toLocaleString()}
+                          </span>
+                        }
+                        variant="filled"
                         color={payment.isCredit ? 'success' : 'warning'}
                         onClick={() => handleOutstandingPaymentToggle(payment.id)}
-                        sx={{ cursor: 'pointer', height: 32 }}
+                        sx={{ cursor: 'pointer', height: 40, px: 1, fontSize: '0.95rem', borderRadius: 2 }}
                       />
                     ))}
                   </Box>
-                  {currentCart.length === 0 && selectedOutstandingPayments.length > 0 && (
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      {['full', 'partial', 'fullyCredit'].map(type => (
-                        <Button key={type} size="small" variant={(!isSettlementPartial && !isSettlementFullyCredit && type === 'full') || (isSettlementPartial && type === 'partial') || (isSettlementFullyCredit && type === 'fullyCredit') ? 'contained' : 'outlined'}
-                          onClick={() => handleSettlementPaymentType(type)}
-                          sx={{ fontSize: '0.72rem', height: 30, fontFamily: 'monospace' }}>
-                          {type === 'full' ? 'Full' : type === 'partial' ? 'Partial' : 'Credit Note'}
-                        </Button>
-                      ))}
-                    </Box>
-                  )}
+                  {/* Date field next to outstanding */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>DATE</Typography>
+                    <TextField
+                      size="small"
+                      type="date"
+                      value={saleDate}
+                      onChange={(e) => setSaleDate(e.target.value)}
+                      sx={{ width: 150, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white', fontSize: '0.85rem' } }}
+                      inputProps={{ style: { fontFamily: 'monospace' } }}
+                    />
+                  </Box>
                 </Box>
               )}
 
-              {/* Notes */}
+              {/* Notes + Date */}
               <Box sx={{ mt: 1, display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                 <TextField
                   size="small" fullWidth multiline rows={1}
@@ -1883,6 +1893,20 @@ function WarehouseBillingPage() {
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', fontSize: '0.85rem' } }}
                   inputProps={{ maxLength: 500 }}
                 />
+                {/* Date field — always visible */}
+                {outstandingPayments.length === 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>DATE</Typography>
+                    <TextField
+                      size="small"
+                      type="date"
+                      value={saleDate}
+                      onChange={(e) => setSaleDate(e.target.value)}
+                      sx={{ width: 150, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white', fontSize: '0.85rem' } }}
+                      inputProps={{ style: { fontFamily: 'monospace' } }}
+                    />
+                  </Box>
+                )}
                 <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignItems: 'center' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>TAX %</Typography>
@@ -2079,7 +2103,6 @@ function WarehouseBillingPage() {
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>
 
-      
     </RouteGuard>
   )
 }
