@@ -1,7 +1,6 @@
 'use client'
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useTheme } from '@mui/material/styles'
 import * as yup from 'yup'
 import {
   Box,
@@ -188,11 +187,7 @@ function OrderItemsTable({
   onDeleteSelected,
   selectedRows,
   onRowSelect,
-  onSelectAll,
-  getItemSearchState,       // ← add
-  updateItemSearchState,    // ← add
-  handleItemSearchChange,   // ← add
-  handleItemSelect          // ← add
+  onSelectAll
 }) {
   const allSelected = items.length > 0 && selectedRows.length === items.length
   const someSelected = selectedRows.length > 0 && selectedRows.length < items.length
@@ -246,25 +241,21 @@ function OrderItemsTable({
       </Box>
 
       {items.map((item, index) => (
-       <ItemRow
-    key={index}
-    index={index}
-    item={item}
-    formErrors={formErrors}
-    inventoryOptions={inventoryOptions}
-    categoryOptions={categoryOptions}
-    isSelected={selectedRows.includes(index)}
-    isLast={index === items.length - 1}
-    onItemChange={onItemChange}
-    onAddBelow={() => onAddItemBelow(index)}
-    onSelect={(checked) => onRowSelect(index, checked)}
-    totalItems={items.length}
-    getItemSearchState={getItemSearchState}         // ← add
-    updateItemSearchState={updateItemSearchState}   // ← add
-    handleItemSearchChange={handleItemSearchChange} // ← add
-    handleItemSelect={handleItemSelect}             // ← add
-  />
-))}
+        <ItemRow
+          key={index}
+          index={index}
+          item={item}
+          formErrors={formErrors}
+          inventoryOptions={inventoryOptions}
+          categoryOptions={categoryOptions}
+          isSelected={selectedRows.includes(index)}
+          isLast={index === items.length - 1}
+          onItemChange={onItemChange}
+          onAddBelow={() => onAddItemBelow(index)}
+          onSelect={(checked) => onRowSelect(index, checked)}
+          totalItems={items.length}
+        />
+      ))}
     </Box>
   )
 }
@@ -281,13 +272,8 @@ function ItemRow({
   onItemChange,
   onAddBelow,
   onSelect,
-  totalItems,
-  getItemSearchState,       // ← add
-  updateItemSearchState,    // ← add
-  handleItemSearchChange,   // ← add
-  handleItemSelect          // ← add
+  totalItems
 }) {
-  const theme = useTheme()
   const addBtnRef = useRef(null)
 
   const handleAddKeyDown = (e) => {
@@ -296,39 +282,6 @@ function ItemRow({
       onAddBelow()
     }
   }
-
-  // Filtered items for search dropdown
-  const filteredItems = useMemo(() => {
-    const searchValue = item.itemName || ''
-    if (!searchValue || searchValue.length < 1) return []
-    const q = searchValue.toLowerCase()
-    return inventoryOptions
-      .filter(p =>
-        p.name?.toLowerCase().includes(q) ||
-        p.sku?.toLowerCase().includes(q) ||
-        p.category?.toLowerCase().includes(q)
-      )
-      .slice(0, 12)
-  }, [item.itemName, inventoryOptions])
-
-  // Reset highlight when dropdown contents change or it closes
-  useEffect(() => {
-    const state = getItemSearchState(index)
-    if (!state.open) {
-      updateItemSearchState(index, { highlightIndex: -1 })
-    } else if (filteredItems.length > 0) {
-      updateItemSearchState(index, { highlightIndex: 0 })
-    }
-  }, [filteredItems, index])
-
-  // Ensure highlighted item is scrolled into view
-  useEffect(() => {
-    const state = getItemSearchState(index)
-    if (state.open && state.highlightIndex >= 0) {
-      const el = document.getElementById(`po-item-${index}-${state.highlightIndex}`)
-      if (el) el.scrollIntoView({ block: 'nearest' })
-    }
-  }, [index])
 
   return (
     <Card
@@ -379,115 +332,71 @@ function ItemRow({
             </Typography>
           </Box>
 
-          {/* Item Name — searchable dropdown */}
-          <Box sx={{ flex: 4, minWidth: 0, position: 'relative' }}>
-            <TextField
+          {/* Item Name — searchable autocomplete */}
+          <Box sx={{ flex: 4, minWidth: 0 }}>
+            <Autocomplete
               fullWidth
+              freeSolo
               size="small"
-              label="Item Name *"
-              error={!!formErrors[`items[${index}].itemName`]}
-              helperText={formErrors[`items[${index}].itemName`]}
-              placeholder="Search or type item..."
+              options={inventoryOptions}
+              getOptionLabel={(option) =>
+                typeof option === 'string' ? option : (option?.label || option?.name || '')
+              }
+              filterOptions={(options, { inputValue }) => {
+                const lower = inputValue.toLowerCase()
+                return options.filter(o =>
+                  (o.name || o.label || '').toLowerCase().includes(lower) ||
+                  (o.sku || '').toLowerCase().includes(lower)
+                )
+              }}
               value={item.itemName || ''}
-              onChange={(e) => handleItemSearchChange(index, e.target.value)}
-              onFocus={() => {
-                if (item.itemName && item.itemName.length >= 1) {
-                  updateItemSearchState(index, { open: true })
+              onChange={(_, newValue) => {
+                if (typeof newValue === 'string') {
+                  onItemChange(index, 'itemName', newValue)
+                } else if (newValue && typeof newValue === 'object') {
+                  onItemChange(index, 'itemName', newValue.name || newValue.label || '')
+                  onItemChange(index, 'itemSku', newValue.sku || '')
+                  onItemChange(index, 'itemCategory', newValue.category || 'General')
                 }
               }}
-              onKeyDown={(e) => {
-                const state = getItemSearchState(index)
-                if (e.key === 'Escape') {
-                  updateItemSearchState(index, { open: false, highlightIndex: -1 })
-                }
-                if (e.key === 'Tab' && item.itemName) {
-                  updateItemSearchState(index, { open: false, highlightIndex: -1 })
-                }
-                if (state.open && filteredItems.length > 0) {
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault()
-                    updateItemSearchState(index, {
-                      highlightIndex: Math.min(state.highlightIndex + 1, filteredItems.length - 1)
-                    })
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault()
-                    updateItemSearchState(index, {
-                      highlightIndex: Math.max(state.highlightIndex - 1, 0)
-                    })
-                  } else if (e.key === 'Enter' && state.highlightIndex >= 0) {
-                    e.preventDefault()
-                    handleItemSelect(index, filteredItems[state.highlightIndex])
-                  }
-                }
+              onInputChange={(_, newInputValue) => {
+                onItemChange(index, 'itemName', newInputValue)
               }}
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 0.5, color: 'text.disabled', fontSize: 18 }} />
-              }}
-            />
-            {/* Custom Dropdown */}
-            {getItemSearchState(index).open && filteredItems.length > 0 && (
-              <Paper
-                sx={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 1400,
-                  maxHeight: 320,
-                  overflowY: 'auto',
-                  boxShadow: 6,
-                  border: `1px solid ${theme.palette.primary.main}`,
-                  borderTop: 'none',
-                  borderRadius: '0 0 8px 8px'
-                }}
-              >
-                {filteredItems.map((product, pi) => (
-                  <Box
-                    id={`po-item-${index}-${pi}`}
-                    key={product.sku || product.name}
-                    onMouseDown={(e) => { e.preventDefault(); handleItemSelect(index, product) }}
-                    sx={{
-                      px: 2,
-                      py: 1.25,
-                      cursor: 'pointer',
-                      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      bgcolor: pi === getItemSearchState(index).highlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
-                      '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
-                      '&:last-child': { borderBottom: 'none' }
-                    }}
-                  >
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                        {product.name}
-                      </Typography>
+              renderOption={(props, option) => (
+                <li {...props} key={option.sku || option.name}>
+                  <Box>
+                    <Typography variant="body2" fontWeight={500}>
+                      {option.label || option.name}
+                    </Typography>
+                    {option.sku && (
                       <Typography variant="caption" color="text.secondary">
-                        SKU: {product.sku || '—'}
-                        {product.category ? ` · ${product.category}` : ''}
+                        SKU: {option.sku}
+                        {option.category ? ` · ${option.category}` : ''}
                       </Typography>
-                    </Box>
+                    )}
                   </Box>
-                ))}
-              </Paper>
-            )}
-            {getItemSearchState(index).open && item.itemName && item.itemName.length >= 2 && filteredItems.length === 0 && (
-              <Paper sx={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                zIndex: 1400,
-                p: 2,
-                boxShadow: 4,
-                borderRadius: '0 0 8px 8px'
-              }}>
-               <Typography variant="body2" color="text.secondary">
-  {`No items found matching "${item.itemName}"`}
-</Typography>
-              </Paper>
-            )}
+                </li>
+              )}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Item Name *"
+                  error={!!formErrors[`items[${index}].itemName`]}
+                  helperText={formErrors[`items[${index}].itemName`]}
+                  size="small"
+                  placeholder="Search or type item..."
+                  inputProps={{
+                    ...params.inputProps,
+                    onKeyDown: (e) => {
+                      // Allow Tab to select highlighted option
+                      if (e.key === 'Tab' && params.inputProps?.onKeyDown) {
+                        params.inputProps.onKeyDown(e)
+                      }
+                    }
+                  }}
+                />
+              )}
+            />
           </Box>
 
           {/* Category */}
@@ -633,7 +542,6 @@ function PurchaseOrdersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inventoryOptions, setInventoryOptions] = useState([])
   const [categoriesFromApi, setCategoriesFromApi] = useState([])
-  const [itemSearchStates, setItemSearchStates] = useState({}) // { [itemIndex]: { search: '', open: false, highlightIndex: -1 } }
 
   useEffect(() => {
     dispatch(fetchPurchaseOrders(filters))
@@ -694,13 +602,6 @@ function PurchaseOrdersPage() {
     return merged
   }, [categoriesFromApi, inventoryOptions])
 
-  // Reset item search states when dialog closes
-  useEffect(() => {
-    if (!formDialogOpen && !editDialogOpen) {
-      setItemSearchStates({})
-    }
-  }, [formDialogOpen, editDialogOpen])
-
   const handleFieldChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     if (formErrors[field]) {
@@ -713,30 +614,6 @@ function PurchaseOrdersPage() {
       ...prev,
       items: prev.items.map((item, i) => i === index ? { ...item, [field]: value } : item)
     }))
-  }
-
-  // Item search state management
-  const getItemSearchState = (index) => {
-    return itemSearchStates[index] || { search: '', open: false, highlightIndex: -1 }
-  }
-
-  const updateItemSearchState = (index, updates) => {
-    setItemSearchStates(prev => ({
-      ...prev,
-      [index]: { ...getItemSearchState(index), ...updates }
-    }))
-  }
-
-  const handleItemSearchChange = (index, searchValue) => {
-    updateItemSearchState(index, { search: searchValue, open: true })
-    handleItemChange(index, 'itemName', searchValue)
-  }
-
-  const handleItemSelect = (index, item) => {
-    handleItemChange(index, 'itemName', item.name)
-    handleItemChange(index, 'itemSku', item.sku)
-    handleItemChange(index, 'itemCategory', item.category)
-    updateItemSearchState(index, { search: item.name, open: false, highlightIndex: -1 })
   }
 
   // Add new item row (at end or after a specific index)
@@ -934,22 +811,18 @@ function PurchaseOrdersPage() {
   }
 
   // Shared items section props
-const itemsTableProps = {
-  items: formData.items,
-  formErrors,
-  inventoryOptions,
-  categoryOptions,
-  onItemChange: handleItemChange,
-  onAddItemBelow: (index) => addItem(index),
-  onDeleteSelected: deleteSelectedRows,
-  selectedRows,
-  onRowSelect: handleRowSelect,
-  onSelectAll: handleSelectAll,
-  getItemSearchState,       // ← add
-  updateItemSearchState,    // ← add
-  handleItemSearchChange,   // ← add
-  handleItemSelect          // ← add
-}
+  const itemsTableProps = {
+    items: formData.items,
+    formErrors,
+    inventoryOptions,
+    categoryOptions,
+    onItemChange: handleItemChange,
+    onAddItemBelow: (index) => addItem(index),
+    onDeleteSelected: deleteSelectedRows,
+    selectedRows,
+    onRowSelect: handleRowSelect,
+    onSelectAll: handleSelectAll
+  }
 
   return (
     <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
