@@ -649,36 +649,70 @@ function WarehouseBillingPage() {
   const currentTab = useMemo(() => tabs.find(tab => tab.id === activeTabId) || null, [tabs, activeTabId])
   const currentCart = useMemo(() => currentTab?.cart || [], [currentTab])
 
-  // ── Cart row helpers (new approach — rows can be "empty" placeholder) ──────
+  // ── Tab cart update — MUST be first ────────────────────────────────────────
+  const updateCurrentTabCart = useCallback((newCart) => {
+    setTabs(prev => prev.map(tab =>
+      tab.id === activeTabId ? { ...tab, cart: newCart, modifiedAt: new Date() } : tab
+    ))
+  }, [activeTabId])
+
+  // ── Full tab update ────────────────────────────────────────────────────────
+  const updateCurrentTab = useCallback((updates) => {
+    setTabs(prev => prev.map(tab =>
+      tab.id === activeTabId ? { ...tab, ...updates, modifiedAt: new Date() } : tab
+    ))
+  }, [activeTabId])
+
+  // ── Cart row helpers ───────────────────────────────────────────────────────
   const cartWithPlaceholder = useMemo(() => {
-    // Always ensure at least one empty row at the bottom for easy entry
     const hasEmptyRow = currentCart.length === 0 || currentCart[currentCart.length - 1]?.id
-    return hasEmptyRow ? [...currentCart, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 }] : currentCart
+    return hasEmptyRow
+      ? [...currentCart, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 }]
+      : currentCart
   }, [currentCart])
 
   const handleRowUpdate = useCallback((rowIndex, updates) => {
     const actualCart = [...currentCart]
-    // If updating empty placeholder row and product selected, add to cart
     if (rowIndex >= actualCart.length) {
       if (updates.id) {
-        const newItem = { ...updates }
-        updateCurrentTabCart([...actualCart, newItem])
-        setNewRowIndex(actualCart.length) // focus newly added real row's qty
+        updateCurrentTabCart([...actualCart, { ...updates }])
+        setNewRowIndex(actualCart.length)
       }
     } else {
-      const updated = actualCart.map((item, i) => i === rowIndex ? { ...item, ...updates } : item)
+      const updated = actualCart.map((item, i) =>
+        i === rowIndex ? { ...item, ...updates } : item
+      )
       updateCurrentTabCart(updated)
     }
-  }, [currentCart])
+  }, [currentCart, updateCurrentTabCart])
 
-const handleRowRemove = useCallback((rowIndex) => {
+  const handleRowRemove = useCallback((rowIndex) => {
     const newCart = currentCart.filter((_, i) => i !== rowIndex)
     updateCurrentTabCart(newCart)
-  }, [currentCart, updateCurrentTabCart])  
+  }, [currentCart, updateCurrentTabCart])
 
   const handleAddRow = useCallback(() => {
-    setNewRowIndex(currentCart.length) // will focus the placeholder row
-  }, [currentCart.length, updateCurrentTabCart])
+    setNewRowIndex(currentCart.length)
+  }, [currentCart.length])
+
+  // ── addToCart (kept for barcode) ───────────────────────────────────────────
+  const addToCart = useCallback((product) => {
+    const existingItem = currentCart.find(item => item.id === product.id)
+    let newCart
+    if (existingItem) {
+      newCart = currentCart.map(item =>
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      )
+    } else {
+      newCart = [...currentCart, {
+        ...product,
+        quantity: 1,
+        discount: 0,
+        customPrice: product.sellingPrice || product.price
+      }]
+    }
+    updateCurrentTabCart(newCart)
+  }, [currentCart, updateCurrentTabCart])
 
   // ── Build payload ──────────────────────────────────────────────────────────
   const buildWarehouseSalePayload = useCallback(({
@@ -700,7 +734,11 @@ const handleRowRemove = useCallback((rowIndex) => {
     const sourceItems = Array.isArray(itemsOverride) ? itemsOverride : currentCart
 
     const computedSubtotal = sourceItems.reduce((sum, item) => {
-      const price = safeNumber(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : (item.unitPrice !== null && item.unitPrice !== undefined ? item.unitPrice : item.price))
+      const price = safeNumber(
+        item.customPrice !== null && item.customPrice !== undefined
+          ? item.customPrice
+          : (item.unitPrice !== null && item.unitPrice !== undefined ? item.unitPrice : item.price)
+      )
       const quantity = safeNumber(item.quantity)
       const discountValue = safeNumber(item.discount)
       return sum + Math.max(0, (price * quantity) - discountValue)
@@ -727,15 +765,30 @@ const handleRowRemove = useCallback((rowIndex) => {
 
     const itemsPayload = sourceItems.map(item => {
       const inventoryId = item.id !== undefined && item.id !== null ? parseInt(item.id) : null
-      const unitPrice = safeNumber(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : (item.unitPrice !== null && item.unitPrice !== undefined ? item.unitPrice : item.price))
+      const unitPrice = safeNumber(
+        item.customPrice !== null && item.customPrice !== undefined
+          ? item.customPrice
+          : (item.unitPrice !== null && item.unitPrice !== undefined ? item.unitPrice : item.price)
+      )
       const quantity = safeNumber(item.quantity)
       const discountValue = safeNumber(item.discount)
       const lineTotal = safeNumber((unitPrice * quantity) - discountValue)
-      return { inventoryItemId: inventoryId, sku: item.sku || '', name: item.name || '', quantity, unitPrice, discount: discountValue, total: lineTotal }
+      return {
+        inventoryItemId: inventoryId,
+        sku: item.sku || '',
+        name: item.name || '',
+        quantity,
+        unitPrice,
+        discount: discountValue,
+        total: lineTotal
+      }
     })
 
     const outstandingIds = includeOutstandingPayments
-      ? selectedOutstandingPayments.map(id => { const parsed = parseInt(id, 10); return Number.isNaN(parsed) ? id : parsed })
+      ? selectedOutstandingPayments.map(id => {
+          const parsed = parseInt(id, 10)
+          return Number.isNaN(parsed) ? id : parsed
+        })
       : []
 
     const payload = {
@@ -766,7 +819,10 @@ const handleRowRemove = useCallback((rowIndex) => {
     }
 
     return { payload, retailerInfo, salespersonInfo }
-  }, [currentCart, notes, saleDate, retailerDisplayName, retailerDisplayPhone, selectedOutstandingPayments, selectedRetailer, selectedSalesperson, taxRate, totalDiscount])
+  }, [
+    currentCart, notes, saleDate, retailerDisplayName, retailerDisplayPhone,
+    selectedOutstandingPayments, selectedRetailer, selectedSalesperson, taxRate, totalDiscount
+  ])
 
   const calculateWarehousePaymentDetails = ({
     billAmount, outstandingTotal, isFullyCredit, isPartialPayment, isBalancePayment, inputPaymentAmount
@@ -786,31 +842,8 @@ const handleRowRemove = useCallback((rowIndex) => {
     return { totalWithOutstanding: totalForLedger, finalPaymentAmount, finalCreditAmount, finalPaymentStatus, paymentTypeValue }
   }
 
-  // ── Tab cart update (just cart array) ──────────────────────────────────────
-  const updateCurrentTabCart = useCallback((newCart) => {
-    setTabs(prev => prev.map(tab =>
-      tab.id === activeTabId ? { ...tab, cart: newCart, modifiedAt: new Date() } : tab
-    ))
-  }, [activeTabId])
+  // (helpers moved earlier to avoid TDZ)
 
-  // ── Full tab update ────────────────────────────────────────────────────────
-  const updateCurrentTab = useCallback((updates) => {
-    setTabs(prev => prev.map(tab =>
-      tab.id === activeTabId ? { ...tab, ...updates, modifiedAt: new Date() } : tab
-    ))
-  }, [activeTabId])
-
-  // ── addToCart (kept for barcode) ───────────────────────────────────────────
-  const addToCart = useCallback((product) => {
-    const existingItem = currentCart.find(item => item.id === product.id)
-    let newCart
-    if (existingItem) {
-      newCart = currentCart.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)
-    } else {
-      newCart = [...currentCart, { ...product, quantity: 1, discount: 0, customPrice: product.sellingPrice || product.price }]
-    }
-    updateCurrentTabCart(newCart)
-  }, [currentCart, updateCurrentTabCart])
 
   // ── Barcode scan ───────────────────────────────────────────────────────────
   const handleBarcodeScan = useCallback((barcode) => {
