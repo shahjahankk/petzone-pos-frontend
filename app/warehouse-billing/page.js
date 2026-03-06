@@ -80,7 +80,6 @@ import {
   AttachMoney as MoneyIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../components/print/PrintDialog'
-import DashboardLayout from '../../components/layout/DashboardLayout'
 import RouteGuard from '../../components/auth/RouteGuard'
 import PhysicalScanner from '../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../store/slices/inventorySlice'
@@ -1583,7 +1582,7 @@ function WarehouseBillingPage() {
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}>
-      <DashboardLayout>
+     
         {isAdminMode && scopeInfo && (
           <Box sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', p: 0.75, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main' }}>
             <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
@@ -2054,7 +2053,7 @@ function WarehouseBillingPage() {
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>
 
-      </DashboardLayout>
+      
     </RouteGuard>
   )
 }
