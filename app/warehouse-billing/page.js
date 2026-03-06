@@ -80,6 +80,7 @@ import {
   AttachMoney as MoneyIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../components/print/PrintDialog'
+import DashboardLayout from '../../components/layout/DashboardLayout'
 import RouteGuard from '../../components/auth/RouteGuard'
 import PhysicalScanner from '../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../store/slices/inventorySlice'
@@ -384,7 +385,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
                       {product.name}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      SKU: {product.sku || '—'} &nbsp;|&nbsp; Stock: {product.stock} {product.unit || 'pcs'}
+                      SKU: {product.sku || '—'} &nbsp;|&nbsp; Stock: {product.stock}{product.unit && product.unit !== '0' ? ` ${product.unit}` : ''}
                     </Typography>
                   </Box>
                   <Chip
@@ -616,6 +617,8 @@ function WarehouseBillingPage() {
   const [salespeople, setSalespeople] = useState([])
   const [retailerSearchResults, setRetailerSearchResults] = useState([])
   const [showRetailerSearch, setShowRetailerSearch] = useState(false)
+  const [retailerHighlightedIndex, setRetailerHighlightedIndex] = useState(-1)
+  const retailerDropdownRef = useRef(null)
   const [searchResults, setSearchResults] = useState([])
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showPhysicalScanner, setShowPhysicalScanner] = useState(false)
@@ -1083,6 +1086,7 @@ function WarehouseBillingPage() {
     const formattedResults = matches.map(retailer => ({ id: retailer.id, name: retailer.name || 'Walk-in Retailer', phone: retailer.phone || '', address: retailer.address || '', code: retailer.code || '', city: retailer.city || '' }))
     setRetailerSearchResults(formattedResults)
     setShowRetailerSearch(formattedResults.length > 0)
+    setRetailerHighlightedIndex(-1)
   }, [retailers])
 
   const selectRetailer = useCallback((retailer) => {
@@ -1663,18 +1667,58 @@ function WarehouseBillingPage() {
                     fullWidth size="small"
                     placeholder="Search retailer..."
                     value={customerName}
-                    onChange={(e) => { setCustomerName(e.target.value); setSelectedRetailer(null); searchRetailers(e.target.value) }}
+                    onChange={(e) => { setCustomerName(e.target.value); setSelectedRetailer(null); setRetailerHighlightedIndex(-1); searchRetailers(e.target.value) }}
                     disabled={retailersLoading}
+                    onKeyDown={(e) => {
+                      if (!showRetailerSearch || retailerSearchResults.length === 0) return
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setRetailerHighlightedIndex(prev => {
+                          const next = (prev + 1) % retailerSearchResults.length
+                          setTimeout(() => {
+                            if (retailerDropdownRef.current) {
+                              const items = retailerDropdownRef.current.querySelectorAll('[data-retailer-item]')
+                              if (items[next]) items[next].scrollIntoView({ block: 'nearest' })
+                            }
+                          }, 0)
+                          return next
+                        })
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setRetailerHighlightedIndex(prev => {
+                          const next = prev <= 0 ? retailerSearchResults.length - 1 : prev - 1
+                          setTimeout(() => {
+                            if (retailerDropdownRef.current) {
+                              const items = retailerDropdownRef.current.querySelectorAll('[data-retailer-item]')
+                              if (items[next]) items[next].scrollIntoView({ block: 'nearest' })
+                            }
+                          }, 0)
+                          return next
+                        })
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (retailerHighlightedIndex >= 0 && retailerSearchResults[retailerHighlightedIndex]) {
+                          selectRetailer(retailerSearchResults[retailerHighlightedIndex])
+                          setRetailerHighlightedIndex(-1)
+                        }
+                      } else if (e.key === 'Escape') {
+                        setShowRetailerSearch(false)
+                        setRetailerHighlightedIndex(-1)
+                      }
+                    }}
                     sx={{ '& .MuiOutlinedInput-root': { height: 44, fontSize: '0.9rem', bgcolor: selectedRetailer ? alpha(theme.palette.success.main, 0.08) : 'white' } }}
                     InputProps={{
                       endAdornment: selectedRetailer ? <CheckIcon sx={{ color: 'success.main', fontSize: 18 }} /> : null
                     }}
                   />
                   {showRetailerSearch && retailerSearchResults.length > 0 && (
-                    <Paper sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1400, maxHeight: 240, overflowY: 'auto', boxShadow: 6, border: `1px solid ${theme.palette.primary.main}`, borderRadius: '0 0 8px 8px' }}>
+                    <Paper ref={retailerDropdownRef} sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1400, maxHeight: 240, overflowY: 'auto', boxShadow: 6, border: `1px solid ${theme.palette.primary.main}`, borderRadius: '0 0 8px 8px' }}>
                       {retailerSearchResults.map((retailer, i) => (
-                        <Box key={`r-${retailer.id || i}`} onClick={() => selectRetailer(retailer)}
-                          sx={{ px: 2, py: 1.25, cursor: 'pointer', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) }, '&:last-child': { borderBottom: 'none' } }}>
+                        <Box key={`r-${retailer.id || i}`}
+                          data-retailer-item
+                          onClick={() => { selectRetailer(retailer); setRetailerHighlightedIndex(-1) }}
+                          onMouseEnter={() => setRetailerHighlightedIndex(i)}
+                          sx={{ px: 2, py: 1.25, cursor: 'pointer', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, bgcolor: i === retailerHighlightedIndex ? alpha(theme.palette.primary.main, 0.15) : 'transparent', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) }, '&:last-child': { borderBottom: 'none' } }}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>{retailer.name}</Typography>
                           <Typography variant="caption" color="text.secondary">{retailer.phone ? `📞 ${retailer.phone}` : ''}{retailer.city ? ` · ${retailer.city}` : ''}</Typography>
                         </Box>
@@ -1810,7 +1854,7 @@ function WarehouseBillingPage() {
                         color={outstandingTotal < 0 ? 'success' : 'warning'} variant="filled"
                         sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
                     )}
-                    <Chip size="small" icon={<MoneyIcon sx={{ fontSize: '16px !important' }} />}
+                    <Chip size="small"
                       label={`TOTAL: ${total.toFixed(0)}`}
                       color="primary" variant="filled"
                       sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', height: 28 }} />
