@@ -198,7 +198,7 @@ function OrderItemsTable({
   const someSelected = selectedRows.length > 0 && selectedRows.length < items.length
 
   return (
-    <Box>
+ <Box sx={{ overflow: 'visible' }}>
       {/* Toolbar */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
         <Typography variant="h6" fontWeight="bold">Order Items</Typography>
@@ -334,6 +334,7 @@ function ItemRow({
     <Card
       sx={{
         mb: 1.5,
+        overflow: 'visible',
         border: isSelected
           ? '1.5px solid'
           : isLast
@@ -350,7 +351,7 @@ function ItemRow({
         transition: 'border-color 0.15s, background-color 0.15s'
       }}
     >
-      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 }, overflow: 'visible' }}>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', width: '100%' }}>
 
           {/* Row selection checkbox */}
@@ -1266,8 +1267,8 @@ const itemsTableProps = {
             </IconButton>
           </DialogTitle>
           
-          <DialogContent sx={{ pt: 3 }}>
-            {/* Header fields */}
+<DialogContent sx={{ pt: 3, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+  <Box sx={{ overflowY: 'auto', overflowX: 'visible', flex: 1 }}>            {/* Header fields */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04), borderRadius: 2 }}>
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} md={4}>
@@ -1379,6 +1380,7 @@ const itemsTableProps = {
                 Total Amount: <Box component="span" color="primary.main">${totalAmount.toFixed(2)}</Box>
               </Typography>
             </Paper>
+          </Box>
           </DialogContent>
           
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider', justifyContent: 'space-between' }}>
@@ -1447,8 +1449,8 @@ const itemsTableProps = {
             </IconButton>
           </DialogTitle>
           
-          <DialogContent sx={{ pt: 3 }}>
-            {/* Header fields — same as Create */}
+<DialogContent sx={{ pt: 3, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+  <Box sx={{ overflowY: 'auto', overflowX: 'visible', flex: 1 }}>            {/* Header fields — same as Create */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04), borderRadius: 2 }}>
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} md={4}>
@@ -1560,6 +1562,7 @@ const itemsTableProps = {
                 Total Amount: <Box component="span" color="primary.main">${totalAmount.toFixed(2)}</Box>
               </Typography>
             </Paper>
+            </Box>
           </DialogContent>
           
           <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider', justifyContent: 'space-between' }}>
