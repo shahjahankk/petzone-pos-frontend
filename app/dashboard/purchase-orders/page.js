@@ -471,9 +471,9 @@ function ItemRow({
                 boxShadow: 4,
                 borderRadius: '0 0 8px 8px'
               }}>
-                <Typography variant="body2" color="text.secondary">
-                  No items found matching '{item.itemName}'
-                </Typography>
+               <Typography variant="body2" color="text.secondary">
+  {`No items found matching "${item.itemName}"`}
+</Typography>
               </Paper>
             )}
           </Box>
