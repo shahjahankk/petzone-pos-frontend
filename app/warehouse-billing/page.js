@@ -184,6 +184,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   const theme = useTheme()
   const [itemSearch, setItemSearch] = useState(item.name || '')
   const [open, setOpen] = useState(false)
+  const [highlightIndex, setHighlightIndex] = useState(-1)
   const itemInputRef = useRef(null)
   const qtyInputRef = useRef(null)
 
@@ -192,6 +193,14 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       setTimeout(() => itemInputRef.current?.focus(), 50)
     }
   }, [autoFocusItem])
+
+  // keep dropdown scrolled to highlighted element
+  useEffect(() => {
+    if (open && highlightIndex >= 0) {
+      const el = document.getElementById(`warehouse-item-${index}-${highlightIndex}`)
+      if (el) el.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlightIndex, open, index])
 
   const filteredProducts = useMemo(() => {
     if (!itemSearch || itemSearch.length < 1) return []
@@ -216,6 +225,13 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       }))
   }, [itemSearch, inventoryItems])
 
+  // when results appear open, default highlight to first item
+  useEffect(() => {
+    if (open && filteredProducts.length > 0) {
+      setHighlightIndex(0)
+    }
+  }, [open, filteredProducts.length])
+
   const handleSelectProduct = (product) => {
     if (!product) return
     onUpdate(index, {
@@ -226,6 +242,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     })
     setItemSearch(product.name)
     setOpen(false)
+    setHighlightIndex(-1)
     setTimeout(() => qtyInputRef.current?.focus(), 50)
   }
 
@@ -282,6 +299,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             value={item.id ? item.name : itemSearch}
             onChange={(e) => {
               setItemSearch(e.target.value)
+              setHighlightIndex(-1)
               if (item.id) {
                 // Clear selection if user types again
                 onUpdate(index, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 })
@@ -290,9 +308,19 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             }}
             onFocus={() => { if (!item.id) setOpen(true) }}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') setOpen(false)
-              if (e.key === 'Tab' && item.id) {
-                setOpen(false)
+              if (e.key === 'Escape') { setOpen(false); return }
+              if (e.key === 'Tab' && item.id) { setOpen(false); return }
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setHighlightIndex(prev => Math.min(prev + 1, filteredProducts.length - 1))
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setHighlightIndex(prev => Math.max(prev - 1, 0))
+              }
+              if (e.key === 'Enter' && highlightIndex >= 0 && filteredProducts[highlightIndex]) {
+                e.preventDefault()
+                handleSelectProduct(filteredProducts[highlightIndex])
               }
             }}
             sx={{
@@ -326,6 +354,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             >
               {filteredProducts.map((product, pi) => (
                 <Box
+                  id={`warehouse-item-${index}-${pi}`}
                   key={product.id}
                   onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(product) }}
                   sx={{
@@ -336,6 +365,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
+                    bgcolor: pi === highlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
                     '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
                     '&:last-child': { borderBottom: 'none' }
                   }}
