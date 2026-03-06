@@ -80,7 +80,7 @@ import {
   AttachMoney as MoneyIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../components/print/PrintDialog'
-
+import DashboardLayout from '../../components/layout/DashboardLayout'
 import RouteGuard from '../../components/auth/RouteGuard'
 import PhysicalScanner from '../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../store/slices/inventorySlice'
@@ -185,7 +185,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   const theme = useTheme()
   const [itemSearch, setItemSearch] = useState(item.name || '')
   const [open, setOpen] = useState(false)
-  const [highlightIndex, setHighlightIndex] = useState(-1) // for arrow navigation
   const itemInputRef = useRef(null)
   const qtyInputRef = useRef(null)
 
@@ -217,23 +216,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         unit: p.unit
       }))
   }, [itemSearch, inventoryItems])
-
-  // whenever dropdown contents change or it closes, reset highlight
-  useEffect(() => {
-    if (!open) {
-      setHighlightIndex(-1)
-    } else if (filteredProducts.length > 0) {
-      setHighlightIndex(0)
-    }
-  }, [filteredProducts, open])
-
-  // ensure highlighted item is scrolled into view
-  useEffect(() => {
-    if (open && highlightIndex >= 0) {
-      const el = document.getElementById(`prod-${index}-${highlightIndex}`)
-      if (el) el.scrollIntoView({ block: 'nearest' })
-    }
-  }, [highlightIndex, open, index])
 
   const handleSelectProduct = (product) => {
     if (!product) return
@@ -309,25 +291,9 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             }}
             onFocus={() => { if (!item.id) setOpen(true) }}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setOpen(false)
-                setHighlightIndex(-1)
-              }
+              if (e.key === 'Escape') setOpen(false)
               if (e.key === 'Tab' && item.id) {
                 setOpen(false)
-                setHighlightIndex(-1)
-              }
-              if (open && filteredProducts.length > 0) {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault()
-                  setHighlightIndex(prev => Math.min(prev + 1, filteredProducts.length - 1))
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault()
-                  setHighlightIndex(prev => Math.max(prev - 1, 0))
-                } else if (e.key === 'Enter' && highlightIndex >= 0) {
-                  e.preventDefault()
-                  handleSelectProduct(filteredProducts[highlightIndex])
-                }
               }
             }}
             sx={{
@@ -361,7 +327,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             >
               {filteredProducts.map((product, pi) => (
                 <Box
-                  id={`prod-${index}-${pi}`}
                   key={product.id}
                   onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(product) }}
                   sx={{
@@ -372,7 +337,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    bgcolor: pi === highlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
                     '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
                     '&:last-child': { borderBottom: 'none' }
                   }}
@@ -615,10 +579,8 @@ function WarehouseBillingPage() {
   const [salespeople, setSalespeople] = useState([])
   const [retailerSearchResults, setRetailerSearchResults] = useState([])
   const [showRetailerSearch, setShowRetailerSearch] = useState(false)
-  const [retailerHighlightIndex, setRetailerHighlightIndex] = useState(-1)
   const [searchResults, setSearchResults] = useState([])
   const [showSearchResults, setShowSearchResults] = useState(false)
-  const [inventoryHighlightIndex, setInventoryHighlightIndex] = useState(-1)
   const [showPhysicalScanner, setShowPhysicalScanner] = useState(false)
   const [taxRate, setTaxRate] = useState(0)
   const [totalDiscount, setTotalDiscount] = useState(0)
@@ -709,10 +671,10 @@ function WarehouseBillingPage() {
     }
   }, [currentCart])
 
-  const handleRowRemove = useCallback((rowIndex) => {
+const handleRowRemove = useCallback((rowIndex) => {
     const newCart = currentCart.filter((_, i) => i !== rowIndex)
     updateCurrentTabCart(newCart)
-  }, [currentCart, updateCurrentTabCart])
+  }, [currentCart, updateCurrentTabCart])  
 
   const handleAddRow = useCallback(() => {
     setNewRowIndex(currentCart.length) // will focus the placeholder row
@@ -1067,22 +1029,7 @@ function WarehouseBillingPage() {
     else if (retailer.name && retailer.name.trim().length >= 3) searchOutstandingPayments('', retailer.name.trim())
   }, [searchOutstandingPayments])
 
-  // Reset highlight when retailer search dropdown visibility changes
-  useEffect(() => {
-    if (!showRetailerSearch) {
-      setRetailerHighlightIndex(-1)
-    } else if (retailerSearchResults.length > 0) {
-      setRetailerHighlightIndex(0)
-    }
-  }, [showRetailerSearch, retailerSearchResults])
-
-  // Scroll highlighted retailer into view
-  useEffect(() => {
-    if (showRetailerSearch && retailerHighlightIndex >= 0) {
-      const el = document.getElementById(`retailer-${retailerHighlightIndex}`)
-      if (el) el.scrollIntoView({ block: 'nearest' })
-    }
-  }, [retailerHighlightIndex, showRetailerSearch])
+  // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal = useMemo(() => {
     return currentCart.reduce((sum, item) => {
       const itemPrice = parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0)
@@ -1602,7 +1549,8 @@ function WarehouseBillingPage() {
   // RENDER
   // ──────────────────────────────────────────────────────────────────────────
   return (
-    <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}> 
+    <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}>
+      <DashboardLayout>
         {isAdminMode && scopeInfo && (
           <Box sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', p: 0.75, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main' }}>
             <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
@@ -1649,24 +1597,6 @@ function WarehouseBillingPage() {
                     placeholder="Search retailer..."
                     value={customerName}
                     onChange={(e) => { setCustomerName(e.target.value); setSelectedRetailer(null); searchRetailers(e.target.value) }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setShowRetailerSearch(false)
-                        setRetailerHighlightIndex(-1)
-                      }
-                      if (showRetailerSearch && retailerSearchResults.length > 0) {
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault()
-                          setRetailerHighlightIndex(prev => Math.min(prev + 1, retailerSearchResults.length - 1))
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault()
-                          setRetailerHighlightIndex(prev => Math.max(prev - 1, 0))
-                        } else if (e.key === 'Enter' && retailerHighlightIndex >= 0) {
-                          e.preventDefault()
-                          selectRetailer(retailerSearchResults[retailerHighlightIndex])
-                        }
-                      }
-                    }}
                     disabled={retailersLoading}
                     sx={{ '& .MuiOutlinedInput-root': { height: 44, fontSize: '0.9rem', bgcolor: selectedRetailer ? alpha(theme.palette.success.main, 0.08) : 'white' } }}
                     InputProps={{
@@ -1676,8 +1606,8 @@ function WarehouseBillingPage() {
                   {showRetailerSearch && retailerSearchResults.length > 0 && (
                     <Paper sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1400, maxHeight: 240, overflowY: 'auto', boxShadow: 6, border: `1px solid ${theme.palette.primary.main}`, borderRadius: '0 0 8px 8px' }}>
                       {retailerSearchResults.map((retailer, i) => (
-                        <Box key={`r-${retailer.id || i}`} id={`retailer-${i}`} onClick={() => selectRetailer(retailer)}
-                          sx={{ px: 2, py: 1.25, cursor: 'pointer', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, bgcolor: i === retailerHighlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) }, '&:last-child': { borderBottom: 'none' } }}>
+                        <Box key={`r-${retailer.id || i}`} onClick={() => selectRetailer(retailer)}
+                          sx={{ px: 2, py: 1.25, cursor: 'pointer', borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) }, '&:last-child': { borderBottom: 'none' } }}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>{retailer.name}</Typography>
                           <Typography variant="caption" color="text.secondary">{retailer.phone ? `📞 ${retailer.phone}` : ''}{retailer.city ? ` · ${retailer.city}` : ''}</Typography>
                         </Box>
@@ -2091,6 +2021,7 @@ function WarehouseBillingPage() {
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>
 
+      </DashboardLayout>
     </RouteGuard>
   )
 }
