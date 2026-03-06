@@ -80,6 +80,7 @@ import {
   AttachMoney as MoneyIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../components/print/PrintDialog'
+import DashboardLayout from '../../components/layout/DashboardLayout'
 import RouteGuard from '../../components/auth/RouteGuard'
 import PhysicalScanner from '../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../store/slices/inventorySlice'
@@ -184,9 +185,10 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   const theme = useTheme()
   const [itemSearch, setItemSearch] = useState(item.name || '')
   const [open, setOpen] = useState(false)
-  const [highlightIndex, setHighlightIndex] = useState(-1)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const itemInputRef = useRef(null)
   const qtyInputRef = useRef(null)
+  const dropdownRef = useRef(null)
 
   useEffect(() => {
     if (autoFocusItem && itemInputRef.current) {
@@ -194,13 +196,20 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     }
   }, [autoFocusItem])
 
-  // keep dropdown scrolled to highlighted element
+  // Reset highlight when dropdown opens or results change
   useEffect(() => {
-    if (open && highlightIndex >= 0) {
-      const el = document.getElementById(`warehouse-item-${index}-${highlightIndex}`)
-      if (el) el.scrollIntoView({ block: 'nearest' })
+    setHighlightedIndex(-1)
+  }, [open, itemSearch])
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightedIndex >= 0 && dropdownRef.current) {
+      const items = dropdownRef.current.querySelectorAll('[data-dropdown-item]')
+      if (items[highlightedIndex]) {
+        items[highlightedIndex].scrollIntoView({ block: 'nearest' })
+      }
     }
-  }, [highlightIndex, open, index])
+  }, [highlightedIndex])
 
   const filteredProducts = useMemo(() => {
     if (!itemSearch || itemSearch.length < 1) return []
@@ -225,13 +234,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       }))
   }, [itemSearch, inventoryItems])
 
-  // when results appear open, default highlight to first item
-  useEffect(() => {
-    if (open && filteredProducts.length > 0) {
-      setHighlightIndex(0)
-    }
-  }, [open, filteredProducts.length])
-
   const handleSelectProduct = (product) => {
     if (!product) return
     onUpdate(index, {
@@ -242,7 +244,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     })
     setItemSearch(product.name)
     setOpen(false)
-    setHighlightIndex(-1)
+    setHighlightedIndex(-1)
     setTimeout(() => qtyInputRef.current?.focus(), 50)
   }
 
@@ -299,28 +301,34 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             value={item.id ? item.name : itemSearch}
             onChange={(e) => {
               setItemSearch(e.target.value)
-              setHighlightIndex(-1)
               if (item.id) {
-                // Clear selection if user types again
                 onUpdate(index, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 })
               }
               setOpen(true)
             }}
             onFocus={() => { if (!item.id) setOpen(true) }}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') { setOpen(false); return }
-              if (e.key === 'Tab' && item.id) { setOpen(false); return }
+              if (e.key === 'Escape') {
+                setOpen(false)
+                setHighlightedIndex(-1)
+                return
+              }
+              if (e.key === 'Tab' && item.id) {
+                setOpen(false)
+                return
+              }
+              if (!open || filteredProducts.length === 0) return
               if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setHighlightIndex(prev => Math.min(prev + 1, filteredProducts.length - 1))
-              }
-              if (e.key === 'ArrowUp') {
+                setHighlightedIndex(prev => (prev + 1) % filteredProducts.length)
+              } else if (e.key === 'ArrowUp') {
                 e.preventDefault()
-                setHighlightIndex(prev => Math.max(prev - 1, 0))
-              }
-              if (e.key === 'Enter' && highlightIndex >= 0 && filteredProducts[highlightIndex]) {
+                setHighlightedIndex(prev => (prev <= 0 ? filteredProducts.length - 1 : prev - 1))
+              } else if (e.key === 'Enter') {
                 e.preventDefault()
-                handleSelectProduct(filteredProducts[highlightIndex])
+                if (highlightedIndex >= 0 && filteredProducts[highlightedIndex]) {
+                  handleSelectProduct(filteredProducts[highlightedIndex])
+                }
               }
             }}
             sx={{
@@ -338,6 +346,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
           {/* Dropdown */}
           {open && filteredProducts.length > 0 && (
             <Paper
+              ref={dropdownRef}
               sx={{
                 position: 'absolute',
                 top: '100%',
@@ -354,9 +363,10 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             >
               {filteredProducts.map((product, pi) => (
                 <Box
-                  id={`warehouse-item-${index}-${pi}`}
                   key={product.id}
+                  data-dropdown-item
                   onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(product) }}
+                  onMouseEnter={() => setHighlightedIndex(pi)}
                   sx={{
                     px: 2,
                     py: 1.25,
@@ -365,7 +375,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    bgcolor: pi === highlightIndex ? alpha(theme.palette.primary.main, 0.2) : 'transparent',
+                    bgcolor: pi === highlightedIndex ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
                     '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
                     '&:last-child': { borderBottom: 'none' }
                   }}
@@ -439,7 +449,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             if (e.key === 'Enter' && item.id) {
               if (isLast) onAddRow()
               else {
-                // focus next row
                 const rows = document.querySelectorAll('[data-row-item]')
                 if (rows[index + 1]) rows[index + 1].focus()
               }
@@ -647,7 +656,7 @@ function WarehouseBillingPage() {
   const [showSettlementOptions, setShowSettlementOptions] = useState(false)
   const [companyInfo, setCompanyInfo] = useState(() => ({ ...DEFAULT_COMPANY_INFO }))
 
-  // New: track which row should autofocus
+  // track which row should autofocus
   const [newRowIndex, setNewRowIndex] = useState(null)
 
   const barcodeInputRef = useRef(null)
@@ -678,21 +687,22 @@ function WarehouseBillingPage() {
   const currentTab = useMemo(() => tabs.find(tab => tab.id === activeTabId) || null, [tabs, activeTabId])
   const currentCart = useMemo(() => currentTab?.cart || [], [currentTab])
 
-  // ── Tab cart update — MUST be first ────────────────────────────────────────
+  // ── STEP 1: Define updateCurrentTabCart FIRST before anything uses it ───────
   const updateCurrentTabCart = useCallback((newCart) => {
     setTabs(prev => prev.map(tab =>
       tab.id === activeTabId ? { ...tab, cart: newCart, modifiedAt: new Date() } : tab
     ))
   }, [activeTabId])
 
-  // ── Full tab update ────────────────────────────────────────────────────────
+  // ── STEP 2: Define updateCurrentTab ─────────────────────────────────────────
   const updateCurrentTab = useCallback((updates) => {
     setTabs(prev => prev.map(tab =>
       tab.id === activeTabId ? { ...tab, ...updates, modifiedAt: new Date() } : tab
     ))
   }, [activeTabId])
 
-  // ── Cart row helpers ───────────────────────────────────────────────────────
+  // ── STEP 3: Now define everything that uses updateCurrentTabCart ─────────────
+
   const cartWithPlaceholder = useMemo(() => {
     const hasEmptyRow = currentCart.length === 0 || currentCart[currentCart.length - 1]?.id
     return hasEmptyRow
@@ -704,13 +714,12 @@ function WarehouseBillingPage() {
     const actualCart = [...currentCart]
     if (rowIndex >= actualCart.length) {
       if (updates.id) {
-        updateCurrentTabCart([...actualCart, { ...updates }])
+        const newItem = { ...updates }
+        updateCurrentTabCart([...actualCart, newItem])
         setNewRowIndex(actualCart.length)
       }
     } else {
-      const updated = actualCart.map((item, i) =>
-        i === rowIndex ? { ...item, ...updates } : item
-      )
+      const updated = actualCart.map((item, i) => i === rowIndex ? { ...item, ...updates } : item)
       updateCurrentTabCart(updated)
     }
   }, [currentCart, updateCurrentTabCart])
@@ -870,9 +879,6 @@ function WarehouseBillingPage() {
     const paymentTypeValue = isBalancePayment ? 'BALANCE_PAYMENT' : (isPartialPayment ? 'PARTIAL_PAYMENT' : (isFullyCredit ? 'FULLY_CREDIT' : 'FULL_PAYMENT'))
     return { totalWithOutstanding: totalForLedger, finalPaymentAmount, finalCreditAmount, finalPaymentStatus, paymentTypeValue }
   }
-
-  // (helpers moved earlier to avoid TDZ)
-
 
   // ── Barcode scan ───────────────────────────────────────────────────────────
   const handleBarcodeScan = useCallback((barcode) => {
@@ -1376,7 +1382,7 @@ function WarehouseBillingPage() {
     }
   }
 
-  // ── handleCompleteSale (unchanged logic) ───────────────────────────────────
+  // ── handleCompleteSale ─────────────────────────────────────────────────────
   const handleCompleteSale = async () => {
     if (isCompletingSaleRef.current) return
     isCompletingSaleRef.current = true
@@ -1491,7 +1497,7 @@ function WarehouseBillingPage() {
     finally { setIsProcessingSaleOnly(false); isCompletingSaleRef.current = false }
   }
 
-  // ── Print helpers (unchanged) ──────────────────────────────────────────────
+  // ── Print helpers ──────────────────────────────────────────────────────────
   const checkPrinterStatus = async () => {
     try {
       if (navigator.serial) {
@@ -1612,7 +1618,7 @@ function WarehouseBillingPage() {
   // ──────────────────────────────────────────────────────────────────────────
   return (
     <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}>
-     
+      <DashboardLayout>
         {isAdminMode && scopeInfo && (
           <Box sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', p: 0.75, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main' }}>
             <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
@@ -1623,9 +1629,6 @@ function WarehouseBillingPage() {
 
         <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f0f2f5', overflow: 'hidden' }}>
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              TOP CONTROL PANEL — ~30% height
-          ════════════════════════════════════════════════════════════════════ */}
           <Box sx={{ flexShrink: 0 }}>
 
             {/* Tab Bar */}
@@ -1649,7 +1652,7 @@ function WarehouseBillingPage() {
             <Paper elevation={1} sx={{ px: 2, py: 1.5, borderRadius: 0, borderBottom: `1px solid ${theme.palette.divider}` }}>
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
-                {/* ── Retailer Name ── */}
+                {/* Retailer Name */}
                 <Box sx={{ flex: '1 1 200px', minWidth: 180, position: 'relative' }}>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <PersonIcon sx={{ fontSize: 14 }} /> RETAILER
@@ -1678,7 +1681,7 @@ function WarehouseBillingPage() {
                   )}
                 </Box>
 
-                {/* ── Phone ── */}
+                {/* Phone */}
                 <Box sx={{ flex: '1 1 160px', minWidth: 140 }}>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <PhoneIcon sx={{ fontSize: 14 }} /> PHONE
@@ -1709,7 +1712,7 @@ function WarehouseBillingPage() {
                   )}
                 </Box>
 
-                {/* ── Salesperson ── */}
+                {/* Salesperson */}
                 {user?.role === 'WAREHOUSE_KEEPER' && salespeople.length > 0 && (
                   <Box sx={{ flex: '1 1 160px', minWidth: 140 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
@@ -1725,7 +1728,7 @@ function WarehouseBillingPage() {
                   </Box>
                 )}
 
-                {/* ── Payment Method ── */}
+                {/* Payment Method */}
                 <Box sx={{ flex: '1 1 140px', minWidth: 130 }}>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
                     PAYMENT METHOD
@@ -1745,7 +1748,7 @@ function WarehouseBillingPage() {
                   </TextField>
                 </Box>
 
-                {/* ── Payment Type ── */}
+                {/* Payment Type */}
                 <Box sx={{ flex: '1 1 260px', minWidth: 240 }}>
                   <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
                     PAYMENT TYPE
@@ -1771,7 +1774,7 @@ function WarehouseBillingPage() {
                   </Box>
                 </Box>
 
-                {/* ── Partial Payment Amounts ── */}
+                {/* Partial Payment Amounts */}
                 {(isPartialPayment || isFullyCredit) && (
                   <Box sx={{ flex: '1 1 220px', minWidth: 200 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'warning.main', mb: 0.5, display: 'block' }}>
@@ -1794,7 +1797,7 @@ function WarehouseBillingPage() {
                   </Box>
                 )}
 
-                {/* ── Summary + Action ── */}
+                {/* Summary + Action */}
                 <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.75, ml: 'auto' }}>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <Chip size="small" label={`${currentCart.length} items`} color="primary" variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
@@ -1834,7 +1837,7 @@ function WarehouseBillingPage() {
                 </Box>
               </Box>
 
-              {/* Outstanding payments panel — inline when present */}
+              {/* Outstanding payments panel */}
               {outstandingPayments.length > 0 && (
                 <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px dashed ${theme.palette.warning.main}`, display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1882,7 +1885,6 @@ function WarehouseBillingPage() {
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', fontSize: '0.85rem' } }}
                   inputProps={{ maxLength: 500 }}
                 />
-                {/* Tax & Discount inline */}
                 <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignItems: 'center' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>TAX %</Typography>
@@ -1906,9 +1908,7 @@ function WarehouseBillingPage() {
             </Paper>
           </Box>
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              BOTTOM ORDER ENTRY — ~70% height
-          ════════════════════════════════════════════════════════════════════ */}
+          {/* ORDER ENTRY */}
           <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', p: 1.5, pt: 1 }}>
             <Paper elevation={1} sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
 
@@ -2003,8 +2003,6 @@ function WarehouseBillingPage() {
           </Box>
         </Box>
 
-        {/* ── Dialogs (unchanged) ─────────────────────────────────────────── */}
-
         {/* Sale Confirmation Dialog */}
         <Dialog open={saleConfirmDialog} onClose={() => {}} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
           <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
@@ -2083,7 +2081,7 @@ function WarehouseBillingPage() {
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>
 
-      
+      </DashboardLayout>
     </RouteGuard>
   )
 }
