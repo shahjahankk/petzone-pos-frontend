@@ -910,13 +910,21 @@ const rawInventory = Array.isArray(inventory) ? inventory : []
   const totalItems = totalFromServer ?? 0
   const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
 
-  const canEditInventory = useMemo(() => {
-    if (!user) return false
-    if (user.role === 'ADMIN') return true
-    if (user.role === 'WAREHOUSE_KEEPER') return hasPermission('WAREHOUSE_INVENTORY_EDIT')
-    if (user.role === 'CASHIER') return hasPermission('CASHIER_INVENTORY_EDIT')
-    return false
-  }, [user, hasPermission])
+const canAddInventory = useMemo(() => {
+  if (!user) return false
+  if (user.role === 'ADMIN') return true
+  if (user.role === 'WAREHOUSE_KEEPER') return hasPermission('WAREHOUSE_INVENTORY_ADD')
+  if (user.role === 'CASHIER') return hasPermission('CASHIER_INVENTORY_ADD')
+  return false
+}, [user, hasPermission])
+
+const canEditInventory = useMemo(() => {
+  if (!user) return false
+  if (user.role === 'ADMIN') return true
+  if (user.role === 'WAREHOUSE_KEEPER') return hasPermission('WAREHOUSE_INVENTORY_EDIT')
+  if (user.role === 'CASHIER') return hasPermission('CASHIER_INVENTORY_EDIT')
+  return false
+}, [user, hasPermission])
 
   const handlePageChange = (event, newPage) => {
     setPage(newPage)
@@ -956,26 +964,30 @@ const rawInventory = Array.isArray(inventory) ? inventory : []
           </Box>
         )}
         
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="h5">Inventory Management</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-            <Button
-              variant="outlined"
-              startIcon={<UploadIcon />}
-              onClick={() => setExcelUploadOpen(true)}
-              size="small"
-            >
-              Import from Excel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleAdd}
-              size="small"
-            >
-              Add Item
-            </Button>
-          </Box>
-        </Box>
+<Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+  <Typography variant="h5">Inventory Management</Typography>
+  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+    {canAddInventory && (
+      <Button
+        variant="outlined"
+        startIcon={<UploadIcon />}
+        onClick={() => setExcelUploadOpen(true)}
+        size="small"
+      >
+        Import from Excel
+      </Button>
+    )}
+    {canAddInventory && (
+      <Button
+        variant="contained"
+        onClick={handleAdd}
+        size="small"
+      >
+        Add Item
+      </Button>
+    )}
+  </Box>
+</Box>
 
         <Card>
           <CardContent>
@@ -1230,6 +1242,7 @@ const rawInventory = Array.isArray(inventory) ? inventory : []
               </Alert>
             ) : (
               <>
+              
               <TableContainer component={Paper}>
                 <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.8rem', py: 0.5 } }}>
                   <TableHead>
@@ -1347,32 +1360,32 @@ const rawInventory = Array.isArray(inventory) ? inventory : []
                             <Typography variant="body2" color="text.secondary">-</Typography>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            {canEditInventory && (
-                              <Tooltip title="Edit">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleEdit(item)}
-                                  color="primary"
-                                >
-                                  <EditIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            {user?.role === 'ADMIN' && (
-                              <Tooltip title="Delete">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleDeleteClick(item)}
-                                  color="error"
-                                >
-                                  <DeleteIcon />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
-                        </TableCell>
+<TableCell>
+  <Box sx={{ display: 'flex', gap: 0.5 }}>
+    {canEditInventory && (
+      <Tooltip title="Edit">
+        <IconButton
+          size="small"
+          onClick={() => handleEdit(item)}
+          color="primary"
+        >
+          <EditIcon />
+        </IconButton>
+      </Tooltip>
+    )}
+    {user?.role === 'ADMIN' && (
+      <Tooltip title="Delete">
+        <IconButton
+          size="small"
+          onClick={() => handleDeleteClick(item)}
+          color="error"
+        >
+          <DeleteIcon />
+        </IconButton>
+      </Tooltip>
+    )}
+  </Box>
+</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

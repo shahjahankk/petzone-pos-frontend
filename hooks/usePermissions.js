@@ -57,28 +57,27 @@ export const usePermissions = () => {
    * @param {string} permission - Permission to check
    * @returns {boolean}
    */
-  const hasPermission = (permission) => {
-    if (!user) return false
-    
-    // Admin has all permissions
-    if (user.role === 'ADMIN') return true
-    
-    // Check branch-specific permissions (CASHIER ONLY)
-    switch (permission) {
-      case 'CASHIER_INVENTORY_EDIT':
-        const cashierResult = branchSettings?.allowCashierInventoryEdit || false
-        return cashierResult
-      case 'WAREHOUSE_INVENTORY_EDIT':
-        const warehouseResult = warehouseSettings?.allowWarehouseInventoryEdit || false
-        return warehouseResult
-      case 'CASHIER_RETURNS':
-        return branchSettings?.allowReturnsByCashier || false
-      case 'OPEN_ACCOUNT':
-        return branchSettings?.openAccount || false
-      default:
-        return false
-    }
+const hasPermission = (permission) => {
+  if (!user) return false
+  if (user.role === 'ADMIN') return true
+
+  switch (permission) {
+    case 'CASHIER_INVENTORY_ADD':
+      return branchSettings?.allowCashierInventoryAdd || false
+    case 'CASHIER_INVENTORY_EDIT':
+      return branchSettings?.allowCashierInventoryEdit || false
+    case 'WAREHOUSE_INVENTORY_ADD':
+      return warehouseSettings?.allowWarehouseInventoryAdd || false
+    case 'WAREHOUSE_INVENTORY_EDIT':
+      return warehouseSettings?.allowWarehouseInventoryEdit || false
+    case 'CASHIER_RETURNS':
+      return branchSettings?.allowReturnsByCashier || false
+    case 'OPEN_ACCOUNT':
+      return branchSettings?.openAccount || false
+    default:
+      return false
   }
+}
 
   /**
    * Check if user can access a specific path
