@@ -166,13 +166,13 @@ function CustomerLedgerPage() {
   const [editError, setEditError] = useState(null)
   const [canEditCustomer, setCanEditCustomer] = useState(false)
   
-  const getCustomerIdentifier = (customer) => {
-    if (!customer) return ''
-    if (customer.id) return customer.id
-    if (customer.customer_name) return customer.customer_name
-    if (customer.customer_phone) return customer.customer_phone
-    return ''
-  }
+const getCustomerIdentifier = (customer) => {
+  if (!customer) return ''
+  // Use phone as the unique identifier — different "hakeem bhai" entries have different phones
+  if (customer.customer_phone) return customer.customer_phone
+  if (customer.customer_name) return customer.customer_name
+  return ''
+}
 
   const getCustomerDisplayName = (customer) => {
     if (!customer) return ''
