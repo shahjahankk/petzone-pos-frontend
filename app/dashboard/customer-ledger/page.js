@@ -168,7 +168,6 @@ function CustomerLedgerPage() {
   
 const getCustomerIdentifier = (customer) => {
   if (!customer) return ''
-  // Use phone as the unique identifier — different "hakeem bhai" entries have different phones
   if (customer.customer_phone) return customer.customer_phone
   if (customer.customer_name) return customer.customer_name
   return ''
@@ -264,15 +263,19 @@ const getCustomerIdentifier = (customer) => {
     loadCustomerLedger(allPlaceholder.id)
   }
 
-  const handleViewDetailedLedger = (customer) => {
-    const customerId = getCustomerIdentifier(customer)
-    if (!customerId || customerId === '__all__') {
-      alert('Detailed view is only available for individual customers.')
-      return
-    }
-    // Open detailed ledger view in new tab
-    window.open(`/dashboard/customer-ledger/detailed/${encodeURIComponent(customerId)}`, '_blank')
+const handleViewDetailedLedger = (customer) => {
+  const identifier = getCustomerIdentifier(customer)   // phone (unique)
+  if (!identifier || identifier === '__all__') {
+    alert('Detailed view is only available for individual customers.')
+    return
   }
+  // Pass the display name as a query param so the detail page can show it
+  const displayName = encodeURIComponent(customer.customer_name || identifier)
+  window.open(
+    `/dashboard/customer-ledger/detailed/${encodeURIComponent(identifier)}?name=${displayName}`,
+    '_blank'
+  )
+}
 
   const handleExportLedger = (customerId, format = 'pdf', detailed = false) => {
     if (!customerId) return
