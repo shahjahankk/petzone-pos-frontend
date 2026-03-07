@@ -107,7 +107,7 @@
       setEditingSettings(prev => ({
         ...prev,
         [key]: value
-      }));
+      }));  
       
       setChangedSettings(prev => ({
         ...prev,
@@ -115,52 +115,30 @@
       }));
     };
 
-    const handleSaveSettings = async () => {
-      if (!selectedBranch) return;
+const handleSaveSettings = async () => {
+  if (!selectedBranch) return;
+  if (Object.keys(changedSettings).length === 0) {
+    setSettingsDialogOpen(false);
+    return;
+  }
 
-      console.log('Branch changedSettings:', changedSettings);
+  setSaving(true);
+  try {
+    await api.put(`/branches/${selectedBranch.id}/settings`, {
+      settings: editingSettings  // ← send full UI state
+    });
 
-      if (Object.keys(changedSettings).length === 0) {
-        console.log('No changes to save');
-        setSettingsDialogOpen(false);
-        return;
-      }
-
-      setSaving(true);
-      try {
-        // Get latest settings from DB
-        const latestResponse = await api.get(`/branches/${selectedBranch.id}/settings`);
-        const latestSettings = { ...latestResponse.data.data.settings };
-
-        // Strip any backward-compat aggregate fields
-        delete latestSettings.allowBranchTransfersCRUD;
-        delete latestSettings.allowCashierCRUD;
-
-        // Merge latest with only what the user changed
-        const settingsToSave = {
-          ...latestSettings,
-          ...changedSettings
-        };
-
-        // Save
-        await api.put(`/branches/${selectedBranch.id}/settings`, {
-          settings: settingsToSave
-        });
-
-        // Refresh branches list
-        const refreshResponse = await api.get('/branches');
-        onBranchesChange(refreshResponse.data.data || []);
-
-        setChangedSettings({});
-        setSettingsDialogOpen(false);
-        setError(null);
-      } catch (err) {
-        console.error('Save error:', err);
-        setError('Failed to save branch settings');
-      } finally {
-        setSaving(false);
-      }
-    };
+    const refreshResponse = await api.get('/branches');
+    onBranchesChange(refreshResponse.data.data || []);
+    setChangedSettings({});
+    setSettingsDialogOpen(false);
+    setError(null);
+  } catch (err) {
+    setError('Failed to save branch settings');
+  } finally {
+    setSaving(false);
+  }
+};
 
     const getSettingsSummary = (branch) => {
       const settings = branch.settings || {};
@@ -506,52 +484,30 @@
       }));
     };
 
-    const handleSaveSettings = async () => {
-      if (!selectedWarehouse) return;
+const handleSaveSettings = async () => {
+  if (!selectedWarehouse) return;
+  if (Object.keys(changedSettings).length === 0) {
+    setSettingsDialogOpen(false);
+    return;
+  }
 
-      console.log('Warehouse changedSettings:', changedSettings);
+  setSaving(true);
+  try {
+    await api.put(`/warehouses/${selectedWarehouse.id}/settings`, {
+      settings: editingSettings
+    });
 
-      if (Object.keys(changedSettings).length === 0) {
-        console.log('No changes to save');
-        setSettingsDialogOpen(false);
-        return;
-      }
-
-      setSaving(true);
-      try {
-        // Get latest settings from DB
-        const latestResponse = await api.get(`/warehouses/${selectedWarehouse.id}/settings`);
-        const latestSettings = { ...latestResponse.data.data.settings };
-
-        // Strip backward-compat aggregate fields
-        delete latestSettings.allowWarehouseCompanyCRUD;
-        delete latestSettings.allowWarehouseRetailerCRUD;
-
-        // Merge latest with only what the user changed
-        const settingsToSave = {
-          ...latestSettings,
-          ...changedSettings
-        };
-
-        // Save
-        await api.put(`/warehouses/${selectedWarehouse.id}/settings`, {
-          settings: settingsToSave
-        });
-
-        // Refresh warehouses list
-        const refreshResponse = await api.get('/warehouses');
-        onWarehousesChange(refreshResponse.data.data || []);
-
-        setChangedSettings({});
-        setSettingsDialogOpen(false);
-        setError(null);
-      } catch (err) {
-        console.error('Save error:', err);
-        setError('Failed to save warehouse settings');
-      } finally {
-        setSaving(false);
-      }
-    };
+    const refreshResponse = await api.get('/warehouses');
+    onWarehousesChange(refreshResponse.data.data || []);
+    setChangedSettings({});
+    setSettingsDialogOpen(false);
+    setError(null);
+  } catch (err) {
+    setError('Failed to save warehouse settings');
+  } finally {
+    setSaving(false);
+  }
+};
 
     const getSettingsSummary = (warehouse) => {
       const settings = warehouse.settings || {};
