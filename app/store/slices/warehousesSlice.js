@@ -118,12 +118,13 @@ const warehousesSlice = createSlice({
         state.loading = true
         state.error = null
       })
-      .addCase(fetchWarehouseSettings.fulfilled, (state, action) => {
-        state.loading = false
-        const warehouseData = action.payload.data || action.payload
-        state.warehouseSettings = warehouseData.settings
-        state.currentWarehouse = warehouseData
-      })
+.addCase(fetchWarehouseSettings.fulfilled, (state, action) => {
+  state.loading = false
+  const warehouseData = action.payload.data || action.payload
+  // Settings come back as a flat object on the warehouse, not nested under .settings
+  state.warehouseSettings = warehouseData.settings || warehouseData
+  state.currentWarehouse = warehouseData
+})
       .addCase(fetchWarehouseSettings.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload

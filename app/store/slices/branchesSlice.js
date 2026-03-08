@@ -113,12 +113,13 @@ const branchesSlice = createSlice({
         state.isLoading = true
         state.error = null
       })
-      .addCase(fetchBranchSettings.fulfilled, (state, action) => {
-        state.isLoading = false
-        const branchData = action.payload.data || action.payload
-        state.branchSettings = branchData.settings
-        state.currentBranch = branchData
-      })
+.addCase(fetchBranchSettings.fulfilled, (state, action) => {
+  state.isLoading = false
+  const branchData = action.payload.data || action.payload
+  // Settings come back as a flat object on the branch, not nested under .settings
+  state.branchSettings = branchData.settings || branchData
+  state.currentBranch = branchData
+})
       .addCase(fetchBranchSettings.rejected, (state, action) => {
         state.isLoading = false
         state.error = action.payload
