@@ -62,18 +62,18 @@ const hasPermission = (permission) => {
   if (user.role === 'ADMIN') return true
 
   switch (permission) {
-    case 'CASHIER_INVENTORY_ADD':
-      return branchSettings?.allowCashierInventoryAdd || false
-    case 'CASHIER_INVENTORY_EDIT':
-      return branchSettings?.allowCashierInventoryEdit || false
-    case 'WAREHOUSE_INVENTORY_ADD':
-      return warehouseSettings?.allowWarehouseInventoryAdd || false
-    case 'WAREHOUSE_INVENTORY_EDIT':
-      return warehouseSettings?.allowWarehouseInventoryEdit || false
-    case 'CASHIER_RETURNS':
-      return branchSettings?.allowReturnsByCashier || false
-    case 'OPEN_ACCOUNT':
-      return branchSettings?.openAccount || false
+case 'CASHIER_INVENTORY_ADD':
+  return Boolean(branchSettings?.allowCashierInventoryAdd)
+case 'CASHIER_INVENTORY_EDIT':
+  return Boolean(branchSettings?.allowCashierInventoryEdit)
+case 'WAREHOUSE_INVENTORY_ADD':
+  return Boolean(warehouseSettings?.allowWarehouseInventoryAdd)
+case 'WAREHOUSE_INVENTORY_EDIT':
+  return Boolean(warehouseSettings?.allowWarehouseInventoryEdit)
+case 'CASHIER_RETURNS':
+  return Boolean(branchSettings?.allowCashierReturns)
+case 'OPEN_ACCOUNT':
+  return Boolean(branchSettings?.openAccountSystem)
     default:
       return false
   }

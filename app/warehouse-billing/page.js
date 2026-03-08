@@ -196,12 +196,10 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     }
   }, [autoFocusItem])
 
-  // Reset highlight when dropdown opens or results change
   useEffect(() => {
     setHighlightedIndex(-1)
   }, [open, itemSearch])
 
-  // Scroll highlighted item into view
   useEffect(() => {
     if (highlightedIndex >= 0 && dropdownRef.current) {
       const items = dropdownRef.current.querySelectorAll('[data-dropdown-item]')
@@ -283,14 +281,12 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         transition: 'background 0.15s'
       }}
     >
-      {/* Checkbox */}
       <TableCell sx={{ ...cellSx, width: 40, px: 0.5 }}>
         <Typography variant="body2" sx={{ color: 'text.disabled', fontFamily: 'monospace', textAlign: 'center', fontSize: '0.8rem' }}>
           {index + 1}
         </Typography>
       </TableCell>
 
-      {/* Item — searchable autocomplete */}
       <TableCell sx={{ ...cellSx, width: '42%' }}>
         <Box sx={{ position: 'relative' }}>
           <TextField
@@ -343,7 +339,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
               startAdornment: <SearchIcon sx={{ mr: 0.5, color: 'text.disabled', fontSize: 18 }} />
             }}
           />
-          {/* Dropdown */}
           {open && filteredProducts.length > 0 && (
             <Paper
               ref={dropdownRef}
@@ -409,7 +404,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         </Box>
       </TableCell>
 
-      {/* Unit Price */}
       <TableCell sx={{ ...cellSx, width: '13%' }}>
         <TextField
           fullWidth
@@ -431,7 +425,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         />
       </TableCell>
 
-      {/* Qty */}
       <TableCell sx={{ ...cellSx, width: '10%' }}>
         <TextField
           inputRef={qtyInputRef}
@@ -459,7 +452,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         />
       </TableCell>
 
-      {/* Discount */}
       <TableCell sx={{ ...cellSx, width: '12%' }}>
         <TextField
           fullWidth
@@ -474,7 +466,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         />
       </TableCell>
 
-      {/* Final Total */}
       <TableCell sx={{ ...cellSx, width: '13%', textAlign: 'right' }}>
         <Typography
           variant="body1"
@@ -490,7 +481,6 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         </Typography>
       </TableCell>
 
-      {/* + / Delete */}
       <TableCell sx={{ ...cellSx, width: 56, textAlign: 'center' }}>
         {item.id ? (
           <IconButton
@@ -600,7 +590,6 @@ function WarehouseBillingPage() {
   const [activeTabId, setActiveTabId] = useState(null)
   const [tabCounter, setTabCounter] = useState(1)
 
-  // ── All existing state ──────────────────────────────────────────────────────
   const [barcodeInput, setBarcodeInput] = useState('')
   const [manualInput, setManualInput] = useState('')
   const [isScanning, setIsScanning] = useState(false)
@@ -658,7 +647,6 @@ function WarehouseBillingPage() {
   const [showSettlementOptions, setShowSettlementOptions] = useState(false)
   const [companyInfo, setCompanyInfo] = useState(() => ({ ...DEFAULT_COMPANY_INFO }))
 
-  // track which row should autofocus
   const [newRowIndex, setNewRowIndex] = useState(null)
 
   const barcodeInputRef = useRef(null)
@@ -667,7 +655,6 @@ function WarehouseBillingPage() {
   const hydratingTabIdRef = useRef(null)
   const isCompletingSaleRef = useRef(false)
 
-  // ── Retailer fetch ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return
     const fetchParams = {}
@@ -685,25 +672,20 @@ function WarehouseBillingPage() {
     if (retailersError) console.error('[WAREHOUSE] Failed to load retailers:', retailersError)
   }, [retailersError])
 
-  // ── Tab helpers ─────────────────────────────────────────────────────────────
   const currentTab = useMemo(() => tabs.find(tab => tab.id === activeTabId) || null, [tabs, activeTabId])
   const currentCart = useMemo(() => currentTab?.cart || [], [currentTab])
 
-  // ── STEP 1: Define updateCurrentTabCart FIRST before anything uses it ───────
   const updateCurrentTabCart = useCallback((newCart) => {
     setTabs(prev => prev.map(tab =>
       tab.id === activeTabId ? { ...tab, cart: newCart, modifiedAt: new Date() } : tab
     ))
   }, [activeTabId])
 
-  // ── STEP 2: Define updateCurrentTab ─────────────────────────────────────────
   const updateCurrentTab = useCallback((updates) => {
     setTabs(prev => prev.map(tab =>
       tab.id === activeTabId ? { ...tab, ...updates, modifiedAt: new Date() } : tab
     ))
   }, [activeTabId])
-
-  // ── STEP 3: Now define everything that uses updateCurrentTabCart ─────────────
 
   const cartWithPlaceholder = useMemo(() => {
     const hasEmptyRow = currentCart.length === 0 || currentCart[currentCart.length - 1]?.id
@@ -735,7 +717,6 @@ function WarehouseBillingPage() {
     setNewRowIndex(currentCart.length)
   }, [currentCart.length])
 
-  // ── addToCart (kept for barcode) ───────────────────────────────────────────
   const addToCart = useCallback((product) => {
     const existingItem = currentCart.find(item => item.id === product.id)
     let newCart
@@ -754,7 +735,6 @@ function WarehouseBillingPage() {
     updateCurrentTabCart(newCart)
   }, [currentCart, updateCurrentTabCart])
 
-  // ── Build payload ──────────────────────────────────────────────────────────
   const buildWarehouseSalePayload = useCallback(({
     billAmount: inputBillAmount,
     totalWithOutstanding,
@@ -882,7 +862,6 @@ function WarehouseBillingPage() {
     return { totalWithOutstanding: totalForLedger, finalPaymentAmount, finalCreditAmount, finalPaymentStatus, paymentTypeValue }
   }
 
-  // ── Barcode scan ───────────────────────────────────────────────────────────
   const handleBarcodeScan = useCallback((barcode) => {
     const product = inventoryItems.find(p => {
       const skuMatch = p.sku && p.sku.toString().toLowerCase() === barcode.toLowerCase()
@@ -916,7 +895,6 @@ function WarehouseBillingPage() {
     return () => document.removeEventListener('keydown', handlePhysicalScanner)
   }, [barcodeInput, handleBarcodeScan])
 
-  // ── Tab management ─────────────────────────────────────────────────────────
   const createNewTab = useCallback(() => {
     const newTab = {
       id: generateTabId(),
@@ -983,7 +961,6 @@ function WarehouseBillingPage() {
     loadAvailablePrinters()
   }, [dispatch, user, loadAvailablePrinters, isAdminMode])
 
-  // ── Outstanding payments ───────────────────────────────────────────────────
   const searchOutstandingPayments = useCallback(async (phoneNumber, customerName) => {
     if ((!phoneNumber || phoneNumber.trim().length < 3) && (!customerName || customerName.trim().length < 3)) {
       setOutstandingPayments([])
@@ -1100,7 +1077,6 @@ function WarehouseBillingPage() {
     else if (retailer.name && retailer.name.trim().length >= 3) searchOutstandingPayments('', retailer.name.trim())
   }, [searchOutstandingPayments])
 
-  // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal = useMemo(() => {
     return currentCart.reduce((sum, item) => {
       const itemPrice = parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0)
@@ -1229,7 +1205,6 @@ function WarehouseBillingPage() {
     return { name: item?.name || 'Item', sku: item?.sku || '', quantity, unitPrice, price: unitPrice, discount: Math.round(discount), total: Number.isFinite(total) ? total : 0 }
   }, [])
 
-  // ── Payment effects ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (paymentMethod === 'FULLY_CREDIT') { setPaymentAmount('0'); setCreditAmount(total.toFixed(2)); setIsPartialPayment(false) }
     else if (paymentMethod !== 'FULLY_CREDIT' && paymentAmount === '0' && !isPartialPayment) { setPaymentAmount(''); setCreditAmount('') }
@@ -1396,19 +1371,19 @@ function WarehouseBillingPage() {
       if ((isPartialPayment || isFullyCredit) && !selectedRetailer?.id) { alert('❌ Retailer selection is required for partial payments and credit sales.'); return }
       if (!user) { alert('❌ User not authenticated. Please login again.'); return }
       if (!paymentMethod) { alert('❌ Please select a Payment Method before completing this sale.'); return }
-      if (!isPartialPayment && !isFullyCredit && !isBalancePayment) {
-        // "Full" is the default type — allowed, no extra check needed
-      }
-if (!currentCart || currentCart.length === 0) {
+
+      if (!currentCart || currentCart.length === 0) {
         if (selectedOutstandingPayments.length > 0) {
-          const { paymentAmount: settlementPaymentValue, creditAmount: settlementCreditValue, baseOutstanding } = calculateSettlementValues()
+          // ── FIX: validate using the direct settlementPaymentAmount state ──
           if (isSettlementPartial) {
             const enteredAmount = parseFloat(settlementPaymentAmount)
             if (Number.isNaN(enteredAmount) || enteredAmount <= 0) {
-              alert('❌ Please enter a payment amount greater than 0 for partial settlement.')
+              alert('❌ Please enter a "Pay Now" amount greater than 0 for partial settlement.')
               return
             }
           }
+
+          const { paymentAmount: settlementPaymentValue, creditAmount: settlementCreditValue, baseOutstanding } = calculateSettlementValues()
           const retailerNameDisplay = selectedRetailer?.name || customerName || 'Unknown'
           const retailerPhoneDisplay = selectedRetailer?.phone || customerPhone || 'N/A'
           const isCredit = baseOutstanding < 0
@@ -1509,7 +1484,6 @@ if (!currentCart || currentCart.length === 0) {
     finally { setIsProcessingSaleOnly(false); isCompletingSaleRef.current = false }
   }
 
-  // ── Print helpers ──────────────────────────────────────────────────────────
   const checkPrinterStatus = async () => {
     try {
       if (navigator.serial) {
@@ -1592,7 +1566,6 @@ if (!currentCart || currentCart.length === 0) {
     return { success, message, usedBrowserFallback }
   }
 
-  // ── Tab component ─────────────────────────────────────────────────────────
   const TabComponent = ({ tab, isActive, onClose, onClick }) => {
     const itemCount = tab.cart.reduce((sum, item) => sum + item.quantity, 0)
     const hasItems = itemCount > 0
@@ -1625,9 +1598,9 @@ if (!currentCart || currentCart.length === 0) {
     )
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ──────────────────────────────────────────────────────────────────────────
+  // ── isSettlementMode: cart empty + outstanding selected ───────────────────
+  const isSettlementMode = currentCart.length === 0 && selectedOutstandingPayments.length > 0
+
   return (
     <RouteGuard allowedRoles={['CASHIER', 'ADMIN', 'MANAGER']}>
         {isAdminMode && scopeInfo && (
@@ -1800,34 +1773,36 @@ if (!currentCart || currentCart.length === 0) {
                   </TextField>
                 </Box>
 
-                {/* Payment Type */}
-                <Box sx={{ flex: '1 1 260px', minWidth: 240 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: (!isPartialPayment && !isFullyCredit && !isBalancePayment && currentCart.length > 0) ? 'text.secondary' : 'text.secondary', mb: 0.5, display: 'block' }}>
-                    PAYMENT TYPE
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    {[
-                      { key: 'full', label: 'Full', active: !isPartialPayment && !isFullyCredit && !isBalancePayment && paymentMethod !== '' && paymentMethod !== 'FULLY_CREDIT' },
-                      { key: 'partial', label: 'Partial', active: isPartialPayment },
-                      { key: 'credit', label: 'Credit', active: isFullyCredit },
-                      { key: 'balance', label: 'Balance', active: isBalancePayment, disabled: outstandingTotal >= 0 }
-                    ].map(btn => (
-                      <Button key={btn.key} size="small" variant={btn.active ? 'contained' : 'outlined'} disabled={btn.disabled}
-                        onClick={() => {
-                          if (btn.key === 'full') { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(false); setPaymentAmount(''); setCreditAmount(''); if (paymentMethod === 'FULLY_CREDIT') setPaymentMethod(''); handleSettlementPaymentType('full') }
-                          if (btn.key === 'partial') { setIsPartialPayment(true); setIsFullyCredit(false); setIsBalancePayment(false); if (!paymentAmount) { setPaymentAmount(''); setCreditAmount(total.toFixed(2)) }; if (selectedOutstandingPayments.length > 0) handleSettlementPaymentType('partial') }
-                          if (btn.key === 'credit') { setIsPartialPayment(false); setIsFullyCredit(true); setIsBalancePayment(false); setPaymentMethod('FULLY_CREDIT'); setPaymentAmount(''); setCreditAmount(total.toString()); handleSettlementPaymentType('fullyCredit') }
-                          if (btn.key === 'balance' && !btn.disabled) { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(true); setPaymentAmount('0'); setCreditAmount(billAmount.toString()); handleSettlementPaymentType('balance') }
-                        }}
-                        sx={{ flex: 1, height: 44, fontSize: '0.78rem', fontFamily: 'monospace', whiteSpace: 'nowrap', fontWeight: btn.active ? 700 : 400 }}>
-                        {btn.label}
-                      </Button>
-                    ))}
+                {/* Payment Type — hidden in settlement mode (handled in outstanding panel) */}
+                {!isSettlementMode && (
+                  <Box sx={{ flex: '1 1 260px', minWidth: 240 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 0.5, display: 'block' }}>
+                      PAYMENT TYPE
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      {[
+                        { key: 'full', label: 'Full', active: !isPartialPayment && !isFullyCredit && !isBalancePayment && paymentMethod !== '' && paymentMethod !== 'FULLY_CREDIT' },
+                        { key: 'partial', label: 'Partial', active: isPartialPayment },
+                        { key: 'credit', label: 'Credit', active: isFullyCredit },
+                        { key: 'balance', label: 'Balance', active: isBalancePayment, disabled: outstandingTotal >= 0 }
+                      ].map(btn => (
+                        <Button key={btn.key} size="small" variant={btn.active ? 'contained' : 'outlined'} disabled={btn.disabled}
+                          onClick={() => {
+                            if (btn.key === 'full') { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(false); setPaymentAmount(''); setCreditAmount(''); if (paymentMethod === 'FULLY_CREDIT') setPaymentMethod(''); handleSettlementPaymentType('full') }
+                            if (btn.key === 'partial') { setIsPartialPayment(true); setIsFullyCredit(false); setIsBalancePayment(false); if (!paymentAmount) { setPaymentAmount(''); setCreditAmount(total.toFixed(2)) }; if (selectedOutstandingPayments.length > 0) handleSettlementPaymentType('partial') }
+                            if (btn.key === 'credit') { setIsPartialPayment(false); setIsFullyCredit(true); setIsBalancePayment(false); setPaymentMethod('FULLY_CREDIT'); setPaymentAmount(''); setCreditAmount(total.toString()); handleSettlementPaymentType('fullyCredit') }
+                            if (btn.key === 'balance' && !btn.disabled) { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(true); setPaymentAmount('0'); setCreditAmount(billAmount.toString()); handleSettlementPaymentType('balance') }
+                          }}
+                          sx={{ flex: 1, height: 44, fontSize: '0.78rem', fontFamily: 'monospace', whiteSpace: 'nowrap', fontWeight: btn.active ? 700 : 400 }}>
+                          {btn.label}
+                        </Button>
+                      ))}
+                    </Box>
                   </Box>
-                </Box>
+                )}
 
-                {/* Partial Payment Amounts */}
-                {(isPartialPayment || isFullyCredit) && (
+                {/* Partial Payment Amounts — only show when cart has items */}
+                {(isPartialPayment || isFullyCredit) && !isSettlementMode && (
                   <Box sx={{ flex: '1 1 220px', minWidth: 200 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'warning.main', mb: 0.5, display: 'block' }}>
                       {isFullyCredit ? 'CREDIT AMOUNT' : 'PAID / CREDIT'}
@@ -1883,7 +1858,7 @@ if (!currentCart || currentCart.length === 0) {
                       onClick={handleCompleteSale}
                       disabled={isProcessingSaleOnly || isProcessingSale || (currentCart.length === 0 && selectedOutstandingPayments.length === 0)}
                       sx={{ fontFamily: 'monospace', fontWeight: 700, height: 44, px: 3, fontSize: '0.9rem', minWidth: 150 }}>
-                      {isProcessingSaleOnly ? 'SAVING...' : (currentCart.length === 0 && selectedOutstandingPayments.length > 0 ? 'SETTLE' : 'COMPLETE SALE')}
+                      {isProcessingSaleOnly ? 'SAVING...' : (isSettlementMode ? 'SETTLE' : 'COMPLETE SALE')}
                     </Button>
                   </Box>
                 </Box>
@@ -1901,7 +1876,9 @@ if (!currentCart || currentCart.length === 0) {
                       <RefreshIcon fontSize="small" />
                     </IconButton>
                   </Box>
-                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flex: 1, alignItems: 'center' }}>
+
+                  {/* Outstanding chips */}
+                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
                     {outstandingPayments.map(payment => (
                       <Chip key={payment.id}
                         icon={<Checkbox size="small" checked={selectedOutstandingPayments.includes(payment.id)} onChange={() => handleOutstandingPaymentToggle(payment.id)} sx={{ p: 0 }} />}
@@ -1917,8 +1894,86 @@ if (!currentCart || currentCart.length === 0) {
                       />
                     ))}
                   </Box>
-                  {/* Date field next to outstanding */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
+
+                  {/* ── Settlement controls (only in settlement-only mode) ── */}
+                  {isSettlementMode && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', ml: 'auto' }}>
+                      {/* Payment type buttons for settlement */}
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        {[
+                          { key: 'full', label: 'Full Pay' },
+                          { key: 'partial', label: 'Partial' },
+                          { key: 'fullyCredit', label: 'Keep Credit' }
+                        ].map(btn => (
+                          <Button key={btn.key} size="small"
+                            variant={
+                              (btn.key === 'full' && !isSettlementPartial && !isSettlementFullyCredit) ? 'contained' :
+                              (btn.key === 'partial' && isSettlementPartial) ? 'contained' :
+                              (btn.key === 'fullyCredit' && isSettlementFullyCredit) ? 'contained' : 'outlined'
+                            }
+                            onClick={() => handleSettlementPaymentType(btn.key)}
+                            sx={{ height: 36, fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {btn.label}
+                          </Button>
+                        ))}
+                      </Box>
+
+                      {/* Pay Now input — only for partial */}
+                      {isSettlementPartial && (
+                        <>
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Pay Now"
+                            value={settlementPaymentAmount}
+                            onChange={(e) => handleSettlementPaymentChange(e.target.value)}
+                            autoFocus
+                            inputProps={{ min: 0, step: 1, style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.9rem' } }}
+                            sx={{
+                              width: 130,
+                              '& .MuiOutlinedInput-root': { height: 36, bgcolor: '#e8f5e9' },
+                              '& input[type=number]': { MozAppearance: 'textfield' },
+                              '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none' },
+                              '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' }
+                            }}
+                          />
+                          <TextField
+                            size="small"
+                            type="number"
+                            label="Remaining"
+                            value={settlementCreditAmount}
+                            disabled
+                            inputProps={{ style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.9rem', color: '#d32f2f' } }}
+                            sx={{
+                              width: 130,
+                              '& .MuiOutlinedInput-root': { height: 36, bgcolor: '#fff3e0' },
+                              '& input[type=number]': { MozAppearance: 'textfield' },
+                              '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none' },
+                              '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' }
+                            }}
+                          />
+                        </>
+                      )}
+
+                      {/* Summary chip */}
+                      <Chip
+                        size="small"
+                        label={
+                          isSettlementFullyCredit
+                            ? `Keep as credit: ${Math.abs(settlementTotal).toFixed(0)}`
+                            : isSettlementPartial
+                              ? `Pay: ${parseFloat(settlementPaymentAmount || 0).toFixed(0)} · Left: ${settlementCreditAmount}`
+                              : `Settle full: ${Math.abs(settlementTotal).toFixed(0)}`
+                        }
+                        color={isSettlementFullyCredit ? 'default' : isSettlementPartial ? 'warning' : 'success'}
+                        variant="filled"
+                        sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', height: 28 }}
+                      />
+                    </Box>
+                  )}
+
+                  {/* Date field */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, ml: isSettlementMode ? 0 : 'auto' }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>DATE</Typography>
                     <TextField
                       size="small"
@@ -1942,7 +1997,6 @@ if (!currentCart || currentCart.length === 0) {
                   sx={{ '& .MuiOutlinedInput-root': { bgcolor: 'white', fontSize: '0.85rem' } }}
                   inputProps={{ maxLength: 500 }}
                 />
-                {/* Date field — always visible */}
                 {outstandingPayments.length === 0 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>DATE</Typography>
@@ -1983,7 +2037,6 @@ if (!currentCart || currentCart.length === 0) {
           <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', p: 1.5, pt: 1 }}>
             <Paper elevation={1} sx={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
 
-              {/* Table header */}
               <Box sx={{ bgcolor: theme.palette.primary.main, px: 2, py: 1, display: 'flex', alignItems: 'center', borderRadius: '8px 8px 0 0' }}>
                 <Typography variant="subtitle2" sx={{ color: 'white', fontFamily: 'monospace', fontWeight: 700, letterSpacing: 1 }}>
                   ORDER ENTRY — {currentTab?.name || ''}
@@ -1996,7 +2049,6 @@ if (!currentCart || currentCart.length === 0) {
                 </Box>
               </Box>
 
-              {/* Scrollable table */}
               <TableContainer sx={{ flex: 1, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: alpha(theme.palette.primary.main, 0.3), borderRadius: 3 } }}>
                 <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
                   <TableHead>
@@ -2030,7 +2082,6 @@ if (!currentCart || currentCart.length === 0) {
                 </Table>
               </TableContainer>
 
-              {/* Footer totals bar */}
               <Box sx={{
                 px: 2, py: 1,
                 borderTop: `2px solid ${theme.palette.divider}`,
@@ -2066,7 +2117,7 @@ if (!currentCart || currentCart.length === 0) {
                     onClick={handleCompleteSale}
                     disabled={isProcessingSaleOnly || isProcessingSale || (currentCart.length === 0 && selectedOutstandingPayments.length === 0)}
                     sx={{ fontFamily: 'monospace', fontWeight: 700, height: 48, px: 4, fontSize: '0.95rem' }}>
-                    {isProcessingSaleOnly ? 'SAVING...' : (currentCart.length === 0 && selectedOutstandingPayments.length > 0 ? 'SETTLE' : 'COMPLETE SALE')}
+                    {isProcessingSaleOnly ? 'SAVING...' : (isSettlementMode ? 'SETTLE' : 'COMPLETE SALE')}
                   </Button>
                 </Box>
               </Box>
@@ -2118,10 +2169,8 @@ if (!currentCart || currentCart.length === 0) {
           </DialogActions>
         </Dialog>
 
-        {/* Physical Scanner */}
         <PhysicalScanner open={showPhysicalScanner} onScan={(barcode) => { handleBarcodeScan(barcode); setShowPhysicalScanner(false) }} onClose={() => setShowPhysicalScanner(false)} inventoryItems={inventoryItems} />
 
-        {/* Settings Dialog */}
         <Dialog open={showSettings} onClose={() => setShowSettings(false)} maxWidth="sm" fullWidth>
           <DialogTitle><Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><SettingsIcon /><Typography variant="h6">Settings</Typography></Box></DialogTitle>
           <DialogContent>
@@ -2143,11 +2192,9 @@ if (!currentCart || currentCart.length === 0) {
           </DialogActions>
         </Dialog>
 
-        {/* Print Dialog */}
         <PrintDialog open={showPrintDialog} onClose={() => setShowPrintDialog(false)} printData={printData} title="Print Sales Receipt" defaultLayout={selectedLayout}
           onPrintComplete={() => { setShowPrintDialog(false); setPrintData(null); setCustomerName(''); setCustomerPhone(''); if (currentTab) updateCurrentTab({ ...currentTab, cart: [] }); setSearchResults([]); setShowSearchResults(false); setManualInput(''); setSearchQuery('') }} />
 
-        {/* Toast */}
         <Snackbar open={toast.open} autoHideDuration={4000} onClose={handleToastClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>

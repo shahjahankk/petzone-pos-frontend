@@ -418,7 +418,13 @@ useEffect(() => {
       setScopeFilter('all')
     }
   }, [isAdminMode, scopeInfo, user?.role])
-
+useEffect(() => {
+  if (originalUser?.role === 'CASHIER' && originalUser?.branchId) {
+    dispatch(fetchBranchSettings(originalUser.branchId))
+  } else if (originalUser?.role === 'WAREHOUSE_KEEPER' && originalUser?.warehouseId) {
+    dispatch(fetchWarehouseSettings(originalUser.warehouseId))
+  }
+}, [dispatch, originalUser?.role, originalUser?.branchId, originalUser?.warehouseId])
   useEffect(() => {
     if (scopeFilter === 'WAREHOUSE') {
       setSelectedBranchId(null)
