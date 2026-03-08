@@ -113,18 +113,19 @@ const branchesSlice = createSlice({
         state.isLoading = true
         state.error = null
       })
-.addCase(fetchBranchSettings.fulfilled, (state, action) => {
-  state.isLoading = false
-  const branchData = action.payload.data || action.payload
-  // Settings come back as a flat object on the branch, not nested under .settings
-  state.branchSettings = branchData.settings || branchData
-  state.currentBranch = branchData
-})
+      .addCase(fetchBranchSettings.fulfilled, (state, action) => {
+        state.isLoading = false
+        const branchData = action.payload.data || action.payload
+        // API returns flat keys directly on branchData — NOT nested under .settings
+        // branchData.settings is a corrupted legacy JSON string, ignore it
+        state.branchSettings = branchData
+        state.currentBranch = branchData
+      })
       .addCase(fetchBranchSettings.rejected, (state, action) => {
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Update branch settings
       .addCase(updateBranchSettings.pending, (state) => {
         state.isLoading = true
@@ -133,27 +134,25 @@ const branchesSlice = createSlice({
       .addCase(updateBranchSettings.fulfilled, (state, action) => {
         state.isLoading = false
         const updatedBranch = action.payload.data || action.payload
-        
+
         // Update the specific branch in the branches array
         const branchIndex = state.branches.findIndex(branch => branch.id === updatedBranch.id)
         if (branchIndex !== -1) {
           state.branches[branchIndex] = updatedBranch
           state.data[branchIndex] = updatedBranch // For useEntityCRUD compatibility
         }
-        
-        // Update branch settings and current branch
-        state.branchSettings = updatedBranch.settings
-        if (state.currentBranch) {
-          state.currentBranch.settings = updatedBranch.settings
-        }
-        
+
+        // API returns flat keys directly on updatedBranch — NOT nested under .settings
+        state.branchSettings = updatedBranch
+        state.currentBranch = updatedBranch
+
         state.error = null
       })
       .addCase(updateBranchSettings.rejected, (state, action) => {
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Fetch all branches
       .addCase(fetchAllBranches.pending, (state) => {
         state.isLoading = true
@@ -169,7 +168,7 @@ const branchesSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Create branch
       .addCase(createBranch.pending, (state) => {
         state.isLoading = true
@@ -187,7 +186,7 @@ const branchesSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Update branch
       .addCase(updateBranch.pending, (state) => {
         state.isLoading = true
@@ -208,7 +207,7 @@ const branchesSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Delete branch
       .addCase(deleteBranch.pending, (state) => {
         state.isLoading = true
@@ -228,11 +227,11 @@ const branchesSlice = createSlice({
   },
 })
 
-export const { 
-  setCurrentBranch, 
-  setBranchSettings, 
-  clearError, 
-  clearBranches 
+export const {
+  setCurrentBranch,
+  setBranchSettings,
+  clearError,
+  clearBranches
 } = branchesSlice.actions
 
 export default branchesSlice.reducer
