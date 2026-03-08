@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
-// Async thunks
 export const fetchWarehouses = createAsyncThunk(
   'warehouses/fetchWarehouses',
   async (params = {}, { rejectWithValue }) => {
@@ -26,7 +25,6 @@ export const createWarehouse = createAsyncThunk(
   }
 )
 
-// Async thunk for fetching warehouse settings
 export const fetchWarehouseSettings = createAsyncThunk(
   'warehouses/fetchSettings',
   async (warehouseId, { rejectWithValue }) => {
@@ -113,7 +111,7 @@ const warehousesSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch warehouse settings
+      // ── Fetch warehouse settings ───────────────────────────────────
       .addCase(fetchWarehouseSettings.pending, (state) => {
         state.loading = true
         state.error = null
@@ -121,9 +119,9 @@ const warehousesSlice = createSlice({
       .addCase(fetchWarehouseSettings.fulfilled, (state, action) => {
         state.loading = false
         const warehouseData = action.payload.data || action.payload
-        // API returns flat keys directly on warehouseData — NOT nested under .settings
-        // warehouseData.settings is a corrupted legacy JSON string, ignore it
-        state.warehouseSettings = warehouseData
+        // Controller returns { id, name, code, settings: { allowWarehouseInventoryAdd, ... } }
+        // Extract .settings so usePermissions can read flat keys directly
+        state.warehouseSettings = warehouseData.settings || warehouseData
         state.currentWarehouse = warehouseData
       })
       .addCase(fetchWarehouseSettings.rejected, (state, action) => {
@@ -131,7 +129,29 @@ const warehousesSlice = createSlice({
         state.error = action.payload
       })
 
-      // Fetch warehouses
+      // ── Update warehouse settings ──────────────────────────────────
+      .addCase(updateWarehouseSettings.pending, (state) => {
+        state.loading = true
+        state.error = null
+      })
+      .addCase(updateWarehouseSettings.fulfilled, (state, action) => {
+        state.loading = false
+        const updatedWarehouse = action.payload.data || action.payload
+        const index = state.data.findIndex(w => w.id === updatedWarehouse.id)
+        if (index !== -1) {
+          state.data[index] = updatedWarehouse
+        }
+        // Extract .settings so usePermissions can read flat keys directly
+        state.warehouseSettings = updatedWarehouse.settings || updatedWarehouse
+        state.currentWarehouse = updatedWarehouse
+        state.error = null
+      })
+      .addCase(updateWarehouseSettings.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
+      })
+
+      // ── Fetch warehouses ───────────────────────────────────────────
       .addCase(fetchWarehouses.pending, (state) => {
         state.loading = true
         state.error = null
@@ -146,7 +166,7 @@ const warehousesSlice = createSlice({
         state.error = action.payload
       })
 
-      // Create warehouse
+      // ── Create warehouse ───────────────────────────────────────────
       .addCase(createWarehouse.pending, (state) => {
         state.loading = true
         state.error = null
@@ -162,7 +182,7 @@ const warehousesSlice = createSlice({
         state.error = action.payload
       })
 
-      // Update warehouse
+      // ── Update warehouse ───────────────────────────────────────────
       .addCase(updateWarehouse.pending, (state) => {
         state.loading = true
         state.error = null
@@ -170,7 +190,7 @@ const warehousesSlice = createSlice({
       .addCase(updateWarehouse.fulfilled, (state, action) => {
         state.loading = false
         const updatedWarehouse = action.payload.data || action.payload
-        const index = state.data.findIndex(warehouse => warehouse.id === updatedWarehouse.id)
+        const index = state.data.findIndex(w => w.id === updatedWarehouse.id)
         if (index !== -1) {
           state.data[index] = updatedWarehouse
         }
@@ -181,36 +201,14 @@ const warehousesSlice = createSlice({
         state.error = action.payload
       })
 
-      // Update warehouse settings
-      .addCase(updateWarehouseSettings.pending, (state) => {
-        state.loading = true
-        state.error = null
-      })
-      .addCase(updateWarehouseSettings.fulfilled, (state, action) => {
-        state.loading = false
-        const updatedWarehouse = action.payload.data || action.payload
-        const index = state.data.findIndex(warehouse => warehouse.id === updatedWarehouse.id)
-        if (index !== -1) {
-          state.data[index] = updatedWarehouse
-        }
-        // API returns flat keys directly on updatedWarehouse — NOT nested under .settings
-        state.warehouseSettings = updatedWarehouse
-        state.currentWarehouse = updatedWarehouse
-        state.error = null
-      })
-      .addCase(updateWarehouseSettings.rejected, (state, action) => {
-        state.loading = false
-        state.error = action.payload
-      })
-
-      // Delete warehouse
+      // ── Delete warehouse ───────────────────────────────────────────
       .addCase(deleteWarehouse.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(deleteWarehouse.fulfilled, (state, action) => {
         state.loading = false
-        state.data = state.data.filter(warehouse => warehouse.id !== action.payload)
+        state.data = state.data.filter(w => w.id !== action.payload)
         state.error = null
       })
       .addCase(deleteWarehouse.rejected, (state, action) => {
@@ -218,7 +216,7 @@ const warehousesSlice = createSlice({
         state.error = action.payload
       })
 
-      // Get single warehouse
+      // ── Get single warehouse ───────────────────────────────────────
       .addCase(getWarehouse.pending, (state) => {
         state.loading = true
         state.error = null
@@ -227,7 +225,7 @@ const warehousesSlice = createSlice({
         state.loading = false
         state.error = null
         const warehouseData = action.payload.data || action.payload
-        const index = state.data.findIndex(warehouse => warehouse.id === warehouseData.id)
+        const index = state.data.findIndex(w => w.id === warehouseData.id)
         if (index !== -1) {
           state.data[index] = warehouseData
         } else {
