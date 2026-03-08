@@ -1399,11 +1399,16 @@ function WarehouseBillingPage() {
       if (!isPartialPayment && !isFullyCredit && !isBalancePayment) {
         // "Full" is the default type — allowed, no extra check needed
       }
-
-      if (!currentCart || currentCart.length === 0) {
+if (!currentCart || currentCart.length === 0) {
         if (selectedOutstandingPayments.length > 0) {
           const { paymentAmount: settlementPaymentValue, creditAmount: settlementCreditValue, baseOutstanding } = calculateSettlementValues()
-          if (isSettlementPartial && settlementPaymentValue <= 0) { alert('❌ Please enter a payment amount greater than 0 for partial settlement.'); return }
+          if (isSettlementPartial) {
+            const enteredAmount = parseFloat(settlementPaymentAmount)
+            if (Number.isNaN(enteredAmount) || enteredAmount <= 0) {
+              alert('❌ Please enter a payment amount greater than 0 for partial settlement.')
+              return
+            }
+          }
           const retailerNameDisplay = selectedRetailer?.name || customerName || 'Unknown'
           const retailerPhoneDisplay = selectedRetailer?.phone || customerPhone || 'N/A'
           const isCredit = baseOutstanding < 0
