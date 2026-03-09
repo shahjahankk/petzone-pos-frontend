@@ -126,7 +126,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
     const percentage = total > 0 ? Math.round((enabled / total) * 100) : 0;
     return { enabled, total, percentage };
   };
-  
+
   const settingsConfig = [
     { type: 'section', section: 'Cashier Permissions' },
     { key: 'allowCashierInventoryAdd',  label: 'Allow Cashier Inventory Add',  description: 'Cashiers can add NEW inventory items',                          type: 'switch' },
@@ -321,28 +321,31 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
     setChangedSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleSaveSettings = async () => {
-    if (!selectedWarehouse) return;
-    if (Object.keys(changedSettings).length === 0) {
-      setSettingsDialogOpen(false);
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.put(`/warehouses/${selectedWarehouse.id}/settings`, {
-        settings: editingSettings
-      });
-      const refreshResponse = await api.get('/warehouses');
-      onWarehousesChange(refreshResponse.data.data || []);
-      setChangedSettings({});
-      setSettingsDialogOpen(false);
-      setError(null);
-    } catch (err) {
-      setError('Failed to save warehouse settings');
-    } finally {
-      setSaving(false);
-    }
-  };
+const handleSaveSettings = async () => {
+  if (!selectedWarehouse) return;
+  if (Object.keys(changedSettings).length === 0) {
+    setSettingsDialogOpen(false);
+    return;
+  }
+  setSaving(true);
+  try {
+    // ✅ Inside the function so it reads current editingSettings
+    const { allowWarehouseCompanyCRUD, allowWarehouseRetailerCRUD, ...settingsToSave } = editingSettings;
+    
+    await api.put(`/warehouses/${selectedWarehouse.id}/settings`, {
+      settings: settingsToSave
+    });
+    const refreshResponse = await api.get('/warehouses');
+    onWarehousesChange(refreshResponse.data.data || []);
+    setChangedSettings({});
+    setSettingsDialogOpen(false);
+    setError(null);
+  } catch (err) {
+    setError('Failed to save warehouse settings');
+  } finally {
+    setSaving(false);
+  }
+};
 
   const getSettingsSummary = (warehouse) => {
     const settings = warehouse.settings || {};
