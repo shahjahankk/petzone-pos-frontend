@@ -2,60 +2,61 @@
 
 import React, { useState, useRef } from 'react'
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Box,
-  Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  TextField,
-  Grid,
-  Switch,
-  FormControlLabel,
-  Divider,
-  Alert,
-  IconButton,
-  Tooltip,
-  Checkbox
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, Box, Typography, ToggleButton, ToggleButtonGroup,
+  Tooltip, IconButton, FormControl, InputLabel, Select, MenuItem,
+  TextField, Grid, Switch, FormControlLabel, Divider, Alert, Checkbox
 } from '@mui/material'
 import {
   Print as PrintIcon,
   Close as CloseIcon,
+  ViewList as ItemSheetIcon,
+  Receipt as ThermalIcon,
+  Article as ColorIcon,
   Preview as PreviewIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
 } from '@mui/icons-material'
 import PrintLayout from './PrintLayout'
 
-const PrintDialog = ({
+/**
+ * PrintDialog — full version with Item Sheet toggle
+ *
+ * Props
+ * ─────
+ * open            boolean
+ * onClose         () => void
+ * onPrintComplete () => void
+ * onPrint         (printData, settings) => void   — optional override
+ * printData       object  — all fields forwarded to PrintLayout
+ * title           string  — dialog heading
+ * defaultLayout   'thermal' | 'color'             — initial tab
+ * showPreview     boolean (default true)
+ * showSettings    boolean (default true)
+ */
+export default function PrintDialog({
   open,
   onClose,
-  printData,
   onPrint,
   onPrintComplete,
+  printData,
   title = 'Print Receipt',
+  defaultLayout = 'thermal',
   showPreview = true,
   showSettings = true,
-  defaultLayout = 'thermal'
-}) => {
+}) {
+  const [layout, setLayout]           = useState(defaultLayout || 'thermal')
+  const [isItemSheet, setIsItemSheet] = useState(false)
+
   const [printSettings, setPrintSettings] = useState({
-    width: 300,
+    width: defaultLayout === 'thermal' ? 280 : 800,
     showCompanyInfo: true,
     showFooter: true,
     fontSize: '12px',
-    paperSize: '80mm',
+    paperSize: defaultLayout === 'thermal' ? '80mm' : 'A4',
     copies: 1,
-    layout: defaultLayout,
-    orientation: 'portrait'
+    orientation: 'portrait',
   })
-  
-  const [previewMode, setPreviewMode] = useState(true)
-  const printRef = useRef(null)
-  const printContentRef = useRef(null)
+
   const [dontAskAgain, setDontAskAgain] = useState(() => {
     try {
       return typeof window !== 'undefined' && window.localStorage.getItem('autoDirectPrint') === '1'
@@ -64,17 +65,32 @@ const PrintDialog = ({
     }
   })
 
-  React.useEffect(() => {
+  const printRef        = useRef(null)
+  const printContentRef = useRef(null)
+
+  if (!printData) return null
+
+  // ── Layout toggle ─────────────────────────────────────────────────────────
+  const handleLayoutChange = (_, newLayout) => {
+    if (!newLayout) return
+    setLayout(newLayout)
+    setIsItemSheet(false)   // reset item-sheet when switching layout
     setPrintSettings(prev => ({
       ...prev,
-      layout: defaultLayout,
-      paperSize: defaultLayout === 'thermal' ? '80mm' : 'A4',
-      width: defaultLayout === 'thermal' ? 280 : 800
+      paperSize: newLayout === 'thermal' ? '80mm' : 'A4',
+      width:     newLayout === 'thermal' ? 280    : 800,
     }))
-  }, [defaultLayout])
+  }
 
+  const handleItemSheetToggle = () => setIsItemSheet(prev => !prev)
+
+  const handleSettingChange = (key, value) => {
+    setPrintSettings(prev => ({ ...prev, [key]: value }))
+  }
+
+  // ── Browser print ─────────────────────────────────────────────────────────
   const handlePrint = () => {
-    // Persist user's preference
+    // Persist "direct print" preference
     try {
       if (typeof window !== 'undefined') {
         if (dontAskAgain) {
@@ -83,171 +99,81 @@ const PrintDialog = ({
           window.localStorage.removeItem('autoDirectPrint')
         }
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { /* ignore */ }
 
+    // Allow caller to override print behaviour entirely
     if (onPrint) {
-      onPrint(printData, printSettings)
-    } else {
-      // Get the HTML content from the print layout
-      const printContent = printContentRef.current?.innerHTML || printRef.current?.innerHTML || '';
-      
-      // Create a new window for printing
-      const printWindow = window.open('', '_blank');
-      
-      if (!printWindow) {
-        alert('Please allow pop-ups to print');
-        return;
-      }
-
-      // Determine if this is thermal or A4/Legal
-      const isThermal = printSettings.layout === 'thermal';
-      const isLandscape = printSettings.orientation === 'landscape';
-      
-      // Set up CSS based on layout type
-      let pageSize = '';
-      let margin = '';
-      let width = '';
-      
-      if (isThermal) {
-        pageSize = '80mm auto';
-        width = '280px';
-        margin = '0';
-      } else {
-        // For A4/Letter printers
-        pageSize = printSettings.paperSize === 'Letter' ? 'Letter' : 'A4';
-        if (isLandscape) {
-          pageSize += ' landscape';
-        }
-        margin = '0.5in';
-        width = '100%';
-      }
-
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Print Receipt - ${printData?.invoiceNo || 'Invoice'}</title>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              /* Reset styles */
-              * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-              }
-              
-              /* Print styles */
-              @media print {
-                @page {
-                  size: ${pageSize};
-                  margin: ${margin};
-                }
-                
-                html, body {
-                  width: 100%;
-                  height: 100%;
-                  margin: 0 !important;
-                  padding: 0 !important;
-                }
-                
-                body {
-                  font-family: ${isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'};
-                  font-size: ${isThermal ? '11px' : printSettings.fontSize || '12px'};
-                  line-height: ${isThermal ? '1.1' : '1.5'};
-                  color: #000;
-                  background: #fff;
-                  -webkit-print-color-adjust: exact;
-                  print-color-adjust: exact;
-                }
-                
-                .print-wrapper {
-                  width: ${isThermal ? width : '100%'};
-                  max-width: ${isThermal ? width : '100%'};
-                  margin: 0 auto;
-                  padding: ${isThermal ? '4px' : '20px'};
-                }
-                
-                /* Ensure tables look good */
-                table {
-                  width: 100%;
-                  border-collapse: collapse;
-                  margin: 10px 0;
-                }
-                
-                th, td {
-                  padding: ${isThermal ? '2px 4px' : '8px 12px'};
-                  text-align: left;
-                  border-bottom: 1px solid #ddd;
-                }
-                
-                th {
-                  font-weight: bold;
-                  background-color: ${isThermal ? 'transparent' : '#f5f5f5'};
-                }
-                
-                /* Hide any dialog elements */
-                .no-print {
-                  display: none !important;
-                }
-              }
-              
-              /* Screen styles */
-              body {
-                font-family: ${isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'};
-                font-size: ${isThermal ? '11px' : printSettings.fontSize || '12px'};
-                line-height: ${isThermal ? '1.1' : '1.5'};
-                padding: 20px;
-                background: #fff;
-              }
-              
-              .print-wrapper {
-                width: ${isThermal ? width : '100%'};
-                max-width: ${isThermal ? width : '1200px'};
-                margin: 0 auto;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="print-wrapper">
-              ${printContent}
-            </div>
-            
-            <script>
-              // Automatically trigger print dialog when page loads
-              window.onload = function() {
-                setTimeout(function() {
-                  window.print();
-                }, 250);
-              };
-              
-              // Close window after printing (optional)
-              window.onafterprint = function() {
-                window.close();
-              };
-              
-              // Fallback for browsers that don't support afterprint
-              setTimeout(function() {
-                if (!window.closed) {
-                  window.close();
-                }
-              }, 1000);
-            </script>
-          </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
+      onPrint(printData, { layout, isItemSheet, ...printSettings })
+      return
     }
+
+    const content = printContentRef.current?.innerHTML || printRef.current?.innerHTML || ''
+    const printWindow = window.open('', '_blank', 'width=900,height=700')
+    if (!printWindow) {
+      alert('Please allow pop-ups to print')
+      return
+    }
+
+    const isThermal   = layout === 'thermal'
+    const isLandscape = printSettings.orientation === 'landscape'
+
+    let pageSize = isThermal ? '80mm auto' : printSettings.paperSize === 'Letter' ? 'Letter' : 'A4'
+    if (!isThermal && isLandscape) pageSize += ' landscape'
+    const margin = isThermal ? '0' : '0.5in'
+    const width  = isThermal ? '280px' : '100%'
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Print — ${printData?.receiptNumber || printData?.invoiceNo || 'Invoice'}</title>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: ${isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'};
+      font-size: ${isThermal ? '11px' : printSettings.fontSize || '12px'};
+      line-height: ${isThermal ? '1.1' : '1.5'};
+      color: #000;
+      background: #fff;
+      padding: 20px;
+    }
+    .print-wrapper {
+      width: ${width};
+      max-width: ${isThermal ? width : '1200px'};
+      margin: 0 auto;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    th, td { padding: ${isThermal ? '2px 4px' : '8px 12px'}; text-align: left; border-bottom: 1px solid #ddd; }
+    th { font-weight: bold; background-color: ${isThermal ? 'transparent' : '#f5f5f5'}; }
+    @media print {
+      @page { size: ${pageSize}; margin: ${margin}; }
+      body { padding: 0; font-size: ${isThermal ? '11px' : printSettings.fontSize || '12px'}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .print-wrapper { padding: ${isThermal ? '4px' : '20px'}; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-wrapper">${content}</div>
+  <script>
+    window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+    window.onafterprint = function() { window.close(); };
+    setTimeout(function() { if (!window.closed) window.close(); }, 4000);
+  <\/script>
+</body>
+</html>`)
+    printWindow.document.close()
+
+    if (onPrintComplete) onPrintComplete()
   }
 
-  const handleSettingChange = (setting, value) => {
-    setPrintSettings(prev => ({
-      ...prev,
-      [setting]: value
-    }))
+  // ── Shared props forwarded to PrintLayout ─────────────────────────────────
+  const layoutProps = {
+    ...printData,
+    layout,
+    isItemSheet,
+    showCompanyInfo: printSettings.showCompanyInfo,
+    fontSize: printSettings.fontSize,
   }
 
   return (
@@ -256,194 +182,238 @@ const PrintDialog = ({
       onClose={onClose}
       maxWidth="lg"
       fullWidth
-      PaperProps={{
-        sx: { minHeight: '600px' }
-      }}
+      PaperProps={{ sx: { minHeight: '600px', maxHeight: '95vh' } }}
     >
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PrintIcon />
-          <Typography variant="h6">{title}</Typography>
+      {/* ── Title bar with all 3 toggles ── */}
+      <DialogTitle sx={{ pb: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PrintIcon />
+            <Typography variant="h6">{title}</Typography>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {/* Thermal / Color/A4 toggle */}
+            <ToggleButtonGroup
+              value={layout}
+              exclusive
+              onChange={handleLayoutChange}
+              size="small"
+              sx={{ mr: 0.5 }}
+            >
+              <ToggleButton value="thermal" sx={{ px: 1.5, gap: 0.5 }}>
+                <ThermalIcon fontSize="small" />
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Thermal</Typography>
+              </ToggleButton>
+              <ToggleButton value="color" sx={{ px: 1.5, gap: 0.5 }}>
+                <ColorIcon fontSize="small" />
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Color / A4</Typography>
+              </ToggleButton>
+            </ToggleButtonGroup>
+
+            {/* Item Sheet toggle */}
+            <Tooltip title={isItemSheet ? 'Switch to full invoice' : 'Switch to item sheet (no prices)'}>
+              <ToggleButton
+                value="itemSheet"
+                selected={isItemSheet}
+                onChange={handleItemSheetToggle}
+                size="small"
+                sx={{
+                  px: 1.5, gap: 0.5,
+                  border: '1px solid',
+                  borderColor: isItemSheet ? 'primary.main' : 'divider',
+                  bgcolor: isItemSheet ? 'primary.light' : 'transparent',
+                  '&.Mui-selected': { bgcolor: 'primary.light', color: 'primary.main' },
+                }}
+              >
+                <ItemSheetIcon fontSize="small" />
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Item Sheet</Typography>
+              </ToggleButton>
+            </Tooltip>
+
+            <IconButton onClick={onClose} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
         </Box>
-        <IconButton onClick={onClose} size="small">
-          <CloseIcon />
-        </IconButton>
       </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ p: 2 }}>
         <Grid container spacing={3}>
+
+          {/* ── Settings panel ── */}
           {showSettings && (
             <Grid item xs={12} md={4}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SettingsIcon />
-                  Print Settings
-                </Typography>
-                
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SettingsIcon fontSize="small" />
+                Print Settings
+              </Typography>
+
+              {/* Paper size (disabled for thermal — fixed 80mm) */}
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Paper Size</InputLabel>
+                <Select
+                  value={printSettings.paperSize}
+                  label="Paper Size"
+                  disabled={layout === 'thermal'}
+                  onChange={(e) => handleSettingChange('paperSize', e.target.value)}
+                >
+                  <MenuItem value="80mm">80mm (Thermal)</MenuItem>
+                  <MenuItem value="A4">A4</MenuItem>
+                  <MenuItem value="Letter">Letter</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Orientation — only relevant for color/A4 */}
+              {layout === 'color' && (
                 <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Print Layout</InputLabel>
+                  <InputLabel>Orientation</InputLabel>
                   <Select
-                    value={printSettings.layout}
-                    onChange={(e) => handleSettingChange('layout', e.target.value)}
-                    label="Print Layout"
+                    value={printSettings.orientation}
+                    label="Orientation"
+                    onChange={(e) => handleSettingChange('orientation', e.target.value)}
                   >
-                    <MenuItem value="thermal">Thermal Printer (80mm)</MenuItem>
-                    <MenuItem value="color">Color Printer (A4/Letter)</MenuItem>
+                    <MenuItem value="portrait">Portrait</MenuItem>
+                    <MenuItem value="landscape">Landscape</MenuItem>
                   </Select>
                 </FormControl>
+              )}
 
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Paper Size</InputLabel>
-                  <Select
-                    value={printSettings.paperSize}
-                    onChange={(e) => handleSettingChange('paperSize', e.target.value)}
-                    label="Paper Size"
-                    disabled={printSettings.layout === 'thermal'}
-                  >
-                    <MenuItem value="80mm">80mm (Thermal)</MenuItem>
-                    <MenuItem value="A4">A4</MenuItem>
-                    <MenuItem value="Letter">Letter</MenuItem>
-                  </Select>
-                </FormControl>
+              {/* Font size */}
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Font Size</InputLabel>
+                <Select
+                  value={printSettings.fontSize}
+                  label="Font Size"
+                  onChange={(e) => handleSettingChange('fontSize', e.target.value)}
+                >
+                  <MenuItem value="10px">Small (10px)</MenuItem>
+                  <MenuItem value="11px">Medium (11px)</MenuItem>
+                  <MenuItem value="12px">Large (12px)</MenuItem>
+                  <MenuItem value="14px">Extra Large (14px)</MenuItem>
+                  <MenuItem value="16px">XXL (16px)</MenuItem>
+                </Select>
+              </FormControl>
 
-                {printSettings.layout === 'color' && (
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Orientation</InputLabel>
-                    <Select
-                      value={printSettings.orientation}
-                      onChange={(e) => handleSettingChange('orientation', e.target.value)}
-                      label="Orientation"
-                    >
-                      <MenuItem value="portrait">Portrait</MenuItem>
-                      <MenuItem value="landscape">Landscape</MenuItem>
-                    </Select>
-                  </FormControl>
-                )}
+              {/* Receipt width */}
+              <TextField
+                fullWidth
+                label="Receipt Width (px)"
+                type="number"
+                value={printSettings.width}
+                onChange={(e) => handleSettingChange('width', parseInt(e.target.value))}
+                sx={{ mb: 2 }}
+                inputProps={{
+                  min: layout === 'thermal' ? 200 : 600,
+                  max: layout === 'thermal' ? 400 : 1200,
+                }}
+              />
 
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Font Size</InputLabel>
-                  <Select
-                    value={printSettings.fontSize}
-                    onChange={(e) => handleSettingChange('fontSize', e.target.value)}
-                    label="Font Size"
-                  >
-                    <MenuItem value="10px">Small (10px)</MenuItem>
-                    <MenuItem value="11px">Medium (11px)</MenuItem>
-                    <MenuItem value="12px">Large (12px)</MenuItem>
-                    <MenuItem value="14px">Extra Large (14px)</MenuItem>
-                    <MenuItem value="16px">XXL (16px)</MenuItem>
-                  </Select>
-                </FormControl>
+              {/* Copies */}
+              <TextField
+                fullWidth
+                label="Copies"
+                type="number"
+                value={printSettings.copies}
+                onChange={(e) => handleSettingChange('copies', parseInt(e.target.value))}
+                sx={{ mb: 2 }}
+                inputProps={{ min: 1, max: 10 }}
+              />
 
-                <TextField
-                  fullWidth
-                  label="Receipt Width (px)"
-                  type="number"
-                  value={printSettings.width}
-                  onChange={(e) => handleSettingChange('width', parseInt(e.target.value))}
-                  sx={{ mb: 2 }}
-                  inputProps={{ 
-                    min: printSettings.layout === 'thermal' ? 200 : 600, 
-                    max: printSettings.layout === 'thermal' ? 400 : 1200 
-                  }}
-                />
+              <Divider sx={{ my: 2 }} />
 
-                <TextField
-                  fullWidth
-                  label="Copies"
-                  type="number"
-                  value={printSettings.copies}
-                  onChange={(e) => handleSettingChange('copies', parseInt(e.target.value))}
-                  sx={{ mb: 2 }}
-                  inputProps={{ min: 1, max: 10 }}
-                />
-
-                <Divider sx={{ my: 2 }} />
-
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={printSettings.showCompanyInfo}
-                      onChange={(e) => handleSettingChange('showCompanyInfo', e.target.checked)}
-                    />
-                  }
-                  label="Show Company Info"
-                />
-              </Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={printSettings.showCompanyInfo}
+                    onChange={(e) => handleSettingChange('showCompanyInfo', e.target.checked)}
+                  />
+                }
+                label="Show Company Info"
+              />
             </Grid>
           )}
 
+          {/* ── Preview panel ── */}
           {showPreview && (
             <Grid item xs={12} md={showSettings ? 8 : 12}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <PreviewIcon />
-                  Print Preview
-                </Typography>
-                
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <PreviewIcon fontSize="small" />
+                Print Preview
+              </Typography>
+
+              <Box
+                sx={{
+                  border: '1px solid #ddd',
+                  borderRadius: 1,
+                  p: 2,
+                  bgcolor: '#f9f9f9',
+                  maxHeight: '460px',
+                  overflow: 'auto',
+                  display: 'flex',
+                  justifyContent: 'center',
+                }}
+              >
                 <Box
+                  ref={printContentRef}
                   sx={{
-                    border: '1px solid #ddd',
-                    borderRadius: 1,
-                    p: 2,
-                    backgroundColor: '#f9f9f9',
-                    maxHeight: '500px',
-                    overflow: 'auto',
-                    display: 'flex',
-                    justifyContent: 'center'
+                    width: layout === 'thermal' ? '280px' : '100%',
+                    maxWidth: layout === 'thermal' ? '280px' : '100%',
+                    transform: layout === 'thermal' ? 'none' : 'scale(0.9)',
+                    transformOrigin: 'top center',
+                    bgcolor: '#fff',
+                    boxShadow: 1,
                   }}
                 >
-                  <Box 
-                    ref={printContentRef}
-                    sx={{
-                      width: printSettings.layout === 'thermal' ? '280px' : '100%',
-                      maxWidth: printSettings.layout === 'thermal' ? '280px' : '100%',
-                      transform: printSettings.layout === 'thermal' ? 'none' : 'scale(0.9)',
-                      transformOrigin: 'top center'
-                    }}
-                  >
-                    <PrintLayout
-                      {...printData}
-                      width={printSettings.layout === 'thermal' ? 280 : printSettings.width}
-                      showLogo={true}
-                      layout={printSettings.layout}
-                      orientation={printSettings.orientation}
-                      fontSize={printSettings.fontSize}
-                    />
-                  </Box>
+                  <div ref={printRef}>
+                    <PrintLayout {...layoutProps} />
+                  </div>
                 </Box>
               </Box>
             </Grid>
           )}
         </Grid>
 
+        {/* Print tips */}
         <Alert severity="info" sx={{ mt: 2 }}>
           <Typography variant="body2">
-            <strong>Print Tips:</strong>
-            <br />
-            • For thermal printers, use 80mm paper size
-            <br />
-            • For A4/Letter printers, ensure printer is loaded with correct paper size
-            <br />
-            • Click Print Receipt to open the system print dialog
+            <strong>Print Tips:</strong><br />
+            • <strong>Thermal</strong> — 80mm roll paper receipt<br />
+            • <strong>Color / A4</strong> — full colour invoice on A4/Letter<br />
+            • <strong>Item Sheet</strong> — quantities only, prices hidden (works with both layouts)
           </Typography>
         </Alert>
       </DialogContent>
 
-      <DialogActions sx={{ p: 2, gap: 1 }}>
+      {/* ── Footer ── */}
+      <DialogActions sx={{ px: 2, py: 1.5, gap: 1 }}>
         <FormControlLabel
-          control={<Checkbox checked={dontAskAgain} onChange={(e) => setDontAskAgain(e.target.checked)} />}
-          label="Direct print (Don't show this dialog again)"
+          control={
+            <Checkbox
+              checked={dontAskAgain}
+              onChange={(e) => setDontAskAgain(e.target.checked)}
+              size="small"
+            />
+          }
+          label={
+            <Typography variant="caption">Direct print (Don't show this dialog again)</Typography>
+          }
           sx={{ mr: 'auto' }}
         />
-        <Button onClick={onClose} variant="outlined">
-          Cancel
-        </Button>
+        <Typography variant="caption" color="text.secondary">
+          {isItemSheet
+            ? '📋 Item sheet — prices hidden'
+            : layout === 'thermal'
+              ? '🖨️ Thermal 80mm'
+              : '🖨️ Color / A4'}
+        </Typography>
+        <Button onClick={onClose} variant="outlined" size="small">Cancel</Button>
         <Button
-          onClick={handlePrint}
           variant="contained"
           startIcon={<PrintIcon />}
-          sx={{ minWidth: 120 }}
+          onClick={handlePrint}
+          size="small"
+          sx={{ minWidth: 130 }}
         >
           Print Receipt
         </Button>
@@ -451,5 +421,3 @@ const PrintDialog = ({
     </Dialog>
   )
 }
-
-export default PrintDialog

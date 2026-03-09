@@ -36,14 +36,20 @@ import buildPrintData from '../../../utils/buildPrintData'
 const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehouses = [] }) => {
   const [showPrintDialog, setShowPrintDialog] = useState(false)
 
-  // Resolve the branch / warehouse record so we get real name, phone, address
+  // Resolve the branch / warehouse record so we get real name, phone, address.
+  // NOTE: scope_id for WAREHOUSE sales is stored as the warehouse NAME string
+  // (confirmed in warehouseSalesController). Match by name first, then numeric id.
   const companyInfo = useMemo(() => {
     if (!sale) return {}
     const scopeType = sale.scope_type || sale.scopeType || ''
     const scopeId   = sale.scope_id   || sale.scopeId
 
     if (scopeType === 'WAREHOUSE') {
-      const wh = warehouses.find(w => w.id === scopeId || w.id === Number(scopeId))
+      const wh = warehouses.find(w =>
+        w.name === scopeId ||          // name-string match (primary for warehouse sales)
+        w.id   === scopeId ||          // exact match
+        w.id   === Number(scopeId)     // numeric id fallback
+      )
       if (wh) return {
         name   : wh.name,
         address: wh.location || wh.address || '',
@@ -52,7 +58,10 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
         logoUrl: wh.logoUrl  || '/petzonelogo.png',
       }
     } else {
-      const br = branches.find(b => b.id === scopeId || b.id === Number(scopeId))
+      const br = branches.find(b =>
+        b.id === scopeId ||
+        b.id === Number(scopeId)
+      )
       if (br) return {
         name   : br.name,
         address: br.location || br.address || '',
@@ -153,16 +162,22 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
                 </Typography>
                 <Typography variant="body1">{pd.cashierName}</Typography>
               </Grid>
-              {pd.warehouseName && (
+              {(pd.warehouseName || pd.branchName) && (
                 <Grid item xs={12} md={4}>
-                  <Typography variant="subtitle2" color="text.secondary">Warehouse</Typography>
-                  <Typography variant="body1">{pd.warehouseName}</Typography>
-                </Grid>
-              )}
-              {pd.branchName && !pd.warehouseName && (
-                <Grid item xs={12} md={4}>
-                  <Typography variant="subtitle2" color="text.secondary">Branch</Typography>
-                  <Typography variant="body1">{pd.branchName}</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    {pd.warehouseName ? 'Warehouse' : 'Branch'}
+                  </Typography>
+                  <Typography variant="body1">{pd.warehouseName || pd.branchName}</Typography>
+                  {pd.companyAddress && (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      {pd.companyAddress}
+                    </Typography>
+                  )}
+                  {pd.companyPhone && (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      📞 {pd.companyPhone}
+                    </Typography>
+                  )}
                 </Grid>
               )}
             </Grid>
@@ -2243,21 +2258,23 @@ const SalesManagement = () => {
                               </TableCell>
                               <TableCell>
                                 <Box sx={{ display: 'flex', gap: 1 }}>
+                                  {/* Eye — always visible to everyone */}
+                                  <Tooltip title="View Invoice">
+                                    <IconButton
+                                      size="small"
+                                      onClick={async () => {
+                                        const fullSale = await fetchSaleForEdit(sale.id)
+                                        setViewingSale(fullSale || sale)
+                                        setShowItemsDialog(true)
+                                      }}
+                                      color="info"
+                                    >
+                                      <ViewIcon />
+                                    </IconButton>
+                                  </Tooltip>
+                                  {/* Edit + Delete — only when canEdit (admin toggle ON or settings allow) */}
                                   {canEdit && (
                                     <>
-                                      <Tooltip title="View Items">
-                                        <IconButton
-                                          size="small"
-                                          onClick={async () => {
-                                            const fullSale = await fetchSaleForEdit(sale.id)
-                                            setViewingSale(fullSale || sale)
-                                            setShowItemsDialog(true)
-                                          }}
-                                          color="info"
-                                        >
-                                          <ViewIcon />
-                                        </IconButton>
-                                      </Tooltip>
                                       <Tooltip title="Edit Invoice">
                                         <IconButton
                                           size="small"

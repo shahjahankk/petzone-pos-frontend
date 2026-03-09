@@ -1,183 +1,122 @@
 'use client'
-import React, { useState, useEffect, useCallback } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Box,
-  Typography,
-  TextField,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Chip,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
-  CircularProgress,
-  Tooltip,
-  Divider,
-  Card,
-  CardContent,
-  Autocomplete
-} from '@mui/material'
-import {
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  Save as SaveIcon,
-  Close as CloseIcon,
-  Edit as EditIcon,
-  Inventory as InventoryIcon,
-  Print as PrintIcon
-} from '@mui/icons-material'
+    import React, { useState, useEffect, useCallback } from 'react'
+    import { useDispatch, useSelector } from 'react-redux'
+    import {
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Box,
+    Typography,
+    TextField,
+    Button,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Paper,
+    IconButton,
+    Chip,
+    Grid,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Alert,
+    CircularProgress,
+    Tooltip,
+    Divider,
+    Card,
+    CardContent,
+    Autocomplete
+    } from '@mui/material'
+    import {
+    Add as AddIcon,
+    Delete as DeleteIcon,
+    Save as SaveIcon,
+    Close as CloseIcon,
+    Edit as EditIcon,
+    Inventory as InventoryIcon,
+    Print as PrintIcon
+    } from '@mui/icons-material'
 import { updateSale } from '../../app/store/slices/salesSlice'
 import { fetchInventory } from '../../app/store/slices/inventorySlice'
 import api from '../../utils/axios'
 import PrintDialog from '../print/PrintDialog'
 import buildPrintData from '../../utils/buildPrintData'
 
-const EditableInvoiceForm = ({ open, onClose, sale, onSave, branches = [], warehouses = [] }) => {
-  const dispatch = useDispatch()
-  const { user } = useSelector((state) => state.auth)
-  const { data: inventoryItems } = useSelector((state) => state.inventory)
-
-  const [formData, setFormData] = useState({
-    customerName: '',
-    customerPhone: '',
-    paymentMethod: 'CASH',
-    paymentStatus: 'COMPLETED',
-    notes: '',
-    items: [],
-    tax: 0,
-    hasTax: false
-  })
-
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(null)
-  const [showPrintDialog, setShowPrintDialog] = useState(false)
-
-  const [inventoryChanges, setInventoryChanges] = useState({
-    added: [],
-    removed: [],
-    modified: []
-  })
-
-  const [availableItems, setAvailableItems] = useState([])
-
-  // ── Resolve companyInfo from the sale's scope (branch or warehouse) ────────
-  // Priority: 1) already-loaded Redux arrays  2) direct API fetch  3) empty {}
-  const [companyInfo, setCompanyInfo] = useState({})
-
-  useEffect(() => {
-    if (!sale) return
-
-    const scopeType = sale.scope_type || sale.scopeType || ''
-    const scopeId   = sale.scope_id   || sale.scopeId
-
-    const mapWarehouse = (w) => ({
-      name   : w.name,
-      address: w.location || w.address || '',
-      phone  : w.phone    || w.managerPhone || '',
-      email  : w.email    || '',
-      logoUrl: w.logoUrl  || '/petzonelogo.png',
+    const EditableInvoiceForm = ({ 
+    open, 
+    onClose, 
+    sale, 
+    onSave 
+    }) => {
+    const dispatch = useDispatch()
+    const { user } = useSelector((state) => state.auth)
+    const { data: inventoryItems } = useSelector((state) => state.inventory)
+    
+    // Form state
+    const [formData, setFormData] = useState({
+        customerName: '',
+        customerPhone: '',
+        paymentMethod: 'CASH',
+        paymentStatus: 'COMPLETED',
+        notes: '',
+        items: [],
+        tax: 0,
+        hasTax: false
     })
+    
+    // UI state
+    const [loading, setLoading] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [error, setError] = useState(null)
+    const [success, setSuccess] = useState(null)
+    const [showPrintDialog, setShowPrintDialog] = useState(false)
 
-    const mapBranch = (b) => ({
-      name   : b.name,
-      address: b.location || b.address || '',
-      phone  : b.phone    || b.managerPhone || '',
-      email  : b.email    || '',
-      logoUrl: b.logoUrl  || '/petzonelogo.png',
+    // ── Company info fetched dynamically from the sale's branch/warehouse ──────
+    const [companyInfo, setCompanyInfo] = useState({})
+
+    // Inventory tracking
+    const [inventoryChanges, setInventoryChanges] = useState({
+        added: [], // Items added to sale
+        removed: [], // Items removed from sale
+        modified: [] // Items with quantity changes
     })
+    
+    // Available inventory items for adding
+    const [availableItems, setAvailableItems] = useState([])
 
-    if (scopeType === 'WAREHOUSE') {
-      // 1) try Redux store first (fast, no request)
-      const wh = warehouses.find(w => w.id === scopeId || w.id === Number(scopeId))
-      if (wh) { setCompanyInfo(mapWarehouse(wh)); return }
-
-      // 2) fallback: fetch directly from API
-      if (scopeId) {
-        api.get(`/warehouses/${scopeId}`)
-          .then(res => {
-            if (res.data?.success && res.data?.data) setCompanyInfo(mapWarehouse(res.data.data))
-          })
-          .catch(() => {})
-      }
-    } else {
-      // 1) try Redux store first
-      const br = branches.find(b => b.id === scopeId || b.id === Number(scopeId))
-      if (br) { setCompanyInfo(mapBranch(br)); return }
-
-      // 2) fallback: fetch directly from API
-      if (scopeId) {
-        api.get(`/branches/${scopeId}`)
-          .then(res => {
-            if (res.data?.success && res.data?.data) setCompanyInfo(mapBranch(res.data.data))
-          })
-          .catch(() => {})
-      }
-    }
-  }, [sale, branches, warehouses])
-
-  // ── Build normalised printData from live form state ────────────────────────
-  // This passes formData as the live override so printed values match what the
-  // user currently sees in the form, not stale sale data.
-  const printData = React.useMemo(() => {
-    if (!sale) return null
-    return buildPrintData({
-      sale,
-      companyInfo,
-      user,
-      formData: {
-        items        : formData.items.map(item => ({
-          // map EditableInvoiceForm field names → buildPrintData field names
-          name     : item.itemName || item.name || '',
-          sku      : item.sku || '',
-          quantity : item.quantity,
-          unitPrice: item.unitPrice,
-          discount : item.discount || 0,
-          total    : (item.quantity * item.unitPrice) - (item.discount || 0),
-        })),
-        customerName : formData.customerName,
-        customerPhone: formData.customerPhone,
-        paymentMethod: formData.paymentMethod,
-        paymentStatus: formData.paymentStatus,
-        notes        : formData.notes,
-        tax          : formData.tax,
-        hasTax       : formData.hasTax,
-      },
-    })
-  }, [sale, companyInfo, user, formData])
-
+  // Initialize form data when sale changes
   useEffect(() => {
     if (sale) {
+      console.log('[EditableInvoiceForm] Sale data received:', {
+        id: sale.id,
+        payment_method: sale.paymentMethod,
+        payment_status: sale.paymentStatus,
+        credit_amount: sale.creditAmount,
+        credit_status: sale.creditStatus
+      });
+      
       const originalTax = parseFloat(sale.tax) || 0
       const hasTax = originalTax > 0
-
+      
+      // Handle payment method with case sensitivity and fallback logic
       let paymentMethod = sale.paymentMethod;
       if (!paymentMethod && sale.creditAmount > 0) {
         paymentMethod = 'FULLY_CREDIT';
       } else if (!paymentMethod) {
         paymentMethod = 'CASH';
       }
-
+      
+      // Handle case sensitivity - normalize to uppercase
       if (paymentMethod && typeof paymentMethod === 'string') {
         paymentMethod = paymentMethod.toUpperCase();
       }
-
+      
+      // Normalize items to ensure itemName is set properly
       const normalizedItems = (sale.items || []).map(item => ({
         ...item,
         itemName: item.itemName || item.name || item.item_name || item.sku || 'Unknown Item',
@@ -191,7 +130,7 @@ const EditableInvoiceForm = ({ open, onClose, sale, onSave, branches = [], wareh
         total: parseFloat(item.total || 0)
       }));
 
-      setFormData({
+      const formData = {
         customerName: sale.customerInfo?.name || sale.customerName || 'Walk-in Customer',
         customerPhone: sale.customerInfo?.phone || sale.customerPhone || '',
         paymentMethod: paymentMethod,
@@ -200,640 +139,929 @@ const EditableInvoiceForm = ({ open, onClose, sale, onSave, branches = [], wareh
         items: normalizedItems,
         tax: originalTax,
         hasTax: hasTax
-      });
+      };
+      
+      console.log('[EditableInvoiceForm] Form data being set:', formData);
+      setFormData(formData);
+        
+        // Initialize inventory changes tracking
+        setInventoryChanges({
+            added: [],
+            removed: [],
+            modified: []
+        })
+        }
+    }, [sale])
 
-      setInventoryChanges({ added: [], removed: [], modified: [] })
-    }
-  }, [sale])
-
+  // ── Fetch branch/warehouse info so companyAddress & companyPhone are real ──
   useEffect(() => {
-    if (!open) return
+    if (!sale || !open) return
 
-    const params = { limit: 'all' }
+    const fetchCompanyInfo = async () => {
+      const scopeType = sale.scope_type || sale.scopeType || ''
+      const scopeId   = sale.scope_id   || sale.scopeId
 
-    if (user?.role === 'CASHIER' && user?.branchId) {
-      params.scopeType = 'BRANCH'
-      params.scopeId = user.branchId
-    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
-      params.scopeType = 'WAREHOUSE'
-      params.scopeId = user.warehouseId
-    } else if (user?.role === 'ADMIN') {
-      const urlParams = new URLSearchParams(window.location.search)
-      const simScope = urlParams.get('scope')
-      const simId = urlParams.get('id')
-
-      if (simScope && simId) {
-        params.scopeType = simScope.toUpperCase() === 'WAREHOUSE' ? 'WAREHOUSE' : 'BRANCH'
-        params.scopeId = simId
-      } else {
-        try {
-          const sim = JSON.parse(sessionStorage.getItem('adminSimulation') || '{}')
-          if (sim.scopeType && sim.scopeId) {
-            params.scopeType = sim.scopeType
-            params.scopeId = sim.scopeId
-          }
-        } catch (e) {}
+      // If the sale already carries company fields, use them directly
+      if (sale.companyAddress || sale.company_address) {
+        setCompanyInfo({
+          name   : sale.companyName    || sale.company_name    || 'PetZone',
+          address: sale.companyAddress || sale.company_address || '',
+          phone  : sale.companyPhone   || sale.company_phone   || '',
+          email  : sale.companyEmail   || sale.company_email   || 'info@petzone.com',
+          logoUrl: sale.logoUrl        || sale.logo_url        || '/petzonelogo.png',
+        })
+        return
       }
-    }
 
-    dispatch(fetchInventory(params))
-  }, [open, dispatch, user])
+      try {
+        if (scopeType === 'WAREHOUSE') {
+          // scope_id for warehouse sales is stored as the warehouse NAME string
+          // Try fetching by name first, then by numeric id as fallback
+          let warehouseData = null
 
-  useEffect(() => {
-    if (open && inventoryItems) {
-      setAvailableItems(inventoryItems)
-    }
-  }, [open, inventoryItems])
-
-  const calculateTotals = useCallback(() => {
-    const subtotal = formData.items.reduce((sum, item) => {
-      return sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice))
-    }, 0)
-
-    const totalDiscount = formData.items.reduce((sum, item) => {
-      return sum + (parseFloat(item.discount) || 0)
-    }, 0)
-
-    const tax = formData.hasTax ? parseFloat(formData.tax) : 0
-    const total = subtotal + tax - totalDiscount
-
-    return { subtotal, tax, totalDiscount, total }
-  }, [formData.items, formData.tax, formData.hasTax])
-
-  const totals = calculateTotals()
-
-  const handleFieldChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
-
-  const handleItemQuantityChange = (itemId, newQuantity) => {
-    const quantity = Math.round(parseFloat(newQuantity) || 1)
-
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId
-          ? { ...item, quantity, total: quantity * parseFloat(item.unitPrice) }
-          : item
-      )
-    }))
-
-    const item = formData.items.find(i => i.id === itemId)
-    if (item) {
-      const quantityChange = quantity - Math.round(parseFloat(item.quantity) || 1)
-      if (quantityChange !== 0) {
-        trackInventoryChange(item, quantityChange, 'MODIFY')
-      }
-    }
-  }
-
-  const handleItemNameChange = (itemId, newName) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId
-          ? {
-              ...item,
-              itemName: newName,
-              sku: newName ? `MANUAL-${Date.now()}` : '',
-              category: newName ? 'Manual Entry' : ''
+          if (typeof scopeId === 'string' && isNaN(Number(scopeId))) {
+            // scopeId is a name string — search by name
+            const res = await api.get(`/warehouses?name=${encodeURIComponent(scopeId)}`)
+            if (res.data?.success && res.data?.data?.length > 0) {
+              warehouseData = res.data.data[0]
             }
-          : item
-      )
-    }))
+          }
+
+          if (!warehouseData && scopeId) {
+            // Try by numeric id
+            const numId = Number(scopeId)
+            if (!isNaN(numId)) {
+              const res = await api.get(`/warehouses/${numId}`)
+              if (res.data?.success && res.data?.data) warehouseData = res.data.data
+            }
+          }
+
+          // Fallback: try user's own warehouseId
+          if (!warehouseData && user?.warehouseId) {
+            const res = await api.get(`/warehouses/${user.warehouseId}`)
+            if (res.data?.success && res.data?.data) warehouseData = res.data.data
+          }
+
+          if (warehouseData) {
+            setCompanyInfo({
+              name   : warehouseData.name                                 || 'PetZone',
+              address: warehouseData.location || warehouseData.address    || '',
+              phone  : warehouseData.phone    || warehouseData.managerPhone || '',
+              email  : warehouseData.email                                || 'info@petzone.com',
+              logoUrl: warehouseData.logoUrl                              || '/petzonelogo.png',
+            })
+          }
+
+        } else {
+          // BRANCH — scopeId is numeric
+          let branchData = null
+          const numId = Number(scopeId)
+
+          if (!isNaN(numId) && numId > 0) {
+            const res = await api.get(`/branches/${numId}`)
+            if (res.data?.success && res.data?.data) branchData = res.data.data
+          }
+
+          // Fallback: user's own branchId
+          if (!branchData && user?.branchId) {
+            const res = await api.get(`/branches/${user.branchId}`)
+            if (res.data?.success && res.data?.data) branchData = res.data.data
+          }
+
+          if (branchData) {
+            setCompanyInfo({
+              name   : branchData.name                               || 'PetZone',
+              address: branchData.location || branchData.address     || '',
+              phone  : branchData.phone    || branchData.managerPhone || '',
+              email  : branchData.email                              || 'info@petzone.com',
+              logoUrl: branchData.logoUrl                            || '/petzonelogo.png',
+            })
+          }
+        }
+      } catch (err) {
+        console.error('[EditableInvoiceForm] Failed to load company info:', err)
+        // leave companyInfo as {} — buildPrintData will use its own fallback
+      }
+    }
+
+    fetchCompanyInfo()
+  }, [sale, open, user])
+
+// Always fetch all items scoped correctly when dialog opens
+useEffect(() => {
+  if (!open) return
+
+  // Build scope params for the fetch
+  const params = { limit: 'all' }
+
+  if (user?.role === 'CASHIER' && user?.branchId) {
+    params.scopeType = 'BRANCH'
+    params.scopeId = user.branchId
+  } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+    params.scopeType = 'WAREHOUSE'
+    params.scopeId = user.warehouseId
+  } else if (user?.role === 'ADMIN') {
+    // Check URL params first, then sessionStorage
+    const urlParams = new URLSearchParams(window.location.search)
+    const simScope = urlParams.get('scope')
+    const simId = urlParams.get('id')
+
+    if (simScope && simId) {
+      params.scopeType = simScope.toUpperCase() === 'WAREHOUSE' ? 'WAREHOUSE' : 'BRANCH'
+      params.scopeId = simId
+    } else {
+      try {
+        const sim = JSON.parse(sessionStorage.getItem('adminSimulation') || '{}')
+        if (sim.scopeType && sim.scopeId) {
+          params.scopeType = sim.scopeType
+          params.scopeId = sim.scopeId
+        }
+      } catch (e) {}
+    }
   }
 
-  const handleItemSelection = (itemId, selectedItem) => {
-    if (selectedItem) {
-      setFormData(prev => ({
+  dispatch(fetchInventory(params))
+}, [open, dispatch, user])
+   
+  // Load available inventory items
+// Set availableItems when inventoryItems updates
+useEffect(() => {
+  if (open && inventoryItems) {
+    setAvailableItems(inventoryItems)
+  }
+}, [open, inventoryItems])
+
+    // Calculate totals
+    const calculateTotals = useCallback(() => {
+        const subtotal = formData.items.reduce((sum, item) => {
+        return sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice))
+        }, 0)
+        
+        const totalDiscount = formData.items.reduce((sum, item) => {
+        return sum + (parseFloat(item.discount) || 0)
+        }, 0)
+        
+        // Include tax if the original invoice had tax
+        const tax = formData.hasTax ? parseFloat(formData.tax) : 0
+        const total = subtotal + tax - totalDiscount
+        
+        return { subtotal, tax, totalDiscount, total }
+    }, [formData.items, formData.tax, formData.hasTax])
+
+    const totals = calculateTotals()
+
+    // Handle form field changes
+    const handleFieldChange = (field, value) => {
+        setFormData(prev => ({
         ...prev,
-        items: prev.items.map(item =>
-          item.id === itemId
-            ? {
-                ...item,
-                inventoryItemId: selectedItem.id,
-                itemName: selectedItem.name,
-                name: selectedItem.name,
-                sku: selectedItem.sku,
-                category: selectedItem.category,
-                unitPrice: parseFloat(selectedItem.sellingPrice) || 0,
-                quantity: 1,
-                total: parseFloat(selectedItem.sellingPrice) || 0
-              }
+        [field]: value
+        }))
+    }
+
+    // Handle item quantity change
+    const handleItemQuantityChange = (itemId, newQuantity) => {
+        const quantity = Math.round(parseFloat(newQuantity) || 1) // Ensure whole numbers, minimum 1
+        
+        setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => 
+            item.id === itemId 
+            ? { ...item, quantity, total: quantity * parseFloat(item.unitPrice) }
             : item
         )
-      }))
-
-      trackInventoryChange({
-        inventoryItemId: selectedItem.id,
-        itemName: selectedItem.name,
-        quantity: 1
-      }, 1, 'ADD')
-    }
-  }
-
-  const handleItemPriceChange = (itemId, newPrice) => {
-    const price = parseFloat(newPrice) || 0
-
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId
-          ? { ...item, unitPrice: price, total: parseFloat(item.quantity) * price }
-          : item
-      )
-    }))
-  }
-
-  const handleItemDiscountChange = (itemId, newDiscount) => {
-    const discount = parseFloat(newDiscount) || 0
-
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId ? { ...item, discount } : item
-      )
-    }))
-  }
-
-  const handleRemoveItem = (itemId) => {
-    const item = formData.items.find(i => i.id === itemId)
-
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter(item => item.id !== itemId)
-    }))
-
-    if (item) {
-      trackInventoryChange(item, parseFloat(item.quantity), 'REMOVE')
-    }
-  }
-
-  const handleAddEmptyRow = () => {
-    const emptyItem = {
-      id: `temp_${Date.now()}`,
-      inventoryItemId: null,
-      itemName: '',
-      name: '',
-      sku: '',
-      quantity: 1,
-      unitPrice: 0,
-      discount: 0,
-      total: 0,
-      category: '',
-      isNew: true
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, emptyItem]
-    }))
-
-    setSuccess('Empty row added - you can now search and select an item')
-    setTimeout(() => setSuccess(null), 2000)
-  }
-
-  const trackInventoryChange = (item, quantityChange, type) => {
-    if (!item.inventoryItemId) return
-
-    setInventoryChanges(prev => {
-      const change = {
-        inventoryItemId: item.inventoryItemId,
-        itemName: item.itemName,
-        quantityChange,
-        type
-      }
-
-      switch (type) {
-        case 'ADD':
-          return { ...prev, added: [...prev.added.filter(c => c.inventoryItemId !== item.inventoryItemId), change] }
-        case 'REMOVE':
-          return { ...prev, removed: [...prev.removed.filter(c => c.inventoryItemId !== item.inventoryItemId), change] }
-        case 'MODIFY':
-          return { ...prev, modified: [...prev.modified.filter(c => c.inventoryItemId !== item.inventoryItemId), change] }
-        default:
-          return prev
-      }
-    })
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    setError(null)
-
-    try {
-      const updateData = {
-        ...formData,
-        subtotal: totals.subtotal,
-        tax: totals.tax,
-        discount: totals.totalDiscount,
-        total: totals.total,
-        inventoryChanges
-      }
-
-      const response = await api.put(`/sales/${sale.id}`, updateData)
-      if (response.data.success) {
-        setSuccess('Sale updated successfully!')
-        dispatch(fetchInventory({ limit: 'all' }))
-        if (onSave) {
-          onSave(response.data.data)
+        }))
+        
+        // Track inventory change
+        const item = formData.items.find(i => i.id === itemId)
+        if (item) {
+        const quantityChange = quantity - Math.round(parseFloat(item.quantity) || 1)
+        if (quantityChange !== 0) {
+            trackInventoryChange(item, quantityChange, 'MODIFY')
         }
-        setTimeout(() => { onClose() }, 1500)
-      } else {
-        setError(response.data.message || 'Failed to update sale')
-      }
-    } catch (err) {
-      if (err.response?.data?.errors) {
-        const validationErrors = err.response.data.errors.map(error => error.msg).join(', ')
-        setError(`Validation errors: ${validationErrors}`)
-      } else {
-        setError(err.response?.data?.message || err.message || 'Failed to update sale')
-      }
-    } finally {
-      setSaving(false)
+        }
     }
-  }
 
-  const getInventoryChangeSummary = () => {
-    const totalAdded = inventoryChanges.added.reduce((sum, change) => sum + Math.abs(change.quantityChange), 0)
-    const totalRemoved = inventoryChanges.removed.reduce((sum, change) => sum + change.quantityChange, 0)
-    const totalModified = inventoryChanges.modified.reduce((sum, change) => sum + Math.abs(change.quantityChange), 0)
+    // Handle item name change (for empty rows)
+    const handleItemNameChange = (itemId, newName) => {
+        setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => 
+            item.id === itemId 
+            ? { 
+                ...item, 
+                itemName: newName,
+                sku: newName ? `MANUAL-${Date.now()}` : '',
+                category: newName ? 'Manual Entry' : ''
+                }
+            : item
+        )
+        }))
+    }
 
-    return { totalAdded, totalRemoved, totalModified }
-  }
+    // Handle item selection from autocomplete
+    const handleItemSelection = (itemId, selectedItem) => {
+        if (selectedItem) {
+        setFormData(prev => ({
+            ...prev,
+            items: prev.items.map(item => 
+            item.id === itemId 
+                ? { 
+                    ...item, 
+                    inventoryItemId: selectedItem.id,
+                    itemName: selectedItem.name,
+                    sku: selectedItem.sku,
+                    category: selectedItem.category,
+                    unitPrice: parseFloat(selectedItem.sellingPrice) || 0,
+                    quantity: 1, // Default quantity
+                    total: parseFloat(selectedItem.sellingPrice) || 0
+                }
+                : item
+            )
+        }))
+        
+        // Track inventory change
+        trackInventoryChange({
+            inventoryItemId: selectedItem.id,
+            itemName: selectedItem.name,
+            quantity: 1
+        }, 1, 'ADD')
+        }
+    }
 
-  const changeSummary = getInventoryChangeSummary()
+    // Handle item price change
+    const handleItemPriceChange = (itemId, newPrice) => {
+        const price = parseFloat(newPrice) || 0
+        
+        setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => 
+            item.id === itemId 
+            ? { ...item, unitPrice: price, total: parseFloat(item.quantity) * price }
+            : item
+        )
+        }))
+    }
 
-  if (!sale) return null
+    // Handle item discount change
+    const handleItemDiscountChange = (itemId, newDiscount) => {
+        const discount = parseFloat(newDiscount) || 0
+        
+        setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => 
+            item.id === itemId 
+            ? { ...item, discount }
+            : item
+        )
+        }))
+    }
 
-  return (
-    <>
-      <Dialog
-        open={open}
+    // Remove item from sale
+    const handleRemoveItem = (itemId) => {
+        const item = formData.items.find(i => i.id === itemId)
+        
+        setFormData(prev => ({
+        ...prev,
+        items: prev.items.filter(item => item.id !== itemId)
+        }))
+        
+        // Track inventory change (restore stock)
+        if (item) {
+        trackInventoryChange(item, parseFloat(item.quantity), 'REMOVE')
+        }
+    }
+
+    // Add empty row to table
+    const handleAddEmptyRow = () => {
+        console.log('Add Row button clicked - adding empty row to table')
+        
+        const emptyItem = {
+        id: `temp_${Date.now()}`,
+        inventoryItemId: null,
+        itemName: '',
+        sku: '',
+        quantity: 1, // Default to 1 whole number
+        unitPrice: 0,
+        discount: 0,
+        total: 0,
+        category: '',
+        isNew: true // Flag to indicate this is a new empty row
+        }
+        
+        setFormData(prev => ({
+        ...prev,
+        items: [...prev.items, emptyItem]
+        }))
+        
+        setSuccess('Empty row added - you can now search and select an item')
+        setTimeout(() => setSuccess(null), 2000)
+    }
+
+    // Track inventory changes
+    const trackInventoryChange = (item, quantityChange, type) => {
+        // Don't track inventory changes for manual items (they don't have inventoryItemId)
+        if (!item.inventoryItemId) {
+        return
+        }
+        
+        setInventoryChanges(prev => {
+        const change = {
+            inventoryItemId: item.inventoryItemId,
+            itemName: item.itemName,
+            quantityChange,
+            type
+        }
+        
+        switch (type) {
+            case 'ADD':
+            return {
+                ...prev,
+                added: [...prev.added.filter(c => c.inventoryItemId !== item.inventoryItemId), change]
+            }
+            case 'REMOVE':
+            return {
+                ...prev,
+                removed: [...prev.removed.filter(c => c.inventoryItemId !== item.inventoryItemId), change]
+            }
+            case 'MODIFY':
+            return {
+                ...prev,
+                modified: [...prev.modified.filter(c => c.inventoryItemId !== item.inventoryItemId), change]
+            }
+            default:
+            return prev
+        }
+        })
+    }
+
+    // Save changes
+    const handleSave = async () => {
+        setSaving(true)
+        setError(null)
+        
+        try {
+        // Prepare update data
+        const updateData = {
+            ...formData,
+            subtotal: totals.subtotal,
+            tax: totals.tax,
+            discount: totals.totalDiscount,
+            total: totals.total,
+            inventoryChanges
+        }
+        
+        // Call backend API to update sale
+        const response = await api.put(`/sales/${sale.id}`, updateData)
+        if (response.data.success) {
+            setSuccess('Sale updated successfully!')
+            // Call parent callback
+            if (onSave) {
+            onSave(response.data.data)
+            }
+            // Close dialog after a short delay
+            setTimeout(() => {
+            onClose()
+            }, 1500)
+        } else {
+            setError(response.data.message || 'Failed to update sale')
+        }
+        } catch (err) {
+        console.error('Error updating sale:', err)
+        console.error('Error response:', err.response?.data)
+        console.error('Error status:', err.response?.status)
+        
+        if (err.response?.data?.errors) {
+            // Handle validation errors
+            const validationErrors = err.response.data.errors.map(error => error.msg).join(', ')
+            setError(`Validation errors: ${validationErrors}`)
+        } else {
+            setError(err.response?.data?.message || err.message || 'Failed to update sale')
+        }
+        } finally {
+        setSaving(false)
+        }
+    }
+
+    // Get inventory change summary
+    const getInventoryChangeSummary = () => {
+        const totalAdded = inventoryChanges.added.reduce((sum, change) => sum + Math.abs(change.quantityChange), 0)
+        const totalRemoved = inventoryChanges.removed.reduce((sum, change) => sum + change.quantityChange, 0)
+        const totalModified = inventoryChanges.modified.reduce((sum, change) => sum + Math.abs(change.quantityChange), 0)
+        
+        return { totalAdded, totalRemoved, totalModified }
+    }
+
+    const changeSummary = getInventoryChangeSummary()
+
+    // ── Build printData via buildPrintData (same as warehouse billing) ─────────
+    const getPrintData = () => {
+      if (!sale) return null
+      return buildPrintData({
+        sale,
+        companyInfo,
+        user,
+        formData: {
+          customerName   : formData.customerName,
+          customerPhone  : formData.customerPhone,
+          paymentMethod  : formData.paymentMethod,
+          paymentStatus  : formData.paymentStatus,
+          notes          : formData.notes,
+          tax            : formData.tax,
+          hasTax         : formData.hasTax,
+          items          : formData.items,
+        },
+      })
+    }
+
+    if (!sale) return null
+
+    return (
+        <>
+        <Dialog 
+        open={open} 
         onClose={onClose}
         maxWidth="lg"
         fullWidth
-        PaperProps={{ sx: { minHeight: '70vh', maxHeight: '90vh' } }}
-      >
+        PaperProps={{
+            sx: { minHeight: '70vh', maxHeight: '90vh' }
+        }}
+        >
         <DialogTitle>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box>
-              <Typography variant="h5" fontWeight="bold" color="primary">
+                <Typography variant="h5" fontWeight="bold" color="primary">
                 Invoice #{sale.invoice_no || sale.id}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
                 Edit Invoice Details
-              </Typography>
+                </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="Reprint Invoice">
-                <IconButton onClick={() => setShowPrintDialog(true)} size="small" color="primary">
-                  <PrintIcon />
+                <Tooltip title="Reprint Invoice">
+                    <IconButton 
+                        onClick={() => setShowPrintDialog(true)} 
+                        size="small"
+                        color="primary"
+                    >
+                        <PrintIcon />
+                    </IconButton>
+                </Tooltip>
+                <IconButton onClick={onClose} size="small">
+                    <CloseIcon />
                 </IconButton>
-              </Tooltip>
-              <IconButton onClick={onClose} size="small">
-                <CloseIcon />
-              </IconButton>
             </Box>
-          </Box>
+            </Box>
         </DialogTitle>
 
         <DialogContent dividers>
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+            {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+            </Alert>
+            )}
+            
+            {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+                {success}
+            </Alert>
+            )}
 
-          <Card sx={{ mb: 2 }}>
+            {/* Sale Details & Add Item - Combined */}
+            <Card sx={{ mb: 2 }}>
             <CardContent sx={{ pb: 2 }}>
-              <Typography variant="h6" gutterBottom>Invoice Details</Typography>
-
-              <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                Invoice Details
+                </Typography>
+                
+                {/* Customer & Payment Info */}
+                <Grid container spacing={1.5} sx={{ mb: 2 }}>
                 <Grid item xs={12} sm={3}>
-                  <TextField
+                    <TextField
                     fullWidth
                     size="small"
                     label="Customer Name"
                     value={formData.customerName}
                     onChange={(e) => handleFieldChange('customerName', e.target.value)}
-                  />
+                    />
                 </Grid>
                 <Grid item xs={12} sm={3}>
-                  <TextField
+                    <TextField
                     fullWidth
                     size="small"
                     label="Customer Phone"
                     value={formData.customerPhone}
                     onChange={(e) => handleFieldChange('customerPhone', e.target.value)}
-                  />
+                    />
                 </Grid>
                 <Grid item xs={12} sm={2}>
-                  <FormControl fullWidth size="small">
+                    <FormControl fullWidth size="small">
                     <InputLabel>Payment Method</InputLabel>
                     <Select
-                      value={formData.paymentMethod}
-                      onChange={(e) => handleFieldChange('paymentMethod', e.target.value)}
+                        value={formData.paymentMethod}
+                        onChange={(e) => {
+                          console.log('[EditableInvoiceForm] Payment method changed to:', e.target.value);
+                          handleFieldChange('paymentMethod', e.target.value);
+                        }}
                     >
-                      <MenuItem value="CASH">Cash</MenuItem>
-                      <MenuItem value="CARD">Card</MenuItem>
-                      <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
-                      <MenuItem value="MOBILE_PAYMENT">Mobile Payment</MenuItem>
-                      <MenuItem value="FULLY_CREDIT">Fully Credit</MenuItem>
-                      <MenuItem value="PARTIAL_PAYMENT">Partial Payment</MenuItem>
+                        <MenuItem value="CASH">Cash</MenuItem>
+                        <MenuItem value="CARD">Card</MenuItem>
+                        <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
+                        <MenuItem value="MOBILE_PAYMENT">Mobile Payment</MenuItem>
+                        <MenuItem value="FULLY_CREDIT">Fully Credit</MenuItem>
+                        <MenuItem value="PARTIAL_PAYMENT">Partial Payment</MenuItem>
                     </Select>
-                  </FormControl>
+                    </FormControl>
                 </Grid>
                 <Grid item xs={12} sm={2}>
-                  <FormControl fullWidth size="small">
+                    <FormControl fullWidth size="small">
                     <InputLabel>Payment Status</InputLabel>
                     <Select
-                      value={formData.paymentStatus}
-                      onChange={(e) => handleFieldChange('paymentStatus', e.target.value)}
+                        value={formData.paymentStatus}
+                        onChange={(e) => handleFieldChange('paymentStatus', e.target.value)}
                     >
-                      <MenuItem value="PENDING">Pending</MenuItem>
-                      <MenuItem value="COMPLETED">Completed</MenuItem>
-                      <MenuItem value="PARTIAL">Partial Payment</MenuItem>
-                      <MenuItem value="FAILED">Failed</MenuItem>
-                      <MenuItem value="REFUNDED">Refunded</MenuItem>
+                        <MenuItem value="PENDING">Pending</MenuItem>
+                        <MenuItem value="COMPLETED">Completed</MenuItem>
+                        <MenuItem value="PARTIAL">Partial Payment</MenuItem>
+                        <MenuItem value="FAILED">Failed</MenuItem>
+                        <MenuItem value="REFUNDED">Refunded</MenuItem>
                     </Select>
-                  </FormControl>
+                    </FormControl>
                 </Grid>
                 {formData.hasTax && (
-                  <Grid item xs={12} sm={2}>
+                    <Grid item xs={12} sm={2}>
                     <TextField
-                      fullWidth
-                      size="small"
-                      label="Tax Amount"
-                      type="number"
-                      value={parseFloat(formData.tax || 0).toFixed(2).replace(/\.00$/, '')}
-                      onChange={(e) => handleFieldChange('tax', parseFloat(e.target.value) || 0)}
-                      inputProps={{ min: 0, step: 0.01, inputMode: 'decimal' }}
-                      sx={{
-                        '& input[type=number]': { MozAppearance: 'textfield' },
-                        '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                        '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 }
-                      }}
+                        fullWidth
+                        size="small"
+                        label="Tax Amount"
+                        type="number"
+                        value={parseFloat(formData.tax || 0).toFixed(2).replace(/\.00$/, '')}
+                        onChange={(e) => handleFieldChange('tax', parseFloat(e.target.value) || 0)}
+                        inputProps={{ 
+                        min: 0, 
+                        step: 0.01,
+                        inputMode: 'decimal'
+                        }}
+                        sx={{
+                        '& input[type=number]': {
+                            MozAppearance: 'textfield'
+                        },
+                        '& input[type=number]::-webkit-outer-spin-button': {
+                            WebkitAppearance: 'none',
+                            margin: 0
+                        },
+                        '& input[type=number]::-webkit-inner-spin-button': {
+                            WebkitAppearance: 'none',
+                            margin: 0
+                        }
+                        }}
                     />
-                  </Grid>
+                    </Grid>
                 )}
-              </Grid>
-            </CardContent>
-          </Card>
+                </Grid>
 
-          <Card sx={{ mb: 2 }}>
+            </CardContent>
+            </Card>
+
+            {/* Items Table */}
+            <Card sx={{ mb: 2 }}>
             <CardContent sx={{ pb: 2 }}>
-              <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" gutterBottom>
                 Invoice Items ({formData.items.length})
-              </Typography>
-              <TableContainer component={Paper} variant="outlined">
+                </Typography>
+                <TableContainer component={Paper} variant="outlined">
                 <Table size="small" sx={{ '& .MuiTableCell-root': { py: 1 } }}>
-                  <TableHead>
+                    <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold', minWidth: 200 }}>Item</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', width: 100 }} align="right">Unit Price</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', width: 80 }} align="center">Qty</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', width: 100 }} align="right">Discount</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', width: 100 }} align="right">Total</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold', width: 60 }} align="center">Action</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', minWidth: 200 }}>Item</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 100 }} align="right">Unit Price</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 80 }} align="center">Qty</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 100 }} align="right">Discount</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 100 }} align="right">Total</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: 60 }} align="center">Action</TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
+                    </TableHead>
+                    <TableBody>
                     {formData.items.map((item) => (
-                      <TableRow key={item.id} hover>
+                        <TableRow key={item.id} hover>
                         <TableCell sx={{ py: 1 }}>
-                          {item.isNew ? (
+                            {item.isNew ? (
                             <Autocomplete
-                              size="small"
-                              options={availableItems}
-                              getOptionLabel={(option) => option.name || ''}
-                              value={availableItems.find(option => option.name === item.itemName) || null}
-                              onChange={(event, newValue) => {
+                                size="small"
+                                options={availableItems}
+                                getOptionLabel={(option) => option.name || ''}
+                                value={availableItems.find(option => option.name === item.itemName) || null}
+                                onChange={(event, newValue) => {
                                 if (newValue) {
-                                  handleItemSelection(item.id, newValue)
+                                    handleItemSelection(item.id, newValue)
                                 } else {
-                                  handleItemNameChange(item.id, '')
+                                    handleItemNameChange(item.id, '')
                                 }
-                              }}
-                              onInputChange={(event, newInputValue) => {
+                                }}
+                                onInputChange={(event, newInputValue) => {
                                 handleItemNameChange(item.id, newInputValue)
-                              }}
-                              renderInput={(params) => (
+                                }}
+                                renderInput={(params) => (
                                 <TextField
-                                  {...params}
-                                  placeholder="Search items..."
-                                  sx={{ '& .MuiInputBase-input': { py: 0.5, fontSize: '0.875rem' } }}
+                                    {...params}
+                                    placeholder="Search items..."
+                                    sx={{
+                                    '& .MuiInputBase-input': {
+                                        py: 0.5,
+                                        fontSize: '0.875rem'
+                                    }
+                                    }}
                                 />
-                              )}
-                              renderOption={(props, option) => (
+                                )}
+                                renderOption={(props, option) => (
                                 <Box component="li" {...props}>
-                                  <Box>
-                                    <Typography variant="body2" fontWeight="medium">{option.name}</Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      {option.sku} • {option.category} • Stock: {option.currentStock} • Price: {parseFloat(option.sellingPrice || 0).toFixed(0)}
+                                    <Box>
+                                    <Typography variant="body2" fontWeight="medium">
+                                        {option.name}
                                     </Typography>
-                                  </Box>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {option.sku} • {option.category} • Stock: {option.currentStock} • Price: ${parseFloat(option.sellingPrice || 0).toFixed(2)}
+                                    </Typography>
+                                    </Box>
                                 </Box>
-                              )}
-                              filterOptions={(options, { inputValue }) => {
+                                )}
+                                filterOptions={(options, { inputValue }) => {
                                 return options.filter(option =>
-                                  option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                                  option.sku.toLowerCase().includes(inputValue.toLowerCase()) ||
-                                  option.category.toLowerCase().includes(inputValue.toLowerCase())
+                                    option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                                    option.sku.toLowerCase().includes(inputValue.toLowerCase()) ||
+                                    option.category.toLowerCase().includes(inputValue.toLowerCase())
                                 )
-                              }}
-                              noOptionsText="No items found"
-                              clearOnEscape
-                              selectOnFocus
-                              handleHomeEndKeys
-                              fullWidth
+                                }}
+                                noOptionsText="No items found"
+                                clearOnEscape
+                                selectOnFocus
+                                handleHomeEndKeys
+                                fullWidth
                             />
-                          ) : (
+                            ) : (
                             <>
-                              <Typography variant="body2" fontWeight="medium" sx={{ lineHeight: 1.2 }}>
+                                <Typography variant="body2" fontWeight="medium" sx={{ lineHeight: 1.2 }}>
                                 {item.itemName}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>
                                 {item.sku} • {item.category}
-                              </Typography>
+                                </Typography>
                             </>
-                          )}
+                            )}
                         </TableCell>
                         <TableCell align="right" sx={{ py: 1 }}>
-                          <Box>
-                            {item.originalPrice && item.originalPrice !== item.unitPrice && (
-                              <Typography variant="caption" color="text.secondary" sx={{ textDecoration: 'line-through', display: 'block' }}>
-                                {parseFloat(item.originalPrice || 0).toFixed(0)}
-                              </Typography>
-                            )}
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={parseFloat(item.unitPrice || 0).toFixed(2).replace(/\.00$/, '')}
-                              onChange={(e) => handleItemPriceChange(item.id, e.target.value || '0')}
-                              inputProps={{ min: 0, step: 0.01, inputMode: 'decimal', style: { textAlign: 'right' } }}
-                              sx={{
-                                width: 90,
-                                '& .MuiInputBase-input': { textAlign: 'right', py: 0.5 },
-                                '& input[type=number]': { MozAppearance: 'textfield' },
-                                '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                                '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 }
-                              }}
-                            />
-                          </Box>
+                            <Box>
+                                {item.originalPrice && item.originalPrice !== item.unitPrice && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ textDecoration: 'line-through', display: 'block' }}>
+                                        {parseFloat(item.originalPrice || 0).toFixed(2)}
+                                    </Typography>
+                                )}
+                                <TextField
+                                size="small"
+                                type="number"
+                                value={parseFloat(item.unitPrice || 0).toFixed(2).replace(/\.00$/, '')}
+                                onChange={(e) => handleItemPriceChange(item.id, e.target.value || '0')}
+                                inputProps={{ 
+                                    min: 0, 
+                                    step: 0.01,
+                                    inputMode: 'decimal',
+                                    style: { textAlign: 'right' }
+                                }}
+                                sx={{ 
+                                    width: 90,
+                                    '& .MuiInputBase-input': { 
+                                    textAlign: 'right',
+                                    py: 0.5
+                                    },
+                                    '& input[type=number]': {
+                                    MozAppearance: 'textfield'
+                                    },
+                                    '& input[type=number]::-webkit-outer-spin-button': {
+                                    WebkitAppearance: 'none',
+                                    margin: 0
+                                    },
+                                    '& input[type=number]::-webkit-inner-spin-button': {
+                                    WebkitAppearance: 'none',
+                                    margin: 0
+                                    }
+                                }}
+                                />
+                            </Box>
                         </TableCell>
                         <TableCell align="center">
-                          <TextField
+                            <TextField
                             size="small"
                             type="number"
                             value={Math.round(parseFloat(item.quantity || 0))}
                             onChange={(e) => handleItemQuantityChange(item.id, e.target.value || '0')}
-                            inputProps={{ min: 1, step: 1, inputMode: 'numeric', style: { textAlign: 'center' } }}
-                            sx={{
-                              width: 70,
-                              '& .MuiInputBase-input': { textAlign: 'center', py: 0.5 },
-                              '& input[type=number]': { MozAppearance: 'textfield' },
-                              '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                              '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 }
+                            inputProps={{ 
+                                min: 1, 
+                                step: 1,
+                                inputMode: 'numeric',
+                                style: { textAlign: 'center' }
                             }}
-                          />
-                        </TableCell>
-                        <TableCell align="right" sx={{ py: 1 }}>
-                          <Box>
-                            <TextField
-                              size="small"
-                              type="number"
-                              value={parseFloat(item.discount || 0).toFixed(2).replace(/\.00$/, '')}
-                              onChange={(e) => handleItemDiscountChange(item.id, e.target.value || '0')}
-                              inputProps={{ min: 0, step: 0.01, inputMode: 'decimal', style: { textAlign: 'right' } }}
-                              sx={{
-                                width: 80,
-                                '& .MuiInputBase-input': { textAlign: 'right', py: 0.5 },
-                                '& input[type=number]': { MozAppearance: 'textfield' },
-                                '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 },
-                                '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 }
-                              }}
+                            sx={{ 
+                                width: 70,
+                                '& .MuiInputBase-input': { 
+                                textAlign: 'center',
+                                py: 0.5
+                                },
+                                '& input[type=number]': {
+                                MozAppearance: 'textfield'
+                                },
+                                '& input[type=number]::-webkit-outer-spin-button': {
+                                WebkitAppearance: 'none',
+                                margin: 0
+                                },
+                                '& input[type=number]::-webkit-inner-spin-button': {
+                                WebkitAppearance: 'none',
+                                margin: 0
+                                }
+                            }}
                             />
-                            {item.discount > 0 && (
-                              <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
-                                {((item.discount / (item.unitPrice * item.quantity)) * 100).toFixed(1)}% off
-                              </Typography>
-                            )}
-                          </Box>
                         </TableCell>
                         <TableCell align="right" sx={{ py: 1 }}>
-                          <Typography variant="body2" fontWeight="medium" sx={{ lineHeight: 1.2 }}>
-                            {((parseFloat(item.quantity || 0) * parseFloat(item.unitPrice || 0)) - (parseFloat(item.discount) || 0)).toFixed(0)}
-                          </Typography>
+                            <Box>
+                                <TextField
+                                size="small"
+                                type="number"
+                                value={parseFloat(item.discount || 0).toFixed(2).replace(/\.00$/, '')}
+                                onChange={(e) => handleItemDiscountChange(item.id, e.target.value || '0')}
+                                inputProps={{ 
+                                    min: 0, 
+                                    step: 0.01,
+                                    inputMode: 'decimal',
+                                    style: { textAlign: 'right' }
+                                }}
+                                sx={{ 
+                                    width: 80,
+                                    '& .MuiInputBase-input': { 
+                                    textAlign: 'right',
+                                    py: 0.5
+                                    },
+                                    '& input[type=number]': {
+                                    MozAppearance: 'textfield'
+                                    },
+                                    '& input[type=number]::-webkit-outer-spin-button': {
+                                    WebkitAppearance: 'none',
+                                    margin: 0
+                                    },
+                                    '& input[type=number]::-webkit-inner-spin-button': {
+                                    WebkitAppearance: 'none',
+                                    margin: 0
+                                    }
+                                }}
+                                />
+                                {item.discount > 0 && (
+                                    <Typography variant="caption" color="success.main" sx={{ display: 'block', mt: 0.5 }}>
+                                        {((item.discount / (item.unitPrice * item.quantity)) * 100).toFixed(1)}% off
+                                    </Typography>
+                                )}
+                            </Box>
+                        </TableCell>
+                        <TableCell align="right" sx={{ py: 1 }}>
+                            <Typography variant="body2" fontWeight="medium" sx={{ lineHeight: 1.2 }}>
+                            {((parseFloat(item.quantity || 0) * parseFloat(item.unitPrice || 0)) - (parseFloat(item.discount) || 0)).toFixed(2).replace(/\.00$/, '')}
+                            </Typography>
                         </TableCell>
                         <TableCell align="center" sx={{ py: 1 }}>
-                          <Tooltip title="Remove Item">
+                            <Tooltip title="Remove Item">
                             <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleRemoveItem(item.id)}
-                              sx={{ py: 0.5 }}
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveItem(item.id)}
+                                sx={{ py: 0.5 }}
                             >
-                              <DeleteIcon fontSize="small" />
+                                <DeleteIcon fontSize="small" />
                             </IconButton>
-                          </Tooltip>
+                            </Tooltip>
                         </TableCell>
-                      </TableRow>
+                        </TableRow>
                     ))}
-                  </TableBody>
+                    </TableBody>
                 </Table>
-              </TableContainer>
-
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                </TableContainer>
+                
+                {/* Add Item Button */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                 <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<AddIcon />}
-                  onClick={handleAddEmptyRow}
-                  sx={{ minWidth: '100px', borderRadius: '20px', textTransform: 'none', fontSize: '0.875rem' }}
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddEmptyRow}
+                    sx={{ 
+                    minWidth: '100px',
+                    borderRadius: '20px',
+                    textTransform: 'none',
+                    fontSize: '0.875rem'
+                    }}
                 >
-                  + Add Item
+                    + Add Item
                 </Button>
-              </Box>
+                </Box>
             </CardContent>
-          </Card>
+            </Card>
 
-          <Card>
+            {/* Inventory Changes & Totals - Combined */}
+            <Card>
             <CardContent sx={{ pb: 2 }}>
-              <Grid container spacing={2}>
+                <Grid container spacing={2}>
+                {/* Inventory Changes */}
                 {(changeSummary.totalAdded > 0 || changeSummary.totalRemoved > 0 || changeSummary.totalModified > 0) && (
-                  <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={6}>
                     <Typography variant="subtitle1" gutterBottom color="primary">
-                      <InventoryIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: 20 }} />
-                      Inventory Changes
+                        <InventoryIcon sx={{ mr: 1, verticalAlign: 'middle', fontSize: 20 }} />
+                        Inventory Changes
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {changeSummary.totalAdded > 0 && (
-                        <Chip label={`${changeSummary.totalAdded} added`} color="success" size="small" variant="outlined" />
-                      )}
-                      {changeSummary.totalRemoved > 0 && (
-                        <Chip label={`${changeSummary.totalRemoved} removed`} color="error" size="small" variant="outlined" />
-                      )}
-                      {changeSummary.totalModified > 0 && (
-                        <Chip label={`${changeSummary.totalModified} modified`} color="warning" size="small" variant="outlined" />
-                      )}
+                        {changeSummary.totalAdded > 0 && (
+                        <Chip
+                            label={`${changeSummary.totalAdded} added`}
+                            color="success"
+                            size="small"
+                            variant="outlined"
+                        />
+                        )}
+                        {changeSummary.totalRemoved > 0 && (
+                        <Chip
+                            label={`${changeSummary.totalRemoved} removed`}
+                            color="error"
+                            size="small"
+                            variant="outlined"
+                        />
+                        )}
+                        {changeSummary.totalModified > 0 && (
+                        <Chip
+                            label={`${changeSummary.totalModified} modified`}
+                            color="warning"
+                            size="small"
+                            variant="outlined"
+                        />
+                        )}
                     </Box>
-                  </Grid>
+                    </Grid>
                 )}
-
+                
+                {/* Totals */}
                 <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle1" gutterBottom>Invoice Totals</Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                    Invoice Totals
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                     <Typography variant="body2">Subtotal:</Typography>
-                    <Typography variant="body2">{totals.subtotal.toFixed(0)}</Typography>
-                  </Box>
-                  {totals.tax > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="body2">Tax:</Typography>
-                      <Typography variant="body2">{totals.tax.toFixed(0)}</Typography>
+                    <Typography variant="body2">{totals.subtotal.toFixed(2).replace(/\.00$/, '')}</Typography>
                     </Box>
-                  )}
-                  {totals.totalDiscount > 0 && (
+                    {totals.tax > 0 && (
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="body2">Discount:</Typography>
-                      <Typography variant="body2" color="error">-{totals.totalDiscount.toFixed(0)}</Typography>
+                        <Typography variant="body2">Tax:</Typography>
+                        <Typography variant="body2">{totals.tax.toFixed(2).replace(/\.00$/, '')}</Typography>
                     </Box>
-                  )}
-                  <Divider sx={{ my: 1 }} />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    )}
+                    {totals.totalDiscount > 0 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="body2">Discount:</Typography>
+                        <Typography variant="body2" color="error">-{totals.totalDiscount.toFixed(2).replace(/\.00$/, '')}</Typography>
+                    </Box>
+                    )}
+                    <Divider sx={{ my: 1 }} />
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="h6" fontWeight="bold">Total:</Typography>
                     <Typography variant="h6" fontWeight="bold" color="primary">
-                      {totals.total.toFixed(0)}
+                        {totals.total.toFixed(2).replace(/\.00$/, '')}
                     </Typography>
-                  </Box>
+                    </Box>
                 </Grid>
-              </Grid>
+                </Grid>
             </CardContent>
-          </Card>
+            </Card>
         </DialogContent>
 
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button
+            <Button onClick={onClose} disabled={saving}>
+            Cancel
+            </Button>
+            <Button
             variant="contained"
             startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
             onClick={handleSave}
             disabled={saving || formData.items.length === 0}
-          >
+            >
             {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+            </Button>
         </DialogActions>
-      </Dialog>
+        </Dialog>
 
-      {/* PrintDialog uses buildPrintData — same layout as warehouse billing */}
-      {showPrintDialog && printData && (
-        <PrintDialog
-          open={showPrintDialog}
-          onClose={() => setShowPrintDialog(false)}
-          printData={printData}
-          title="Print Invoice"
-          defaultLayout="color"
-        />
-      )}
-    </>
-  )
-}
+        {/* Print Dialog — uses buildPrintData for consistent bill across all surfaces */}
+        {showPrintDialog && (
+          <PrintDialog
+            open={showPrintDialog}
+            onClose={() => setShowPrintDialog(false)}
+            printData={getPrintData()}
+            title="Print Invoice"
+            defaultLayout="color"
+          />
+        )}
+        </>
+    )
+    }
 
-export default EditableInvoiceForm
+    export default EditableInvoiceForm
