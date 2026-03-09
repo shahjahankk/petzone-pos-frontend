@@ -80,13 +80,12 @@ import {
   AttachMoney as MoneyIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../components/print/PrintDialog'
-import DashboardLayout from '../../components/layout/DashboardLayout'
 import RouteGuard from '../../components/auth/RouteGuard'
 import PhysicalScanner from '../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../store/slices/inventorySlice'
 import { createWarehouseSale, fetchSales } from '../store/slices/salesSlice'
 import { fetchRetailers } from '../store/slices/retailersSlice'
-
+import buildPrintData from '../../utils/buildPrintData'
 // Tab management utilities
 const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 const generateTabName = (tabNumber) => `Sale ${tabNumber}`
@@ -1454,24 +1453,44 @@ function WarehouseBillingPage() {
         const printableTax = Math.round(Math.max(0, tax))
         const printableDiscount = Math.round(Math.max(0, totalDiscount))
         const printableInvoiceTotal = Math.max(0, (printableSubtotal + printableTax) - printableDiscount)
-        const pd = {
-          type: 'warehouse', title: 'SALES RECEIPT',
-          companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name, companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
-          companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone, companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
-          logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
-          items: printableItems, subtotal: printableSubtotal, tax: printableTax, discount: printableDiscount, invoiceTotal: printableInvoiceTotal,
-          oldBalance: Math.round(outstandingTotal || 0), total: Math.round(total),
-          customerName: retailerInfo.name || 'Walk-in Retailer', customerPhone: retailerInfo.phone || '',
-          date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(),
-          receiptNumber: sale.invoice_no || `POS-${Date.now()}`,
-          warehouseName: user?.warehouseName || scopeInfo?.scopeName || '',
-          cashierName: user?.name || user?.username || 'Cashier',
-          paymentMethod: paymentMethodValue, paymentAmount: Math.round(finalPaymentAmount), creditAmount: Math.round(finalCreditAmount),
-          remainingBalance: Math.round(finalCreditAmount),
-          change: isPartialPayment ? 0 : Math.round(Math.max(0, (parseFloat(paymentAmount) || total) - total)),
-          notes: isPartialPayment ? `Partial Payment - Credit: ${Math.round(finalCreditAmount)}` : '',
-          footerMessage: 'Thank you for choosing PetZone!'
-        }
+const pd = buildPrintData({
+  sale: {
+    invoice_no      : sale.invoice_no,
+    id              : sale.id,
+    created_at      : sale.created_at || new Date().toISOString(),
+    scope_type      : 'WAREHOUSE',
+    customerInfo    : { id: retailerInfo.id, name: retailerInfo.name || 'Walk-in Retailer', phone: retailerInfo.phone || '' },
+    subtotal        : printableSubtotal,
+    tax             : printableTax,
+    discount        : printableDiscount,
+    invoiceTotal    : printableInvoiceTotal,
+    oldBalance      : Math.round(outstandingTotal || 0),
+    paymentAmount   : Math.round(finalPaymentAmount),
+    creditAmount    : Math.round(finalCreditAmount),
+    remainingBalance: Math.round(finalCreditAmount),
+    change          : isPartialPayment ? 0 : Math.round(Math.max(0, (parseFloat(paymentAmount) || total) - total)),
+    paymentMethod   : paymentMethodValue,
+    paymentType     : paymentTypeValue,
+    paymentStatus   : finalPaymentStatus,
+    notes           : isPartialPayment ? `Partial Payment - Credit: ${Math.round(finalCreditAmount)}` : '',
+    created_by      : user?.name || user?.username || 'Warehouse Keeper',
+    warehouseName   : user?.warehouseName || scopeInfo?.scopeName || '',
+  },
+  companyInfo: {
+    name   : companyInfo.name    || DEFAULT_COMPANY_INFO.name,
+    address: companyInfo.address || DEFAULT_COMPANY_INFO.address,
+    phone  : companyInfo.phone   || DEFAULT_COMPANY_INFO.phone,
+    email  : companyInfo.email   || DEFAULT_COMPANY_INFO.email,
+    logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
+  },
+  user,
+  overrides: {
+    items        : printableItems,
+    footerMessage: 'Thank you for choosing PetZone!',
+    type         : 'warehouse',
+    title        : 'SALES RECEIPT',
+  },
+})
         setCompletedSaleData({ sale, printData: pd, retailerInfo, isSaved: true })
         setSaleConfirmDialog(true)
         clearAllPOSState()
