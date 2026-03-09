@@ -3104,20 +3104,23 @@ const handleCompleteSale = async () => {
             footerMessage: 'Thank you for your payment!'
           }
 
-          setCompletedSaleData({
-            sale: { invoice_no: settlementSale.invoice_no },
-            printData: settlementPrintData,
-            isSettlement: true,
-            settlementPaymentValue,
-            settlementCreditValue
-          })
-          setPostSaleDialog(true)
+setCompletedSaleData({
+  sale: { invoice_no: settlementSale.invoice_no },
+  printData: settlementPrintData,
+  isSettlement: true,
+  settlementPaymentValue,
+  settlementCreditValue
+})
+setPostSaleDialog(true)
+
+// ✅ Clear the current tab state after successful settlement
+clearAllPOSState()
+setTimeout(() => refreshOutstandingPayments(), 2000)
         }
       } catch (error) {
         console.error('[POS] Error processing outstanding-only settlement:', error)
         alert(`❌ Error processing outstanding payment settlement: ${error.message}`)
       }
-      return
     }
 
     // --- Regular sale path ---

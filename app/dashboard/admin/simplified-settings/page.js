@@ -126,7 +126,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
     const percentage = total > 0 ? Math.round((enabled / total) * 100) : 0;
     return { enabled, total, percentage };
   };
-
+  
   const settingsConfig = [
     { type: 'section', section: 'Cashier Permissions' },
     { key: 'allowCashierInventoryAdd',  label: 'Allow Cashier Inventory Add',  description: 'Cashiers can add NEW inventory items',                          type: 'switch' },
