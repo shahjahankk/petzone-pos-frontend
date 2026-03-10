@@ -1,7 +1,7 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import React from 'react'
-import Image from 'next/image'
 import './PrintLayout.css'
 
 function safeNumber(v) {
@@ -11,13 +11,53 @@ function safeNumber(v) {
 function formatCurrency(v) {
   const n = safeNumber(v)
   try {
-    // Always round to whole number (no decimals)
     const rounded = Math.round(n)
     return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(rounded)
   } catch (e) {
     return String(Math.round(n))
   }
 }
+
+// ── Small helper components ────────────────────────────────────────────────────
+function Row({ label, value, bold, large, color }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between',
+      marginBottom: '5px',
+      fontSize: large ? '14px' : '12px',
+      color: color || '#000',
+      fontWeight: bold ? 'bold' : 'normal'
+    }}>
+      <span>{label}</span>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function ThermalRow({ label, value, bold, large, color }) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between',
+      marginBottom: '3px',
+      fontSize: large ? '13px' : '10px',
+      fontWeight: bold ? 'bold' : 'normal',
+      color: color || '#000'
+    }}>
+      <span>{label}:</span>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function SigBox({ label }) {
+  return (
+    <div style={{ width: '48%', borderTop: '1px solid #000', paddingTop: '8px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>{label}:</div>
+      <div style={{ fontSize: '11px', color: '#888', minHeight: '48px' }}>________________________________</div>
+    </div>
+  )
+}
+
 
 export default function PrintLayout({
   type = 'receipt',
@@ -38,9 +78,6 @@ export default function PrintLayout({
   customerPhone = '',
   customerAddress = '',
   customerCity = '',
-  shippingName = '',
-  shippingAddress = '',
-  shippingCity = '',
   items = [],
   subtotal = 0,
   tax = 0,
@@ -50,619 +87,484 @@ export default function PrintLayout({
   creditAmount = 0,
   remainingBalance = null,
   oldBalance = 0,
-  outstandingCleared = 0,
   discount = 0,
   change = 0,
   shippingHandling = 0,
   notes = '',
   footerMessage = 'Thank you for your business!',
   showLogo = true,
-  width = 300,
   layout = 'thermal',
-  orientation = 'portrait',
-  fontSize = '12px',
   invoiceTotal = null,
-  paymentLabel = 'Payment',
-  showSignature = false
+  showSignature = false,
+  // New: pass isItemSheet=true to render a price-hidden item/packing sheet
+  isItemSheet = false,
 }) {
 
   const [logoError, setLogoError] = React.useState(false)
 
   const effectiveLogoUrl = React.useMemo(() => {
     if (!logoUrl) return '/petzonelogo.png'
-    if (typeof logoUrl === 'string' && (logoUrl.startsWith('http://') || logoUrl.startsWith('https://') || logoUrl.startsWith('data:'))) return logoUrl
+    if (typeof logoUrl === 'string' &&
+      (logoUrl.startsWith('http://') || logoUrl.startsWith('https://') || logoUrl.startsWith('data:')))
+      return logoUrl
     return logoUrl
   }, [logoUrl])
 
   React.useEffect(() => setLogoError(false), [effectiveLogoUrl])
 
-  const nSubtotal = safeNumber(subtotal)
-  const nTax = safeNumber(tax)
-  // Accept multiple discount field names to avoid missing discounts on receipts
-  const nDiscount = safeNumber(
-    discount != null ? discount : (typeof discountAmount !== 'undefined' ? discountAmount : (typeof totalDiscount !== 'undefined' ? totalDiscount : 0))
-  )
-  const nOld = safeNumber(oldBalance)
-  const nPayment = safeNumber(paymentAmount)
-  const nCredit = safeNumber(creditAmount)
+  // ── Computed numbers ──
+  const nSubtotal  = safeNumber(subtotal)
+  const nTax       = safeNumber(tax)
+  const nDiscount  = safeNumber(discount)
+  const nOld       = safeNumber(oldBalance)
+  const nPayment   = safeNumber(paymentAmount)
+  const nCredit    = safeNumber(creditAmount)
+  const nShipping  = safeNumber(shippingHandling)
 
-  const computedInvoiceTotal = invoiceTotal != null ? safeNumber(invoiceTotal) : (nSubtotal + nTax - nDiscount)
-  
-  // Calculate TOTAL as Invoice Total + Old Balance
+  const computedInvoiceTotal = invoiceTotal != null
+    ? safeNumber(invoiceTotal)
+    : (nSubtotal + nTax - nDiscount)
+
   const displayedTotal = computedInvoiceTotal + nOld
-  
-  // Fixed calculation for remaining balance: (Old Balance + Invoice Total) - Payment Amount
-  const computedRemaining = remainingBalance != null ? safeNumber(remainingBalance) : 
-    Math.max(0, (nOld + computedInvoiceTotal) - nPayment)
-  
-  // Show remaining balance if there's an old balance OR if remaining > 0
-  // Also show if old balance exists and payment is less than total
+
+  const computedRemaining = remainingBalance != null
+    ? safeNumber(remainingBalance)
+    : Math.max(0, (nOld + computedInvoiceTotal) - nPayment)
+
   const shouldShowRemaining = computedRemaining > 0 || nOld !== 0
 
-  // Always show Old Balance line (branch and warehouse), even if zero
-  const showOldBalance = true
+  // Location = warehouse name > branch name > company name
+  const locationName = warehouseName || branchName || companyName || 'PetZone'
 
-  // For warehouse type, use landscape orientation
-  const isWarehouse = type === 'warehouse'
-  const effectiveOrientation = isWarehouse ? 'landscape' : orientation
-  
-  const containerStyles = layout === 'thermal' ? {
-    width: '100%',
-    maxWidth: '100%',
-    fontFamily: 'monospace',
-    fontSize: '11px',
-    lineHeight: '1.1',
-    color: '#000',
-    backgroundColor: '#fff',
-    padding: '8px 18px 8px 16px',
-    margin: '0 0 0 auto',
-    boxSizing: 'border-box'
-  } : {
-    width: '100%',
-    maxWidth: '1400px',
-    fontFamily: 'Arial, sans-serif',
-    fontSize: fontSize,
-    lineHeight: isWarehouse ? '1.1' : '1.2',
-    color: '#000',
-    backgroundColor: '#fff',
-    padding: isWarehouse ? '10px 16px' : '16px 24px',
-    margin: '0 auto',
-    boxSizing: 'border-box'
-  }
-
-  // ✅ INVOICE-STYLE LAYOUT FOR COLOR PRINTER
+  // ─────────────────────────────────────────────────────────────────────────────
+  // COLOR / INVOICE LAYOUT
+  // ─────────────────────────────────────────────────────────────────────────────
   if (layout === 'color') {
-    const nShipping = safeNumber(shippingHandling)
     const finalTotal = computedInvoiceTotal + nOld + nShipping
-    
-    // For warehouse type, use landscape orientation
-    const isWarehouse = type === 'warehouse'
-    const effectiveOrientation = isWarehouse ? 'landscape' : orientation
-    
-    // Compact spacing for warehouse so it doesn't stretch vertically
-    const compactSpacing = true
-    
+
     return (
-      <div className={`receipt-container ${layout}-layout`} style={containerStyles}>
-        <div style={{ maxWidth: '1350px', margin: '0 auto', width: '100%' }}>
-        {/* Header Section - Logo + Company Info Left, Invoice Info Right */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '12px' : '24px', alignItems: 'flex-start', gap: '18px' }}>
-          
-          {/* Left: Logo first, then Company Information below */}
+      <div
+        className="receipt-container color-layout"
+        style={{
+          width: '100%',
+          maxWidth: '1350px',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '12px',
+          lineHeight: '1.3',
+          color: '#000',
+          backgroundColor: '#fff',
+          padding: '16px 24px',
+          margin: '0 auto',
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* ══ HEADER: Left = logo + company info | Right = invoice meta ══ */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'flex-start', marginBottom: '18px', gap: '24px'
+        }}>
+
+          {/* LEFT: logo → company info → "To:" block */}
           <div style={{ flex: 1 }}>
-            {/* Logo at the top of left column */}
-            {logoUrl && (
-              <div style={{ marginBottom: compactSpacing ? '6px' : '10px' }}>
-                <img
-                  src={logoUrl}
-                  alt={companyName}
-                  style={{ maxHeight: '70px', maxWidth: '160px', objectFit: 'contain', display: 'block' }}
-                  onError={(e) => {
-                    e.target.style.display = 'none'
-                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'block'
-                  }}
-                />
-                {/* Fallback company name text shown only if logo fails */}
-                <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '20px' : '24px', color: '#000', display: 'none' }}>
-                  {companyName || 'Your Company Name'}
-                </div>
+            {/* Logo */}
+            {showLogo && (
+              <div style={{ marginBottom: '8px' }}>
+                {!logoError ? (
+                  <img
+                    src={effectiveLogoUrl}
+                    alt={locationName}
+                    style={{ maxHeight: '70px', maxWidth: '160px', objectFit: 'contain', display: 'block' }}
+                    onError={() => setLogoError(true)}
+                  />
+                ) : (
+                  <div style={{ fontWeight: 'bold', fontSize: '22px' }}>{locationName}</div>
+                )}
               </div>
             )}
-            {/* Company name text (shown when no logoUrl provided) */}
-            {!logoUrl && (
-              <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '20px' : '24px', marginBottom: compactSpacing ? '2px' : '4px', color: '#000' }}>
-                {companyName || 'Your Company Name'}
+
+            {/* Branch / Warehouse name */}
+            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '2px' }}>{locationName}</div>
+            {companyPhone   && <div style={{ fontSize: '12px', marginBottom: '2px' }}>Tel: {companyPhone}</div>}
+            {companyAddress && <div style={{ fontSize: '12px', marginBottom: '2px', lineHeight: '1.4' }}>{companyAddress}</div>}
+            {companyEmail   && <div style={{ fontSize: '12px', marginBottom: '2px' }}>{companyEmail}</div>}
+
+            {/* Bill-To block */}
+            <div style={{ marginTop: '14px' }}>
+              <div style={{
+                fontWeight: 'bold', fontSize: '10px', color: '#555',
+                textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px'
+              }}>
+                To:
               </div>
-            )}
-            {companySlogan && (
-              <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#666', marginBottom: compactSpacing ? '4px' : '12px' }}>
-                {companySlogan}
+              <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '2px' }}>
+                {customerName || 'Walk-in Customer'}
               </div>
-            )}
-            {companyAddress && (
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>{companyAddress}</div>
-            )}
-            {companyPhone && (
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>Phone: {companyPhone}</div>
-            )}
-            {companyEmail && (
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>Email: {companyEmail}</div>
-            )}
+              {customerPhone   && <div style={{ fontSize: '12px', marginBottom: '2px' }}>Tel: {customerPhone}</div>}
+              {customerAddress && <div style={{ fontSize: '12px', marginBottom: '2px' }}>{customerAddress}</div>}
+              {customerCity    && <div style={{ fontSize: '12px', marginBottom: '2px' }}>{customerCity}</div>}
+            </div>
           </div>
-          
-          {/* Right: Invoice Details only (logo removed from here) */}
-          <div style={{ textAlign: 'right', flex: 1 }}>
-            <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '20px' : '24px', marginBottom: compactSpacing ? '2px' : '4px', color: '#000' }}>
-              {isWarehouse ? 'WAREHOUSE INVOICE' : 'INVOICE'}
+
+          {/* RIGHT: invoice heading + meta */}
+          <div style={{ textAlign: 'right', flex: '0 0 auto', minWidth: '220px' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '22px', marginBottom: '6px' }}>
+              {isItemSheet
+                ? 'ITEM SHEET'
+                : type === 'warehouse' ? 'WAREHOUSE INVOICE' : 'INVOICE'}
             </div>
-            <div style={{ fontSize: compactSpacing ? '11px' : '12px', marginBottom: compactSpacing ? '2px' : '4px' }}>
-              <strong>INVOICE #{receiptNumber || '[100]'}</strong>
+            <div style={{ fontSize: '12px', marginBottom: '3px' }}>
+              <strong>{isItemSheet ? 'Sheet #' : 'Invoice #'}:</strong> {receiptNumber || '—'}
             </div>
-            <div style={{ fontSize: compactSpacing ? '11px' : '12px', marginBottom: compactSpacing ? '2px' : '4px' }}>
-              <strong>DATE: {date || 'NOVEMBER 18, 2025'}</strong>
+            {cashierName && (
+              <div style={{ fontSize: '12px', marginBottom: '3px' }}>
+                <strong>{type === 'warehouse' ? 'Warehouse Keeper:' : 'Cashier:'}</strong> {cashierName}
+              </div>
+            )}
+            <div style={{ fontSize: '12px', marginBottom: '3px' }}>
+              <strong>Date:</strong> {date || '—'}
             </div>
             {time && (
-              <div style={{ fontSize: compactSpacing ? '10px' : '11px', color: '#666' }}>Time: {time}</div>
-            )}
-            {cashierName && (
-              <div style={{ fontSize: compactSpacing ? '10px' : '11px', color: '#666', marginTop: compactSpacing ? '2px' : '4px' }}>Cashier: {cashierName}</div>
+              <div style={{ fontSize: '11px', color: '#555' }}>
+                <strong>Time:</strong> {time}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Billing and Shipping Information */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '12px' : '24px', gap: '18px' }}>
-          {/* Left: Billing TO */}
-          <div style={{ flex: 1, marginRight: compactSpacing ? '10px' : '20px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: compactSpacing ? '10px' : '12px', marginBottom: compactSpacing ? '4px' : '8px' }}>TO:</div>
-            <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>{customerName || '[Name]'}</div>
-            {customerAddress && (
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>{customerAddress}</div>
-            )}
-            {customerCity && (
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>{customerCity}</div>
-            )}
-            {customerPhone && (
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', marginBottom: compactSpacing ? '1px' : '3px', lineHeight: '1.3' }}>Phone: {customerPhone}</div>
-            )}
-          </div>
-          
-          {/* Right: SHIP TO - Hidden for all color prints */}
-        </div>
-
-        {/* Items Table */}
-        <div style={{ marginBottom: compactSpacing ? '18px' : '30px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ccc', fontSize: compactSpacing ? '11px' : '12px' }}>
+        {/* ══ ITEMS TABLE ══ */}
+        <div style={{ marginBottom: '20px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ccc', fontSize: '12px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f5f5f5' }}>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'left', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '46%' }}>DESCRIPTION</th>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'center', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '14%' }}>QTY</th>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '20%' }}>UNIT PRICE</th>
-                <th style={{ border: '1px solid #ccc', padding: compactSpacing ? '4px 8px' : '5px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: compactSpacing ? '11px' : '12px', width: '20%' }}>TOTAL</th>
+                <th style={{ border: '1px solid #ccc', padding: '5px 10px', textAlign: 'left', fontWeight: 'bold', width: isItemSheet ? '70%' : '46%' }}>
+                  DESCRIPTION
+                </th>
+                <th style={{ border: '1px solid #ccc', padding: '5px 10px', textAlign: 'center', fontWeight: 'bold', width: isItemSheet ? '15%' : '14%' }}>
+                  QTY
+                </th>
+                {isItemSheet ? (
+                  <th style={{ border: '1px solid #ccc', padding: '5px 10px', textAlign: 'left', fontWeight: 'bold', width: '15%' }}>
+                    UNIT
+                  </th>
+                ) : (
+                  <>
+                    <th style={{ border: '1px solid #ccc', padding: '5px 10px', textAlign: 'right', fontWeight: 'bold', width: '20%' }}>UNIT PRICE</th>
+                    <th style={{ border: '1px solid #ccc', padding: '5px 10px', textAlign: 'right', fontWeight: 'bold', width: '20%' }}>TOTAL</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
-              {items && items.length ? items.map((item, index) => {
-                const qty = Number.isFinite(item.quantity) ? item.quantity : 0
-                
-                // Use the normalized values from normalizeCartItemForPrint directly
-                let unitPriceValue = Number.isFinite(item.unitPrice) ? item.unitPrice : 
-                                    (Number.isFinite(item.price) ? item.price : 0)
-                
-                let totalValue = Number.isFinite(item.total) ? item.total : 
-                                (Number.isFinite(item.total_price) ? item.total_price : 0)
-                
-                // If values are still 0 or missing, try to calculate
-                if ((!Number.isFinite(unitPriceValue) || unitPriceValue === 0) && qty > 0) {
-                  if (Number.isFinite(totalValue) && totalValue !== 0) {
-                    const discountAmount = safeNumber(item.discount || 0)
-                    unitPriceValue = (totalValue + discountAmount) / qty
-                  } else {
-                    unitPriceValue = Number.isFinite(item.price) ? item.price :
-                                    (Number.isFinite(item.sellingPrice) ? item.sellingPrice :
-                                    (Number.isFinite(item.customPrice) ? item.customPrice : 0))
-                  }
-                }
-                
-                // If total is still 0 or missing, calculate from unitPrice
-                if ((!Number.isFinite(totalValue) || totalValue === 0) && Number.isFinite(unitPriceValue) && unitPriceValue !== 0 && qty > 0) {
-                  const discountAmount = safeNumber(item.discount || 0)
-                  totalValue = (unitPriceValue * qty) - discountAmount
-                }
-                
-                if (!Number.isFinite(unitPriceValue)) unitPriceValue = 0
-                if (!Number.isFinite(totalValue)) totalValue = 0
-                
-                return (
-                  <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9f9f9' }}>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', fontSize: compactSpacing ? '11px' : '12px' }}>
-                      <div style={{ fontWeight: 'bold' }}>{item.name}</div>
-                      {item.discount > 0 && (
-                        <div style={{ fontSize: compactSpacing ? '11px' : '12px', color: '#d32f2f' }}>Discount: -{formatCurrency(item.discount)}</div>
-                      )}
+              {items && items.length
+                ? items.map((item, index) => {
+                    const qty = Number.isFinite(item.quantity) ? item.quantity : 0
+                    let unitPrice = Number.isFinite(item.unitPrice) ? item.unitPrice :
+                      (Number.isFinite(item.price) ? item.price : 0)
+                    let lineTotal = Number.isFinite(item.total) ? item.total :
+                      (Number.isFinite(item.total_price) ? item.total_price : 0)
+                    if ((!unitPrice) && qty && lineTotal) unitPrice = (lineTotal + safeNumber(item.discount || 0)) / qty
+                    if ((!lineTotal) && unitPrice && qty) lineTotal = unitPrice * qty - safeNumber(item.discount || 0)
+
+                    return (
+                      <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9f9f9' }}>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 10px' }}>
+                          <div style={{ fontWeight: 'bold' }}>{item.name}</div>
+                          {item.sku && <div style={{ fontSize: '10px', color: '#777' }}>SKU: {item.sku}</div>}
+                          {!isItemSheet && item.discount > 0 && (
+                            <div style={{ fontSize: '11px', color: '#d32f2f' }}>
+                              Discount: -{formatCurrency(item.discount)}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ border: '1px solid #ccc', padding: '4px 10px', textAlign: 'center' }}>
+                          {formatCurrency(qty)}
+                        </td>
+                        {isItemSheet ? (
+                          <td style={{ border: '1px solid #ccc', padding: '4px 10px', textAlign: 'left' }}>
+                            {item.unit || ''}
+                          </td>
+                        ) : (
+                          <>
+                            <td style={{ border: '1px solid #ccc', padding: '4px 10px', textAlign: 'right' }}>
+                              {formatCurrency(unitPrice)}
+                            </td>
+                            <td style={{ border: '1px solid #ccc', padding: '4px 10px', textAlign: 'right', fontWeight: 'bold' }}>
+                              {formatCurrency(lineTotal)}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })
+                : (
+                  <tr>
+                    <td colSpan={isItemSheet ? 3 : 4} style={{ border: '1px solid #ddd', padding: '20px', textAlign: 'center', color: '#999' }}>
+                      No items
                     </td>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'center', fontSize: compactSpacing ? '11px' : '12px' }}>{formatCurrency(qty)}</td>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'right', fontSize: compactSpacing ? '11px' : '12px' }}>{formatCurrency(unitPriceValue)}</td>
-                    <td style={{ border: '1px solid #ccc', padding: compactSpacing ? '3px 8px' : '4px 10px', textAlign: 'right', fontSize: compactSpacing ? '11px' : '12px', fontWeight: 'bold' }}>{formatCurrency(totalValue)}</td>
                   </tr>
                 )
-              }) : (
-                <tr>
-                  <td colSpan="4" style={{ border: '1px solid #ddd', padding: compactSpacing ? '10px' : '20px', textAlign: 'center', color: '#999' }}>No items</td>
-                </tr>
-              )}
+              }
             </tbody>
           </table>
         </div>
 
-        {/* Summary Section - Right Aligned */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: compactSpacing ? '26px' : '46px' }}>
-          <div style={{
-            width: '70%',
-            maxWidth: isWarehouse ? '900px' : '820px',
-            minWidth: compactSpacing ? '450px' : '520px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
-              <span style={{ fontWeight: 'bold' }}>SUBTOTAL</span>
-              <span style={{ fontWeight: 'bold' }}>{formatCurrency(nSubtotal)}</span>
-            </div>
-            {nDiscount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px', color: '#d32f2f' }}>
-                <span style={{ fontWeight: 'bold' }}>DISCOUNT</span>
-                <span style={{ fontWeight: 'bold' }}>-{formatCurrency(nDiscount)}</span>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
-              <span style={{ fontWeight: 'bold' }}>SALES TAX</span>
-              <span style={{ fontWeight: 'bold' }}>{formatCurrency(nTax)}</span>
-            </div>
-            {nShipping > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
-                <span style={{ fontWeight: 'bold' }}>SHIPPING & HANDLING</span>
-                <span style={{ fontWeight: 'bold' }}>{formatCurrency(nShipping)}</span>
-              </div>
-            )}
-            {/* Always show OLD BALANCE for all invoices (branch + warehouse) */}
-            {showOldBalance && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '4px' : '8px', fontSize: compactSpacing ? '11px' : '13px' }}>
-                <span style={{ fontWeight: 'bold' }}>OLD BALANCE</span>
-                <span style={{ fontWeight: 'bold' }}>{formatCurrency(nOld)}</span>
-              </div>
-            )}
-            <div style={{ borderTop: '2px solid #000', marginTop: compactSpacing ? '10px' : '16px', marginBottom: compactSpacing ? '10px' : '14px', paddingTop: compactSpacing ? '10px' : '14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: compactSpacing ? '13px' : '15px', fontWeight: 'bold' }}>
-                <span>TOTAL DUE</span>
-                <span>{formatCurrency(finalTotal)}</span>
-              </div>
-            </div>
-            
-            {/* Payment Details */}
-            <div style={{ marginTop: compactSpacing ? '14px' : '24px', paddingTop: compactSpacing ? '12px' : '20px', borderTop: '1px dashed #000' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
-                <span>Payment Method:</span>
-                <span style={{ fontWeight: 'bold' }}>{paymentMethod}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
-                <span>Payment Amount:</span>
-                <span style={{ fontWeight: 'bold' }}>{formatCurrency(nPayment)}</span>
-              </div>
-              {(nCredit > 0 || paymentMethod === 'FULLY_CREDIT') && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
-                  <span>Credit Amount:</span>
-                  <span style={{ fontWeight: 'bold' }}>{formatCurrency(nCredit || finalTotal)}</span>
-                </div>
+        {/* ══ TOTALS — hidden for item sheet ══ */}
+        {!isItemSheet && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '28px' }}>
+            <div style={{ width: '55%', minWidth: '320px' }}>
+              <Row label="SUBTOTAL"   value={formatCurrency(nSubtotal)} bold />
+              {nDiscount > 0 && (
+                <Row label="DISCOUNT" value={`-${formatCurrency(nDiscount)}`} bold color="#d32f2f" />
               )}
-              {shouldShowRemaining && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px' }}>
-                  <span>Remaining Balance:</span>
-                  <span style={{ fontWeight: 'bold' }}>{formatCurrency(computedRemaining)}</span>
-                </div>
+              <Row label="SALES TAX"  value={formatCurrency(nTax)} bold />
+              {nShipping > 0 && (
+                <Row label="SHIPPING & HANDLING" value={formatCurrency(nShipping)} bold />
               )}
-              {change > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: compactSpacing ? '6px' : '10px', fontSize: compactSpacing ? '10px' : '12px', color: 'green' }}>
-                  <span>Change:</span>
-                  <span style={{ fontWeight: 'bold' }}>{formatCurrency(change)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+              <Row label="OLD BALANCE" value={formatCurrency(nOld)} bold />
 
-        {/* Notes Section */}
-        {notes && (
-          <div style={{ marginBottom: compactSpacing ? '8px' : '24px', padding: compactSpacing ? '6px' : '12px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: compactSpacing ? '2px' : '4px', fontSize: compactSpacing ? '11px' : '13px' }}>Notes:</div>
-            <div style={{ fontSize: compactSpacing ? '10px' : '12px' }}>{notes}</div>
+              <div style={{ borderTop: '2px solid #000', margin: '10px 0', paddingTop: '10px' }}>
+                <Row label="TOTAL DUE" value={formatCurrency(finalTotal)} bold large />
+              </div>
+
+              {/* Payment details */}
+              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed #000' }}>
+                <Row label="Payment Method" value={paymentMethod} />
+                <Row label="Payment Amount" value={formatCurrency(nPayment)} />
+                {(nCredit > 0 || paymentMethod === 'FULLY_CREDIT') && (
+                  <Row label="Credit Amount" value={formatCurrency(nCredit || finalTotal)} />
+                )}
+                {shouldShowRemaining && (
+                  <Row label="Remaining Balance" value={formatCurrency(computedRemaining)} bold />
+                )}
+                {change > 0 && (
+                  <Row label="Change" value={formatCurrency(change)} bold color="green" />
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Signature Section - Always show for warehouse invoices */}
-        {(showSignature || isWarehouse) && (
-          <div style={{ marginTop: compactSpacing ? '28px' : '52px', display: 'flex', justifyContent: 'space-between', gap: compactSpacing ? '18px' : '28px' }}>
-            {isWarehouse ? (
-              <>
-                <div style={{ width: '48%', borderTop: '1px solid #000', paddingTop: compactSpacing ? '6px' : '10px' }}>
-                  <div style={{ fontSize: compactSpacing ? '11px' : '13px', fontWeight: 'bold', marginBottom: compactSpacing ? '3px' : '5px' }}>Received By:</div>
-                  <div style={{ fontSize: compactSpacing ? '10px' : '12px', color: '#666', minHeight: compactSpacing ? '42px' : '54px' }}>________________________________</div>
-                </div>
-                <div style={{ width: '48%', borderTop: '1px solid #000', paddingTop: compactSpacing ? '6px' : '10px' }}>
-                  <div style={{ fontSize: compactSpacing ? '11px' : '13px', fontWeight: 'bold', marginBottom: compactSpacing ? '3px' : '5px' }}>Signature:</div>
-                  <div style={{ fontSize: compactSpacing ? '10px' : '12px', color: '#666', minHeight: compactSpacing ? '42px' : '54px' }}>________________________________</div>
-                </div>
-              </>
-            ) : (
-              <>
-            <div style={{ width: '48%', borderTop: '1px solid #000', paddingTop: compactSpacing ? '6px' : '10px' }}>
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', fontWeight: 'bold', marginBottom: compactSpacing ? '3px' : '5px' }}>Customer Signature</div>
-              <div style={{ fontSize: compactSpacing ? '10px' : '12px', color: '#666', minHeight: compactSpacing ? '36px' : '48px' }}></div>
-            </div>
-            <div style={{ width: '48%', borderTop: '1px solid #000', paddingTop: compactSpacing ? '6px' : '10px' }}>
-              <div style={{ fontSize: compactSpacing ? '11px' : '13px', fontWeight: 'bold', marginBottom: compactSpacing ? '3px' : '5px' }}>Authorized Signature</div>
-              <div style={{ fontSize: compactSpacing ? '10px' : '12px', color: '#666', minHeight: compactSpacing ? '36px' : '48px' }}></div>
-            </div>
-              </>
-            )}
+        {/* Notes */}
+        {notes && (
+          <div style={{
+            marginBottom: '12px', padding: '8px 12px',
+            backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '12px'
+          }}>
+            <strong>Notes:</strong> {notes}
+          </div>
+        )}
+
+        {/* Signatures */}
+        {(showSignature || type === 'warehouse') && !isItemSheet && (
+          <div style={{ marginTop: '36px', display: 'flex', justifyContent: 'space-between', gap: '24px' }}>
+            <SigBox label={type === 'warehouse' ? 'Received By' : 'Customer Signature'} />
+            <SigBox label={type === 'warehouse' ? 'Signature'   : 'Authorized Signature'} />
+          </div>
+        )}
+        {isItemSheet && (
+          <div style={{ marginTop: '28px', display: 'flex', justifyContent: 'space-between', gap: '24px' }}>
+            <SigBox label="Received By" />
+            <SigBox label="Checked By"  />
           </div>
         )}
 
         {/* Footer */}
-        <div style={{ textAlign: 'center', marginTop: compactSpacing ? '16px' : '32px', paddingTop: compactSpacing ? '8px' : '16px', borderTop: '2px solid #000' }}>
-          <div style={{ fontSize: compactSpacing ? '9px' : '11px', marginBottom: compactSpacing ? '2px' : '4px', fontWeight: 'bold' }}>{footerMessage}</div>
-          <div style={{ fontSize: compactSpacing ? '8px' : '10px', color: '#666' }}>Powered by Tychora | www.tychora.com</div>
-        </div>
-
+        <div style={{ textAlign: 'center', marginTop: '20px', paddingTop: '12px', borderTop: '2px solid #000' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '2px' }}>{footerMessage}</div>
+          <div style={{ fontSize: '10px', color: '#666' }}>Powered by Tychora | www.tychora.com</div>
         </div>
       </div>
     )
   }
 
-  // ✅ THERMAL PRINTER LAYOUT (Original - unchanged)
+  // ─────────────────────────────────────────────────────────────────────────────
+  // THERMAL LAYOUT  (also handles isItemSheet for thermal item sheets)
+  // ─────────────────────────────────────────────────────────────────────────────
+  const LINE      = <div style={{ borderTop: '1px dashed #000', margin: '5px 0' }} />
+  const BOLD_LINE = <div style={{ borderTop: '2px solid #000', margin: '5px 0' }} />
+  const EQ_LINE   = (
+    <div style={{
+      borderBottom: '2px solid #000', margin: '5px 0',
+      letterSpacing: '2px', textAlign: 'center', fontSize: '10px'
+    }}>
+      {'================================'}
+    </div>
+  )
+
   return (
-    <div className={`receipt-container ${layout}-layout`} style={containerStyles}>
-      <div style={{ textAlign: layout === 'thermal' ? 'center' : 'left', marginBottom: layout === 'thermal' ? '8px' : '16px' }}>
-        <div style={{ marginBottom: layout === 'thermal' ? '4px' : '8px' }}>
-          {!logoError && showLogo ? (
-            <Image
-              src={effectiveLogoUrl}
-              alt={companyName || 'Company Logo'}
-              width={layout === 'thermal' ? 100 : 150}
-              height={layout === 'thermal' ? 70 : 105}
-              style={{ display: 'block', margin: '0 auto', maxWidth: '100%', height: 'auto' }}
-              onError={() => setLogoError(true)}
-              onLoad={() => setLogoError(false)}
-              priority
-            />
-          ) : (
-            <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: layout === 'thermal' ? '14px' : '18px', textAlign: 'center' }}>{companyName || ' '}</div>
-          )}
-        </div>
-        {companyAddress && <div style={{ fontSize: layout === 'thermal' ? '9px' : '13px', marginBottom: '3px', lineHeight: '1.2' }}>{companyAddress}</div>}
-        {companyPhone && <div style={{ fontSize: layout === 'thermal' ? '9px' : '13px', marginBottom: '3px', lineHeight: '1.2' }}>Tel: {companyPhone}</div>}
-        {companyEmail && <div style={{ fontSize: layout === 'thermal' ? '9px' : '13px', marginBottom: '8px', lineHeight: '1.2' }}>Email: {companyEmail}</div>}
-        <div style={{ borderTop: layout === 'thermal' ? '2px solid #000' : '3px solid #000', margin: layout === 'thermal' ? '4px 0' : '12px 0' }} />
-        <div style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: layout === 'thermal' ? '12px' : '18px', color: '#000', textAlign: 'center', marginBottom: layout === 'thermal' ? '4px' : '8px' }}>{title}</div>
-      </div>
-
-      <div style={{ marginBottom: layout === 'thermal' ? '8px' : '16px', backgroundColor: layout === 'color' ? '#f5f5f5' : 'transparent', padding: layout === 'color' ? '12px' : '0', borderRadius: layout === 'color' ? '8px' : '0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Receipt #:</span>
-          <span style={{ fontWeight: 'bold', fontSize: layout === 'thermal' ? '10px' : '13px' }}>{receiptNumber || 'N/A'}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Date:</span>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px' }}>{date}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Time:</span>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px' }}>{time}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Cashier:</span>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px' }}>{cashierName || 'N/A'}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Customer:</span>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px' }}>{customerName}</span>
-        </div>
-      </div>
-
-      <div style={{ borderTop: layout === 'thermal' ? '2px solid #000' : '3px solid #000', margin: layout === 'thermal' ? '4px 0' : '12px 0' }} />
-
-      <div style={{ marginBottom: layout === 'thermal' ? '8px' : '16px' }}>
-        <div style={{ display: 'flex', marginBottom: '6px', fontWeight: 'bold', backgroundColor: layout === 'color' ? '#1976d2' : 'transparent', color: layout === 'color' ? '#fff' : '#000', padding: layout === 'color' ? '8px 4px' : '0', borderRadius: layout === 'color' ? '4px' : '0' }}>
-          <div style={{ flex: 2, fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Item</div>
-          <div style={{ width: '40px', textAlign: 'center', fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Qty</div>
-          <div style={{ width: '60px', textAlign: 'right', fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Price</div>
-          <div style={{ width: '60px', textAlign: 'right', fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Total</div>
-        </div>
-        <div style={{ borderTop: layout === 'thermal' ? '2px solid #000' : '2px solid #000', marginBottom: '6px' }} />
-
-        {items && items.length ? items.map((item, index) => (
-          <div key={index} style={{ marginBottom: '6px', backgroundColor: layout === 'color' && index % 2 === 0 ? '#f9f9f9' : 'transparent', padding: layout === 'color' ? '8px 4px' : '0', borderRadius: layout === 'color' ? '4px' : '0' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '2px', fontSize: layout === 'thermal' ? '10px' : '13px', color: '#000' }}>{item.name}</div>
-            <div style={{ display: 'flex', marginTop: '2px' }}>
-              <div style={{ 
-                flex: 2, 
-                fontSize: layout === 'thermal' ? '10px' : '12px',
-                color: '#000'
-              }}></div>
-              <div style={{ 
-                width: '40px', 
-                textAlign: 'center', 
-                fontSize: layout === 'thermal' ? '10px' : '12px',
-                color: '#000',
-                fontWeight: 'bold'
-              }}>
-                {formatCurrency(item.quantity)}
-              </div>
-              {(() => {
-                const qty = Number.isFinite(item.quantity) ? item.quantity : 0
-                const unitPriceValue = Number.isFinite(item.unitPrice) && item.unitPrice !== 0
-                  ? item.unitPrice
-                  : Number.isFinite(item.price) && item.price !== 0
-                    ? item.price
-                    : Number.isFinite(item.selling_price) && item.selling_price !== 0
-                      ? item.selling_price
-                      : Number.isFinite(item.catalog_price) && item.catalog_price !== 0
-                        ? item.catalog_price
-                    : 0
-                const totalValue = Number.isFinite(item.total) && item.total !== 0
-                  ? item.total
-                  : Number.isFinite(item.total_price) && item.total_price !== 0
-                    ? item.total_price
-                    : Number.isFinite(item.subtotal) && item.subtotal !== 0
-                      ? item.subtotal
-                  : ((unitPriceValue * qty) - (item.discount || 0))
-                const formattedUnit = formatCurrency(unitPriceValue)
-                const formattedTotal = formatCurrency(totalValue)
-                return (
-                  <>
-                    <div style={{ 
-                      width: '60px', 
-                      textAlign: 'right', 
-                      fontSize: layout === 'thermal' ? '10px' : '12px',
-                      color: '#000',
-                      fontWeight: 'bold'
-                    }}>
-                      {formattedUnit}
-                    </div>
-                    <div style={{ 
-                      width: '60px', 
-                      textAlign: 'right', 
-                      fontWeight: 'bold', 
-                      fontSize: layout === 'thermal' ? '10px' : '12px',
-                      color: '#000'
-                    }}>
-                      {formattedTotal}
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
-            
-            {/* Show item discount if applicable */}
-            {item.discount > 0 && (
-              <div style={{ 
-                display: 'flex', 
-                marginTop: '2px',
-                justifyContent: 'flex-end'
-              }}>
-                <div style={{ 
-                  fontSize: layout === 'thermal' ? '9px' : '11px',
-                  color: '#d32f2f',
-                  fontWeight: 'bold',
-                  marginRight: '60px'
-                }}>
-                  -{formatCurrency(item.discount)}
-                </div>
-              </div>
+    <div
+      className="receipt-container thermal-layout"
+      style={{
+        width: '100%',
+        maxWidth: '100%',
+        fontFamily: 'monospace',
+        fontSize: '11px',
+        lineHeight: '1.15',
+        color: '#000',
+        backgroundColor: '#fff',
+        padding: '8px 16px',
+        margin: '0 auto',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* ══ HEADER ══ */}
+      <div style={{ textAlign: 'center', marginBottom: '6px' }}>
+        {showLogo && (
+          <div style={{ marginBottom: '4px' }}>
+            {!logoError ? (
+              <img
+                src={effectiveLogoUrl}
+                alt={locationName}
+                style={{ maxHeight: '60px', maxWidth: '120px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{locationName}</div>
             )}
           </div>
-        )) : (
-          <div style={{ textAlign: 'center', padding: 8 }}>No items</div>
         )}
+        <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '2px' }}>{locationName}</div>
+        {companyPhone   && <div style={{ fontSize: '10px', marginBottom: '1px' }}>Tel: {companyPhone}</div>}
+        {companyAddress && <div style={{ fontSize: '9px',  marginBottom: '1px', lineHeight: '1.3' }}>{companyAddress}</div>}
+        {companyEmail   && <div style={{ fontSize: '9px',  marginBottom: '1px' }}>{companyEmail}</div>}
       </div>
 
-      <div style={{ borderTop: layout === 'thermal' ? '2px solid #000' : '3px solid #000', margin: layout === 'thermal' ? '4px 0' : '12px 0' }} />
+      {BOLD_LINE}
 
-      <div style={{ marginBottom: layout === 'thermal' ? '8px' : '16px', backgroundColor: layout === 'color' ? '#f0f8ff' : 'transparent', padding: layout === 'color' ? '12px' : '0', borderRadius: layout === 'color' ? '8px' : '0', border: layout === 'color' ? '1px solid #1976d2' : 'none' }}>
-        {/* Subtotal */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Subtotal:</span>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{formatCurrency(nSubtotal)}</span>
-        </div>
-
-        {/* Discount - NOW SHOWS BEFORE TAX */}
-        {nDiscount > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold', color: '#d32f2f' }}>Discount:</span>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold', color: '#d32f2f' }}>-{formatCurrency(nDiscount)}</span>
-          </div>
-        )}
-
-        {/* Tax */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Tax:</span>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{formatCurrency(nTax)}</span>
-        </div>
-
-        {/* Invoice Total */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', marginTop: '4px', borderBottom: '1px dashed #000', paddingBottom: '4px' }}>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Invoice Total:</span>
-          <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{formatCurrency(computedInvoiceTotal)}</span>
-        </div>
-
-        {/* Old Balance - NOW SHOWS BEFORE TOTAL (always) */}
-        {showOldBalance && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', marginTop: '4px' }}>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Old Balance:</span>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{formatCurrency(nOld)}</span>
-          </div>
-        )}
-
-        {/* TOTAL */}
-        <div style={{ marginTop: 10, borderTop: '2px solid #000', paddingTop: 6, fontSize: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900 }}>
-            <div>TOTAL</div>
-            <div>{formatCurrency(displayedTotal)}</div>
-          </div>
-        </div>
-
-        {/* PAYMENT DETAILS SECTION - ALWAYS SHOW PAYMENT METHOD */}
-        <div style={{ marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '6px' }}>
-          {/* Payment Method - ALWAYS SHOW */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Payment Method:</span>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{paymentMethod}</span>
-          </div>
-
-          {/* Payment Amount - ALWAYS SHOW */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Payment Amount:</span>
-            <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{formatCurrency(nPayment)}</span>
-          </div>
-
-          {/* Credit Amount - Show if applicable (partial payment or fully credit) */}
-          {(nCredit > 0 || paymentMethod === 'FULLY_CREDIT') && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-              <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Credit Amount:</span>
-              <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{formatCurrency(nCredit || displayedTotal)}</span>
-            </div>
-          )}
-
-          {/* Remaining Balance - Show when there's an old balance or remaining > 0 */}
-          {shouldShowRemaining && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontWeight: 700 }}>
-              <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>Remaining Balance:</span>
-              <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold' }}>{formatCurrency(computedRemaining)}</span>
-            </div>
-          )}
-
-          {/* Change - Show when overpaid */}
-          {change > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontWeight: 700 }}>
-              <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold', color: 'green' }}>Change:</span>
-              <span style={{ fontSize: layout === 'thermal' ? '10px' : '13px', fontWeight: 'bold', color: 'green' }}>{formatCurrency(change)}</span>
-            </div>
-          )}
-        </div>
+      {/* Title */}
+      <div style={{ fontWeight: 'bold', textAlign: 'center', fontSize: '12px', textTransform: 'uppercase', marginBottom: '5px' }}>
+        {isItemSheet ? 'ITEM SHEET' : (title || 'RECEIPT')}
       </div>
 
-      {notes && (
+      {BOLD_LINE}
+
+      {/* ══ META ══ */}
+      <ThermalRow label={isItemSheet ? 'Sheet #' : 'Receipt #'} value={receiptNumber || '—'} />
+      <ThermalRow label="Date"     value={date || '—'} />
+      {time && <ThermalRow label="Time" value={time} />}
+      <ThermalRow label={type === 'warehouse' ? 'W.Keeper' : 'Cashier'} value={cashierName || '—'} />
+      <ThermalRow label="Customer" value={customerName || 'Walk-in'} />
+      {customerPhone && <ThermalRow label="Phone" value={customerPhone} />}
+
+      {BOLD_LINE}
+
+      {/* ══ ITEMS HEADER ══ */}
+      {isItemSheet ? (
+        <div style={{ display: 'flex', fontWeight: 'bold', fontSize: '10px', marginBottom: '3px' }}>
+          <div style={{ flex: 3 }}>Item</div>
+          <div style={{ width: '40px', textAlign: 'center' }}>Qty</div>
+          <div style={{ width: '50px', textAlign: 'right' }}>Unit</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', fontWeight: 'bold', fontSize: '10px', marginBottom: '3px' }}>
+          <div style={{ flex: 2 }}>Item</div>
+          <div style={{ width: '30px', textAlign: 'center' }}>Qty</div>
+          <div style={{ width: '52px', textAlign: 'right' }}>Price</div>
+          <div style={{ width: '52px', textAlign: 'right' }}>Total</div>
+        </div>
+      )}
+
+      {LINE}
+
+      {/* ══ ITEMS ══ */}
+      {items && items.length
+        ? items.map((item, index) => {
+            const qty = Number.isFinite(item.quantity) ? item.quantity : 0
+            let unitPrice = Number.isFinite(item.unitPrice) ? item.unitPrice :
+              (Number.isFinite(item.price) ? item.price : 0)
+            let lineTotal = Number.isFinite(item.total) ? item.total :
+              (Number.isFinite(item.total_price) ? item.total_price : 0)
+            if (!unitPrice && qty && lineTotal) unitPrice = (lineTotal + safeNumber(item.discount || 0)) / qty
+            if (!lineTotal && unitPrice && qty)  lineTotal = unitPrice * qty - safeNumber(item.discount || 0)
+
+            return (
+              <div key={index} style={{ marginBottom: '4px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '10px' }}>{item.name}</div>
+                {isItemSheet ? (
+                  <div style={{ display: 'flex', fontSize: '10px' }}>
+                    <div style={{ flex: 3 }}></div>
+                    <div style={{ width: '40px', textAlign: 'center' }}>{formatCurrency(qty)}</div>
+                    <div style={{ width: '50px', textAlign: 'right' }}>{item.unit || ''}</div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', fontSize: '10px' }}>
+                      <div style={{ flex: 2 }}></div>
+                      <div style={{ width: '30px', textAlign: 'center' }}>{formatCurrency(qty)}</div>
+                      <div style={{ width: '52px', textAlign: 'right' }}>{formatCurrency(unitPrice)}</div>
+                      <div style={{ width: '52px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(lineTotal)}</div>
+                    </div>
+                    {item.discount > 0 && (
+                      <div style={{ fontSize: '9px', color: '#d32f2f', textAlign: 'right' }}>
+                        Discount: -{formatCurrency(item.discount)}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })
+        : (
+          <div style={{ textAlign: 'center', fontSize: '10px', color: '#999', padding: '8px 0' }}>No items</div>
+        )
+      }
+
+      {/* ══ TOTALS — hidden for item sheet ══ */}
+      {!isItemSheet && (
         <>
-          <div style={{ borderTop: '2px solid #000', margin: '4px 0' }} />
-          <div style={{ marginBottom: '8px', backgroundColor: layout === 'color' ? '#fff3cd' : 'transparent', padding: layout === 'color' ? '8px' : '0', borderRadius: layout === 'color' ? '4px' : '0' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Notes:</div>
-            <div style={{ fontSize: layout === 'thermal' ? '9px' : '11px', fontWeight: 'bold' }}>{notes}</div>
+          {BOLD_LINE}
+          <ThermalRow label="Subtotal"     value={formatCurrency(nSubtotal)} />
+          {nTax > 0      && <ThermalRow label="Tax"      value={formatCurrency(nTax)} />}
+          {nDiscount > 0 && <ThermalRow label="Discount" value={`-${formatCurrency(nDiscount)}`} color="#d32f2f" />}
+          {LINE}
+          <ThermalRow label="Invoice Total" value={formatCurrency(computedInvoiceTotal)} bold />
+          <ThermalRow label="Old Balance"   value={formatCurrency(nOld)} />
+          {BOLD_LINE}
+          <ThermalRow label="TOTAL" value={formatCurrency(displayedTotal)} bold large />
+          {EQ_LINE}
+
+          {/* Payment */}
+          <div style={{ marginTop: '4px' }}>
+            <ThermalRow label="Payment Method" value={paymentMethod} />
+            <ThermalRow label="Paid Amount"    value={formatCurrency(nPayment)} bold />
+            {(nCredit > 0 || paymentMethod === 'FULLY_CREDIT') && (
+              <ThermalRow label="Credit Amount" value={formatCurrency(nCredit || displayedTotal)} />
+            )}
+            {shouldShowRemaining && (
+              <ThermalRow label="Remaining Balance" value={formatCurrency(computedRemaining)} bold />
+            )}
+            {change > 0 && (
+              <ThermalRow label="Change" value={formatCurrency(change)} />
+            )}
           </div>
         </>
       )}
 
-      <div style={{ textAlign: 'center', marginTop: layout === 'thermal' ? '8px' : '16px' }}>
-        <div style={{ borderTop: '2px solid #000', marginBottom: '6px' }} />
-        <div style={{ fontSize: layout === 'thermal' ? '9px' : '11px', marginBottom: '4px', fontWeight: 'bold' }}>{footerMessage}</div>
-        <div style={{ fontSize: layout === 'thermal' ? '10px' : '12px', color: '#000', fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>Powered by Tychora</div>
-        <div style={{ fontSize: layout === 'thermal' ? '9px' : '11px', color: '#000', textAlign: 'center' }}>www.tychora.com</div>
+      {/* Notes */}
+      {notes && (
+        <>
+          {LINE}
+          <div style={{ fontSize: '9px' }}><strong>Notes:</strong> {notes}</div>
+        </>
+      )}
+
+      {/* Item sheet signatures */}
+      {isItemSheet && (
+        <>
+          {LINE}
+          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', fontSize: '9px' }}>
+            <div style={{ width: '45%', borderTop: '1px solid #000', paddingTop: '4px' }}>Received By</div>
+            <div style={{ width: '45%', borderTop: '1px solid #000', paddingTop: '4px' }}>Checked By</div>
+          </div>
+        </>
+      )}
+
+      {/* Footer */}
+      {BOLD_LINE}
+      <div style={{ textAlign: 'center', marginTop: '4px' }}>
+        <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>{footerMessage}</div>
+        <div style={{ fontSize: '9px' }}>Powered by Tychora</div>
+        <div style={{ fontSize: '8px', color: '#555' }}>www.tychora.com</div>
       </div>
     </div>
   )
