@@ -401,7 +401,7 @@ export default function PrintDialog({
             />
           }
           label={
-            <Typography variant="caption">Direct print (Don't show this dialog again)</Typography>
+            <Typography variant="caption">Direct print (Don&apos;t show this dialog again)</Typography>
           }
           sx={{ mr: 'auto' }}
         />

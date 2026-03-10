@@ -177,7 +177,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
         <DialogContent dividers>
           {/* Sales icon legend */}
           <Alert severity="info" sx={{ mb: 3 }}>
-            <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by "Allow Cashier Sales Edit" &nbsp;|&nbsp; 🗑 Delete — controlled by "Allow Cashier Sales Delete"
+            <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by &quot;Allow Cashier Sales Edit&quot; &nbsp;|&nbsp; 🗑 Delete — controlled by &quot;Allow Cashier Sales Delete&quot;
           </Alert>
           {selectedBranch && (
             <Grid container spacing={3}>
@@ -392,7 +392,7 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
         <DialogContent dividers>
           {/* Sales icon legend */}
           <Alert severity="info" sx={{ mb: 3 }}>
-            <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by "Allow Warehouse Sales Edit" &nbsp;|&nbsp; 🗑 Delete — controlled by "Allow Warehouse Sales Delete"
+            <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by &quot;Allow Warehouse Sales Edit&quot; &nbsp;|&nbsp; 🗑 Delete — controlled by &quot;Allow Warehouse Sales Delete&quot;
           </Alert>
           {selectedWarehouse && (
             <Grid container spacing={3}>
