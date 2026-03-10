@@ -345,7 +345,11 @@ function CustomerLedgerPage() {
       if (!res.data.success) { alert('Failed to load ledger data for WhatsApp'); return }
 
       const message = buildWhatsappMessage(res.data.data, activeFilters)
-      const phone = (customer.customer_phone || '').replace(/\D/g, '')
+      let phone = (customer.customer_phone || '').replace(/\D/g, '')
+      // Fix: WhatsApp requires international format (no leading 0)
+      // Pakistan numbers: 03001234567 → 923001234567
+      // If starts with 0, replace with country code 92 (Pakistan)
+      if (phone.startsWith('0')) phone = '92' + phone.slice(1)
       const encodedMsg = encodeURIComponent(message)
       const url = phone ? `https://wa.me/${phone}?text=${encodedMsg}` : `https://wa.me/?text=${encodedMsg}`
       window.open(url, '_blank')
