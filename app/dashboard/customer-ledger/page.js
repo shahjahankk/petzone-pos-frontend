@@ -328,37 +328,73 @@ function CustomerLedgerPage() {
     return lines.join('\n')
   }
 
-  // ── WhatsApp share ─────────────────────────────────────────
+  // ── WhatsApp share: PDF print + WhatsApp Web (no number) ──────────────────
   const handleWhatsappShare = async (customer, filtersOverride = null) => {
     const identifier = getCustomerIdentifier(customer)
     if (!identifier) return
     setWhatsappLoading(true)
     try {
       const activeFilters = filtersOverride || ledgerFilters
-      const queryParams = new URLSearchParams({ detailed: 'true', limit: '1000' })
-      if (activeFilters.startDate) queryParams.append('startDate', activeFilters.startDate)
-      if (activeFilters.endDate) queryParams.append('endDate', activeFilters.endDate)
-      if (activeFilters.transactionType && activeFilters.transactionType !== 'all') queryParams.append('transactionType', activeFilters.transactionType)
-      if (activeFilters.paymentMethod && activeFilters.paymentMethod !== 'all') queryParams.append('paymentMethod', activeFilters.paymentMethod)
 
-      const res = await api.get(`/customer-ledger/${encodeURIComponent(identifier)}?${queryParams.toString()}`)
-      if (!res.data.success) { alert('Failed to load ledger data for WhatsApp'); return }
+      // Step 1: Fetch detailed PDF HTML from backend and open print dialog
+      const exportParams = new URLSearchParams({ format: 'pdf', detailed: 'true', limit: '1000' })
+      if (activeFilters.startDate) exportParams.append('startDate', activeFilters.startDate)
+      if (activeFilters.endDate) exportParams.append('endDate', activeFilters.endDate)
+      if (activeFilters.transactionType && activeFilters.transactionType !== 'all') exportParams.append('transactionType', activeFilters.transactionType)
+      if (activeFilters.paymentMethod && activeFilters.paymentMethod !== 'all') exportParams.append('paymentMethod', activeFilters.paymentMethod)
 
-      const message = buildWhatsappMessage(res.data.data, activeFilters)
-      let phone = (customer.customer_phone || '').replace(/\D/g, '')
-      // Fix: WhatsApp requires international format (no leading 0)
-      // Pakistan numbers: 03001234567 → 923001234567
-      // If starts with 0, replace with country code 92 (Pakistan)
-      if (phone.startsWith('0')) phone = '92' + phone.slice(1)
+      const exportRes = await api.get(
+        `/customer-ledger/${encodeURIComponent(identifier)}/export?${exportParams.toString()}`,
+        { responseType: 'text' }
+      )
+
+      // Open print window — user saves as PDF
+      const printWindow = window.open('', '_blank', 'width=900,height=700')
+      if (printWindow) {
+        printWindow.document.write(exportRes.data)
+        printWindow.document.close()
+        setTimeout(() => { try { printWindow.focus(); printWindow.print() } catch {} }, 800)
+      }
+
+      // Step 2: Fetch summary for short WhatsApp message
+      const ledgerRes = await api.get(`/customer-ledger/${encodeURIComponent(identifier)}?limit=1&offset=0`)
+      const summary = ledgerRes.data?.data?.summary || {}
+      const customerInfo = ledgerRes.data?.data?.customer || {}
+      const customerName = customerInfo.name || customerInfo.customer_name || customer.customer_name || 'Customer'
+      const customerPhone = customerInfo.phone || customerInfo.customer_phone || customer.customer_phone || ''
+      const from = activeFilters.startDate ? formatDate(activeFilters.startDate) : 'All Time'
+      const to = activeFilters.endDate ? formatDate(activeFilters.endDate) : 'Today'
+      const period = (activeFilters.startDate || activeFilters.endDate) ? `${from} - ${to}` : 'All Time'
+
+      const message = [
+        `*CUSTOMER LEDGER*`,
+        `---------------------------`,
+        `Customer: ${customerName}`,
+        customerPhone ? `Phone: ${customerPhone}` : null,
+        `Period: ${period}`,
+        `---------------------------`,
+        `Total Amount:  ${formatCurrency(summary.totalAmount || 0)}`,
+        `Total Paid:    ${formatCurrency(summary.totalPaid || 0)}`,
+        `*Outstanding:  ${formatCurrency(summary.outstandingBalance || 0)}*`,
+        `---------------------------`,
+        `(Full detailed ledger attached as PDF)`,
+        `Sent via POS System - ${new Date().toLocaleDateString()}`
+      ].filter(Boolean).join('\n')
+
+      // Step 3: Open WhatsApp Web with NO number — user picks contact themselves
       const encodedMsg = encodeURIComponent(message)
-      const url = phone ? `https://wa.me/${phone}?text=${encodedMsg}` : `https://wa.me/?text=${encodedMsg}`
-      window.open(url, '_blank')
+      setTimeout(() => {
+        window.open(`https://web.whatsapp.com/send?text=${encodedMsg}`, '_blank')
+      }, 600)
+
     } catch (err) {
-      alert(err?.response?.data?.message || 'Failed to share via WhatsApp')
+      console.error('WhatsApp share error:', err)
+      alert(err?.response?.data?.message || 'Failed to prepare WhatsApp share')
     } finally {
       setWhatsappLoading(false)
     }
   }
+
 
   // ── Ledger sort / summary ──────────────────────────────────
   const calculateSummaryTotals = () => {
