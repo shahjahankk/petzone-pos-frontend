@@ -30,7 +30,6 @@ import {
   Alert,
   CircularProgress,
   Pagination,
-  Divider,
   Menu,
   ListItemIcon
 } from '@mui/material'
@@ -91,7 +90,6 @@ function CustomerLedgerPage() {
     if (!isAdminMode || !urlParams.role) {
       return originalUser
     }
-    
     return {
       ...originalUser,
       role: urlParams.role.toUpperCase(),
@@ -107,10 +105,7 @@ function CustomerLedgerPage() {
   
   // Get scope info
   const getScopeInfo = useCallback(() => {
-    if (!isAdminMode || !urlParams.role) {
-      return null
-    }
-    
+    if (!isAdminMode || !urlParams.role) return null
     return {
       scopeType: urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE',
       scopeId: urlParams.id,
@@ -120,6 +115,7 @@ function CustomerLedgerPage() {
   
   const user = getEffectiveUser(originalUser)
   const scopeInfo = getScopeInfo()
+
   const { 
     customers, 
     currentCustomerLedger, 
@@ -128,15 +124,12 @@ function CustomerLedgerPage() {
     pagination 
   } = useSelector((state) => state.customerLedger)
 
-  // Debug logging
-  console.log('Customer Ledger State:', { customers, loading, error, pagination })
-
   // State for customers list
   const [searchTerm, setSearchTerm] = useState('')
   const [hasBalanceFilter, setHasBalanceFilter] = useState('all')
   const [customersPage, setCustomersPage] = useState(1)
 
-  // State for customer ledger details
+  // State for customer ledger dialog
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [ledgerDialogOpen, setLedgerDialogOpen] = useState(false)
   const [ledgerFilters, setLedgerFilters] = useState({
@@ -165,17 +158,16 @@ function CustomerLedgerPage() {
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState(null)
   const [canEditCustomer, setCanEditCustomer] = useState(false)
-  
-const getCustomerIdentifier = (customer) => {
-  if (!customer) return ''
-  if (customer.customer_phone) return customer.customer_phone
-  if (customer.customer_name) return customer.customer_name
-  return ''
-}
+
+  const getCustomerIdentifier = (customer) => {
+    if (!customer) return ''
+    if (customer.customer_phone) return customer.customer_phone
+    if (customer.customer_name) return customer.customer_name
+    return ''
+  }
 
   const getCustomerDisplayName = (customer) => {
     if (!customer) return ''
-    if (customer.isAllCustomers) return 'All Customers'
     return customer.customer_name || customer.customer_phone || 'Unknown Customer'
   }
 
@@ -185,17 +177,11 @@ const getCustomerIdentifier = (customer) => {
       hasBalance: hasBalanceFilter === 'all' ? undefined : hasBalanceFilter,
       limit: 20,
       offset: (customersPage - 1) * 20,
-      _t: Date.now() // Force fresh data by adding timestamp
+      _t: Date.now()
     }
-    console.log('Loading customers with params:', params)
-    console.log('Current user:', user)
-    console.log('User role:', user?.role)
-    console.log('User branchId:', user?.branchId)
-    console.log('User warehouseId:', user?.warehouseId)
     dispatch(fetchAllCustomersWithSummaries(params))
   }, [dispatch, customersPage, searchTerm, hasBalanceFilter, user])
 
-  // Load customers on component mount
   useEffect(() => {
     loadCustomers()
   }, [loadCustomers])
@@ -239,43 +225,29 @@ const getCustomerIdentifier = (customer) => {
 
   const handleViewLedger = (customer) => {
     const identifier = getCustomerIdentifier(customer)
-    const enrichedCustomer = {
-      ...customer,
-      id: identifier
-    }
-    setSelectedCustomer(enrichedCustomer)
+    setSelectedCustomer({ ...customer, id: identifier })
     setLedgerDialogOpen(true)
     setLedgerPage(1)
     loadCustomerLedger(identifier)
   }
 
+  // Opens "All Customers Ledger" in a standalone window (no dashboard wrapper)
   const handleViewAllLedger = () => {
-    const allPlaceholder = {
-      id: '__all__',
-      customer_name: 'All Customers',
-      customer_phone: '',
-      total_transactions: pagination.customers.total,
-      isAllCustomers: true
-    }
-    setSelectedCustomer(allPlaceholder)
-    setLedgerDialogOpen(true)
-    setLedgerPage(1)
-    loadCustomerLedger(allPlaceholder.id)
+    window.open('/dashboard/customer-ledger/all-ledger', '_blank', 'width=1400,height=900')
   }
 
-const handleViewDetailedLedger = (customer) => {
-  const identifier = getCustomerIdentifier(customer)   // phone (unique)
-  if (!identifier || identifier === '__all__') {
-    alert('Detailed view is only available for individual customers.')
-    return
+  const handleViewDetailedLedger = (customer) => {
+    const identifier = getCustomerIdentifier(customer)
+    if (!identifier) {
+      alert('Detailed view is only available for individual customers.')
+      return
+    }
+    const displayName = encodeURIComponent(customer.customer_name || identifier)
+    window.open(
+      `/dashboard/customer-ledger/detailed/${encodeURIComponent(identifier)}?name=${displayName}`,
+      '_blank'
+    )
   }
-  // Pass the display name as a query param so the detail page can show it
-  const displayName = encodeURIComponent(customer.customer_name || identifier)
-  window.open(
-    `/dashboard/customer-ledger/detailed/${encodeURIComponent(identifier)}?name=${displayName}`,
-    '_blank'
-  )
-}
 
   const handleExportLedger = (customerId, format = 'pdf', detailed = false) => {
     if (!customerId) return
@@ -285,21 +257,12 @@ const handleViewDetailedLedger = (customer) => {
     }))
   }
 
-  // Export dropdown handlers
-  const handleExportClick = (event) => {
-    setExportAnchorEl(event.currentTarget)
-  }
-
-  const handleExportClose = () => {
-    setExportAnchorEl(null)
-  }
+  const handleExportClick = (event) => setExportAnchorEl(event.currentTarget)
+  const handleExportClose = () => setExportAnchorEl(null)
 
   const handleExportAction = (format, detailed = false) => {
     const customerId = getCustomerIdentifier(selectedCustomer)
-    if (!customerId) {
-      handleExportClose()
-      return
-    }
+    if (!customerId) { handleExportClose(); return }
     dispatch(exportCustomerLedger({ 
       customerId, 
       params: { ...ledgerFilters, format, detailed: detailed.toString() }
@@ -307,13 +270,9 @@ const handleViewDetailedLedger = (customer) => {
     handleExportClose()
   }
 
-  // Edit customer handlers
   const handleOpenEditDialog = (customer) => {
     setEditingCustomer(customer)
-    setEditForm({
-      name: customer.customer_name || '',
-      phone: customer.customer_phone || ''
-    })
+    setEditForm({ name: customer.customer_name || '', phone: customer.customer_phone || '' })
     setEditError(null)
     setEditDialogOpen(true)
   }
@@ -322,7 +281,6 @@ const handleViewDetailedLedger = (customer) => {
     if (!editingCustomer) return
     const customerId = getCustomerIdentifier(editingCustomer)
     if (!customerId) return
-
     setEditSaving(true)
     setEditError(null)
     try {
@@ -339,119 +297,61 @@ const handleViewDetailedLedger = (customer) => {
     }
   }
 
-  // Manual refresh function
   const handleManualRefresh = useCallback(() => {
-    console.log('[Customer Ledger] Manual refresh triggered')
-    
-    // Refresh customers list
     loadCustomers()
-    
-    // Refresh current customer ledger if dialog is open
     if (selectedCustomer && ledgerDialogOpen) {
       const identifier = getCustomerIdentifier(selectedCustomer)
-      if (identifier) {
-        loadCustomerLedger(identifier)
-      }
+      if (identifier) loadCustomerLedger(identifier)
     }
   }, [loadCustomers, selectedCustomer, ledgerDialogOpen, loadCustomerLedger])
 
+  const calculateSummaryTotals = () => {
+    if (!currentCustomerLedger || !currentCustomerLedger.transactions) {
+      return { totalTransactions: 0, totalAmount: 0, totalPaid: 0, totalCredit: 0, outstandingBalance: 0 }
+    }
+    if (currentCustomerLedger.summary) {
+      return {
+        totalTransactions: currentCustomerLedger.summary.totalTransactions,
+        totalAmount: currentCustomerLedger.summary.totalAmount,
+        totalPaid: currentCustomerLedger.summary.totalPaid,
+        totalRefunded: currentCustomerLedger.summary.totalRefunded ?? 0,
+        netPaid: currentCustomerLedger.summary.netPaid ?? currentCustomerLedger.summary.totalPaid,
+        totalCredit: currentCustomerLedger.summary.totalCredit,
+        outstandingBalance: currentCustomerLedger.summary.outstandingBalance
+      }
+    }
+    // Fallback
+    const transactions = currentCustomerLedger.transactions
+    const totals = transactions.reduce((acc, transaction) => {
+      const currentAmount = parseFloat(transaction.amount || 0)
+      let correctedPaid = 0
+      if (transaction.payment_method === 'FULLY_CREDIT' && transaction.payment_type !== 'OUTSTANDING_SETTLEMENT') {
+        correctedPaid = 0
+      } else if (transaction.payment_type === 'OUTSTANDING_SETTLEMENT' || transaction.transaction_type === 'SETTLEMENT') {
+        correctedPaid = parseFloat(transaction.payment_amount || transaction.paid_amount || 0) || 0
+      } else {
+        correctedPaid = parseFloat(transaction.paid_amount || transaction.payment_amount || 0) || 0
+      }
+      return {
+        totalTransactions: acc.totalTransactions + 1,
+        totalAmount: acc.totalAmount + currentAmount,
+        totalPaid: acc.totalPaid + Math.max(correctedPaid, 0),
+        totalRefunded: correctedPaid < 0 ? acc.totalRefunded + Math.abs(correctedPaid) : acc.totalRefunded,
+        netPaid: acc.netPaid + correctedPaid,
+        totalCredit: acc.totalCredit
+      }
+    }, { totalTransactions: 0, totalAmount: 0, totalPaid: 0, totalRefunded: 0, netPaid: 0, totalCredit: 0 })
 
-  // Calculate summary totals
- // Calculate summary totals - CORRECTED VERSION
-const calculateSummaryTotals = () => {
-  console.log('calculateSummaryTotals - currentCustomerLedger:', currentCustomerLedger)
-  console.log('calculateSummaryTotals - transactions:', currentCustomerLedger?.transactions)
-  
-  if (!currentCustomerLedger || !currentCustomerLedger.transactions) {
-    console.log('No transactions found, returning zeros')
-    return {
-      totalTransactions: 0,
-      totalAmount: 0,
-      totalPaid: 0,
-      totalCredit: 0,
-      currentBalance: 0,
-      outstandingBalance: 0
-    }
+    const sorted = [...transactions].sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date))
+    const outstandingBalance = sorted.length > 0 ? parseFloat(sorted[0].running_balance || 0) : 0
+    return { ...totals, outstandingBalance }
   }
-
-  const transactions = currentCustomerLedger.transactions
-  console.log('Processing transactions:', transactions.length, 'transactions')
-  
-  // CORRECTED: Use the backend-calculated summary instead of recalculating
-  // The backend already provides the correct summary in currentCustomerLedger.summary
-  if (currentCustomerLedger.summary) {
-    console.log('Using backend summary:', currentCustomerLedger.summary)
-    return {
-      totalTransactions: currentCustomerLedger.summary.totalTransactions,
-      totalAmount: currentCustomerLedger.summary.totalAmount,
-      totalPaid: currentCustomerLedger.summary.totalPaid,
-      totalRefunded: currentCustomerLedger.summary.totalRefunded ?? 0,
-      netPaid: currentCustomerLedger.summary.netPaid ?? (currentCustomerLedger.summary.totalPaid - (currentCustomerLedger.summary.totalRefunded ?? 0)),
-      totalCredit: currentCustomerLedger.summary.totalCredit,
-      outstandingBalance: currentCustomerLedger.summary.outstandingBalance
-    }
-  }
-  
-  // Fallback calculation if summary is not available
-  console.log('Backend summary not available, using fallback calculation')
-  
-  // Calculate totals from transaction data
-  const totals = transactions.reduce((acc, transaction) => {
-    const currentAmount = parseFloat(transaction.amount || 0)
-    // Use corrected payment amount (0 for FULLY_CREDIT, but preserve for settlements)
-    let correctedPaid = 0;
-    if (transaction.payment_method === 'FULLY_CREDIT' && transaction.payment_type !== 'OUTSTANDING_SETTLEMENT') {
-      correctedPaid = 0;
-    } else if (transaction.payment_type === 'OUTSTANDING_SETTLEMENT' || transaction.transaction_type === 'SETTLEMENT') {
-      // For settlements, use payment_amount directly from database
-      correctedPaid = parseFloat(transaction.payment_amount || transaction.paid_amount || 0) || 0;
-    } else {
-      correctedPaid = parseFloat(transaction.paid_amount || transaction.payment_amount || 0) || 0;
-    }
-    
-    const totalRefunded = correctedPaid < 0 ? acc.totalRefunded + Math.abs(correctedPaid) : acc.totalRefunded
-
-    return {
-      totalTransactions: acc.totalTransactions + 1,
-      totalAmount: acc.totalAmount + currentAmount,
-      totalPaid: acc.totalPaid + Math.max(correctedPaid, 0),
-      totalRefunded,
-      netPaid: acc.netPaid + correctedPaid,
-      totalCredit: acc.totalCredit
-    }
-  }, {
-    totalTransactions: 0,
-    totalAmount: 0,
-    totalPaid: 0,
-    totalRefunded: 0,
-    netPaid: 0,
-    totalCredit: 0
-  })
-  
-  // Use the running balance from the most recent transaction as outstanding balance
-  const sortedTransactions = [...transactions].sort((a, b) => 
-    new Date(b.transaction_date) - new Date(a.transaction_date)
-  )
-  const outstandingBalance = sortedTransactions.length > 0 
-    ? parseFloat(sortedTransactions[0].running_balance || 0)
-    : totals.totalAmount - totals.totalPaid
-  
-  console.log('Fallback totals:', { ...totals, outstandingBalance })
-  return {
-    ...totals,
-    totalRefunded: totals.totalRefunded,
-    netPaid: totals.netPaid,
-    outstandingBalance: outstandingBalance
-  }
-}
 
   const handleSort = (field) => {
-    // For transaction_date, always sort in ascending order (earliest dates first)
     if (field === 'transaction_date') {
       setSortField(field)
       setSortDirection('asc')
     } else {
-      // For other columns, toggle between asc and desc
       if (sortField === field) {
         setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
       } else {
@@ -463,51 +363,22 @@ const calculateSummaryTotals = () => {
 
   const getSortIcon = (field) => {
     if (sortField !== field) return null
-    
-    // For transaction_date, always show ascending arrow
-    if (field === 'transaction_date') {
-      return <ArrowUpIcon fontSize="small" />
-    }
-    
-    // For other columns, show icon based on current sort direction
     return sortDirection === 'asc' ? <ArrowUpIcon fontSize="small" /> : <ArrowDownIcon fontSize="small" />
   }
 
   const sortTransactions = (transactions) => {
     if (!transactions || transactions.length === 0) return transactions
-    
     return [...transactions].sort((a, b) => {
       let aValue, bValue
-      
       switch (sortField) {
-        case 'transaction_date':
-          aValue = new Date(a.transaction_date)
-          bValue = new Date(b.transaction_date)
-          break
-        case 'invoice_no':
-          aValue = a.invoice_no || ''
-          bValue = b.invoice_no || ''
-          break
-        case 'amount':
-          aValue = parseFloat(a.amount || 0)
-          bValue = parseFloat(b.amount || 0)
-          break
-        case 'balance':
-          aValue = parseFloat(a.balance || 0)
-          bValue = parseFloat(b.balance || 0)
-          break
-        case 'payment_method':
-          aValue = a.payment_method || ''
-          bValue = b.payment_method || ''
-          break
-        case 'status':
-          aValue = a.payment_status || ''
-          bValue = b.payment_status || ''
-          break
-        default:
-          return 0
+        case 'transaction_date': aValue = new Date(a.transaction_date); bValue = new Date(b.transaction_date); break
+        case 'invoice_no': aValue = a.invoice_no || ''; bValue = b.invoice_no || ''; break
+        case 'amount': aValue = parseFloat(a.amount || 0); bValue = parseFloat(b.amount || 0); break
+        case 'balance': aValue = parseFloat(a.balance || 0); bValue = parseFloat(b.balance || 0); break
+        case 'payment_method': aValue = a.payment_method || ''; bValue = b.payment_method || ''; break
+        case 'status': aValue = a.payment_status || ''; bValue = b.payment_status || ''; break
+        default: return 0
       }
-      
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
       return 0
@@ -517,32 +388,19 @@ const calculateSummaryTotals = () => {
   const handleLedgerFilterChange = () => {
     setLedgerPage(1)
     const identifier = getCustomerIdentifier(selectedCustomer)
-    if (identifier) {
-      loadCustomerLedger(identifier)
-    }
+    if (identifier) loadCustomerLedger(identifier)
   }
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    }).format(amount || 0)
-  }
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount || 0)
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    // Parse the date part directly from the string to avoid UTC→local timezone shift.
-    // new Date() would convert UTC to local time and potentially show tomorrow's date
-    // for sales made in the evening in timezones ahead of UTC (e.g. UTC+5).
-    const datePart = String(dateString).substring(0, 10); // "2026-03-04"
-    const parts = datePart.split('-');
-    if (parts.length !== 3) return 'N/A';
-    const [year, month, day] = parts;
-    return `${day}/${month}/${year}`;
-  }
-
-  const getTransactionTypeColor = (scopeType) => {
-    return scopeType === 'WAREHOUSE' ? 'primary' : 'secondary'
+    if (!dateString) return 'N/A'
+    const datePart = String(dateString).substring(0, 10)
+    const parts = datePart.split('-')
+    if (parts.length !== 3) return 'N/A'
+    const [year, month, day] = parts
+    return `${day}/${month}/${year}`
   }
 
   const getPaymentStatusColor = (status) => {
@@ -560,34 +418,22 @@ const calculateSummaryTotals = () => {
     return 'default'
   }
 
-  // Function to fetch sale/return items for a specific transaction
   const fetchSaleItems = async (transactionId, transaction = null) => {
-    console.log('Fetching items for transactionId:', transactionId, 'transaction:', transaction)
     setLoadingSaleItems(true)
     try {
-      // Check if this is a return transaction
       const isReturn = transaction?.transaction_type === 'RETURN' || 
                        transaction?.return_id || 
                        (transaction?.invoice_no && transaction.invoice_no.startsWith('RET-'))
-      
       let response
       if (isReturn) {
-        // Fetch return details
         const returnId = transaction?.return_id || transactionId
-        console.log('Fetching return details for returnId:', returnId)
         response = await api.get(`/sales/returns/${returnId}`)
-        console.log('Return details response:', response.data)
       } else {
-        // Fetch sale details
-        console.log('Fetching sale details for saleId:', transactionId)
         response = await api.get(`/sales/${transactionId}`)
-        console.log('Sale details response:', response.data)
       }
-      
       if (response.data.success) {
         setSelectedSale(response.data.data)
         setSaleItems(response.data.data.items || [])
-        console.log('Items set:', response.data.data.items?.length || 0, 'items')
         setSaleItemsDialogOpen(true)
       } else {
         alert('Failed to load transaction details')
@@ -600,427 +446,144 @@ const calculateSummaryTotals = () => {
     }
   }
 
-  const viewingAllCustomers = Boolean(selectedCustomer?.isAllCustomers)
   const summaryTotals = calculateSummaryTotals()
 
-  const renderSingleCustomerLedger = () => {
-    // ✅ FIX: For all customers view, if groupedLedgers is not available, use transactions
+  const renderCustomerLedger = () => {
     const transactions = currentCustomerLedger?.transactions || []
     const totalRecords = currentCustomerLedger?.pagination?.total || 0
-    
-    console.log('🔍 renderSingleCustomerLedger - transactions.length:', transactions.length)
-    console.log('🔍 renderSingleCustomerLedger - viewingAllCustomers:', viewingAllCustomers)
 
     return (
       <>
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('transaction_date')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Date
-                  {getSortIcon('transaction_date')}
-                </Box>
-              </TableCell>
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('invoice_no')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Invoice
-                  {getSortIcon('invoice_no')}
-                </Box>
-              </TableCell>
-              {viewingAllCustomers && (
-                <TableCell>Customer</TableCell>
-              )}
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('amount')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Amount
-                  {getSortIcon('amount')}
-                </Box>
-              </TableCell>
-              <TableCell>
-                Old Balance
-              </TableCell>
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('total_amount')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Total Amount
-                  {getSortIcon('total_amount')}
-                </Box>
-              </TableCell>
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('paid_amount')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Payment
-                  {getSortIcon('paid_amount')}
-                </Box>
-              </TableCell>
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('payment_method')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Payment Method
-                  {getSortIcon('payment_method')}
-                </Box>
-              </TableCell>
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('status')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Status
-                  {getSortIcon('status')}
-                </Box>
-              </TableCell>
-              <TableCell 
-                sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
-                onClick={() => handleSort('balance')}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  Balance
-                  {getSortIcon('balance')}
-                </Box>
-              </TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {sortTransactions(transactions)?.map((transaction, index) => {
-              const currentAmount = parseFloat(transaction.subtotal || transaction.amount || transaction.total || 0)
-              const oldBalance = parseFloat(transaction.old_balance || transaction.previous_balance || 0)
-              const totalAmount = parseFloat(transaction.total_amount || transaction.total || 0)
-              // Use corrected payment amount (0 for FULLY_CREDIT, but preserve for settlements)
-    let correctedPaid = 0;
-    if (transaction.payment_method === 'FULLY_CREDIT' && transaction.payment_type !== 'OUTSTANDING_SETTLEMENT') {
-      correctedPaid = 0;
-    } else if (transaction.payment_type === 'OUTSTANDING_SETTLEMENT' || transaction.transaction_type === 'SETTLEMENT') {
-      // For settlements, use payment_amount directly from database
-      correctedPaid = parseFloat(transaction.payment_amount || transaction.paid_amount || 0) || 0;
-    } else {
-      correctedPaid = parseFloat(transaction.paid_amount || transaction.payment_amount || 0) || 0;
-    }
-              const balance = parseFloat(transaction.running_balance || transaction.balance || (totalAmount - correctedPaid))
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('transaction_date')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Date {getSortIcon('transaction_date')}</Box>
+                </TableCell>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('invoice_no')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Invoice {getSortIcon('invoice_no')}</Box>
+                </TableCell>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('amount')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Amount {getSortIcon('amount')}</Box>
+                </TableCell>
+                <TableCell>Old Balance</TableCell>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('total_amount')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Total Amount {getSortIcon('total_amount')}</Box>
+                </TableCell>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('paid_amount')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Payment {getSortIcon('paid_amount')}</Box>
+                </TableCell>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('payment_method')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Payment Method {getSortIcon('payment_method')}</Box>
+                </TableCell>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('status')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Status {getSortIcon('status')}</Box>
+                </TableCell>
+                <TableCell sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'rgba(0,0,0,0.04)' } }} onClick={() => handleSort('balance')}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>Balance {getSortIcon('balance')}</Box>
+                </TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {sortTransactions(transactions)?.map((transaction, index) => {
+                const currentAmount = parseFloat(transaction.subtotal || transaction.amount || transaction.total || 0)
+                const oldBalance = parseFloat(transaction.old_balance || transaction.previous_balance || 0)
+                const totalAmount = parseFloat(transaction.total_amount || transaction.total || 0)
+                let correctedPaid = 0
+                if (transaction.payment_method === 'FULLY_CREDIT' && transaction.payment_type !== 'OUTSTANDING_SETTLEMENT') {
+                  correctedPaid = 0
+                } else if (transaction.payment_type === 'OUTSTANDING_SETTLEMENT' || transaction.transaction_type === 'SETTLEMENT') {
+                  correctedPaid = parseFloat(transaction.payment_amount || transaction.paid_amount || 0) || 0
+                } else {
+                  correctedPaid = parseFloat(transaction.paid_amount || transaction.payment_amount || 0) || 0
+                }
+                const balance = parseFloat(transaction.running_balance || transaction.balance || (totalAmount - correctedPaid))
 
-              return (
-                <TableRow key={transaction.transaction_id || index}>
-                  <TableCell>{formatDate(transaction.transaction_date)}</TableCell>
-                  <TableCell>{transaction.invoice_no}</TableCell>
-                  {viewingAllCustomers && (
+                return (
+                  <TableRow key={transaction.transaction_id || index}>
+                    <TableCell>{formatDate(transaction.transaction_date)}</TableCell>
+                    <TableCell>{transaction.invoice_no}</TableCell>
+                    <TableCell>{formatCurrency(currentAmount)}</TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight="medium">
-                        {transaction.customer_name || 'N/A'}
+                      <Typography variant="body2" color="warning.main" fontWeight="medium">
+                        {formatCurrency(oldBalance)}
                       </Typography>
-                      {transaction.customer_phone && (
-                        <Typography variant="caption" color="text.secondary">
-                          {transaction.customer_phone}
-                        </Typography>
-                      )}
                     </TableCell>
-                  )}
-                  <TableCell>{formatCurrency(currentAmount)}</TableCell>
-                  <TableCell>
-                    <Typography 
-                      variant="body2"
-                      color="warning.main"
-                      fontWeight="medium"
-                    >
-                      {formatCurrency(oldBalance)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography 
-                      variant="body2"
-                      color="primary.main"
-                      fontWeight="bold"
-                    >
-                      {formatCurrency(totalAmount)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography 
-                      variant="body2"
-                      color="success.main"
-                      fontWeight="medium"
-                    >
-                      {formatCurrency(correctedPaid)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{transaction.payment_method}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={transaction.payment_status_display}
-                      color={getPaymentStatusColor(transaction.payment_status)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography 
-                      variant="body2"
-                      color={balance < 0 ? 'success.main' : 'error.main'}
-                      fontWeight="medium"
-                    >
-                      {formatCurrency(balance)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title={transaction.transaction_type === 'RETURN' ? "View Return Items" : "View Sale Items"}>
-                      <IconButton
-                        size="small"
-                        onClick={() => fetchSaleItems(transaction.transaction_id, transaction)}
-                        color="primary"
-                        disabled={loadingSaleItems}
-                      >
-                        <ReceiptIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                    <TableCell>
+                      <Typography variant="body2" color="primary.main" fontWeight="bold">
+                        {formatCurrency(totalAmount)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="success.main" fontWeight="medium">
+                        {formatCurrency(correctedPaid)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{transaction.payment_method}</TableCell>
+                    <TableCell>
+                      <Chip label={transaction.payment_status_display} color={getPaymentStatusColor(transaction.payment_status)} size="small" />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color={balance < 0 ? 'success.main' : 'error.main'} fontWeight="medium">
+                        {formatCurrency(balance)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip title={transaction.transaction_type === 'RETURN' ? 'View Return Items' : 'View Sale Items'}>
+                        <IconButton size="small" onClick={() => fetchSaleItems(transaction.transaction_id, transaction)} color="primary" disabled={loadingSaleItems}>
+                          <ReceiptIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-      {transactions.length > 0 && (
-        <Box sx={{ mt: 2, mb: 2 }}>
-          <Paper sx={{ p: 2, backgroundColor: 'grey.50' }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Total Transactions
-                </Typography>
-                <Typography variant="h6" color="primary">
-                  {summaryTotals.totalTransactions}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Total Amount
-                </Typography>
-                <Typography variant="h6" color="text.primary">
-                  {formatCurrency(summaryTotals.totalAmount)}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Total Paid
-                </Typography>
-                <Typography variant="h6" color="success.main">
-                  {formatCurrency(summaryTotals.totalPaid)}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Outstanding Balance
-                </Typography>
-                <Typography variant="h6" color="error.main">
-                  {formatCurrency(summaryTotals.outstandingBalance)}
-                </Typography>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Box>
-      )}
-
-      {totalRecords > 50 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-          <Pagination
-            count={Math.ceil(totalRecords / 50)}
-            page={ledgerPage}
-            onChange={(event, page) => {
-              setLedgerPage(page)
-              const identifier = getCustomerIdentifier(selectedCustomer)
-              if (identifier) {
-                loadCustomerLedger(identifier)
-              }
-            }}
-            color="primary"
-          />
-        </Box>
-      )}
-      </>
-    )
-  }
-
-  const renderAllCustomerLedgers = () => {
-    console.log('🔍 renderAllCustomerLedgers - currentCustomerLedger:', currentCustomerLedger)
-    console.log('🔍 renderAllCustomerLedgers - groupedLedgers:', currentCustomerLedger?.groupedLedgers)
-    
-    const groups = currentCustomerLedger?.groupedLedgers || []
-    const uniqueCount = currentCustomerLedger?.customer?.unique_customers ?? groups.length
-    const overallSummary = summaryTotals
-
-    console.log('🔍 renderAllCustomerLedgers - groups.length:', groups.length)
-    console.log('🔍 renderAllCustomerLedgers - groups:', groups)
-
-    if (groups.length === 0) {
-      console.log('🔍 renderAllCustomerLedgers - No groups found, showing empty message')
-      return (
-        <Box sx={{ p: 3 }}>
-          <Typography variant="body2" color="text.secondary">
-            No customer ledger data found for the selected filters.
-          </Typography>
-          {currentCustomerLedger && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Debug: currentCustomerLedger exists but groupedLedgers is empty or undefined.
-              Has transactions: {currentCustomerLedger.transactions ? 'Yes' : 'No'}
-              Transactions count: {currentCustomerLedger.transactions?.length || 0}
-            </Typography>
-          )}
-        </Box>
-      )
-    }
-
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {groups.length > 0 && (
-          <Paper sx={{ p: 2, backgroundColor: 'grey.50' }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">Total Customers</Typography>
-                <Typography variant="h6" color="primary">{uniqueCount}</Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">Total Amount</Typography>
-                <Typography variant="h6">{formatCurrency(overallSummary.totalAmount)}</Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">Total Paid</Typography>
-                <Typography variant="h6" color="success.main">{formatCurrency(overallSummary.totalPaid)}</Typography>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <Typography variant="subtitle2" color="text.secondary">Outstanding</Typography>
-                <Typography variant="h6" color="error.main">{formatCurrency(overallSummary.outstandingBalance)}</Typography>
-              </Grid>
-            </Grid>
-          </Paper>
-        )}
-        {groups.map((group, index) => {
-          const groupKey = group.customer?.key || `${group.customer?.name || 'customer'}-${index}`
-          const groupSummary = group.summary || {}
-          const transactions = group.transactions || []
-
-          return (
-            <Paper key={groupKey} sx={{ p: 2 }} elevation={1}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Box>
-                  <Typography variant="h6">
-                    {group.customer?.name || 'Unknown Customer'}
-                  </Typography>
-                  {group.customer?.phone && (
-                    <Typography variant="body2" color="text.secondary">
-                      {group.customer.phone}
-                    </Typography>
-                  )}
-                </Box>
-                <Chip label={`Transactions: ${groupSummary.totalTransactions || 0}`} color="primary" size="small" />
-              </Box>
-
-              <Grid container spacing={2} sx={{ mb: 2 }}>
+        {transactions.length > 0 && (
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <Paper sx={{ p: 2, backgroundColor: 'grey.50' }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={3}>
+                  <Typography variant="subtitle2" color="text.secondary">Total Transactions</Typography>
+                  <Typography variant="h6" color="primary">{summaryTotals.totalTransactions}</Typography>
+                </Grid>
                 <Grid item xs={12} sm={3}>
                   <Typography variant="subtitle2" color="text.secondary">Total Amount</Typography>
-                  <Typography variant="h6">{formatCurrency(groupSummary.totalAmount)}</Typography>
+                  <Typography variant="h6" color="text.primary">{formatCurrency(summaryTotals.totalAmount)}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={3}>
                   <Typography variant="subtitle2" color="text.secondary">Total Paid</Typography>
-                  <Typography variant="h6" color="success.main">{formatCurrency(groupSummary.totalPaid)}</Typography>
+                  <Typography variant="h6" color="success.main">{formatCurrency(summaryTotals.totalPaid)}</Typography>
                 </Grid>
                 <Grid item xs={12} sm={3}>
-                  <Typography variant="subtitle2" color="text.secondary">Outstanding</Typography>
-                  <Typography variant="h6" color="error.main">{formatCurrency(groupSummary.outstandingBalance)}</Typography>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Typography variant="subtitle2" color="text.secondary">Total Credit</Typography>
-                  <Typography variant="h6">{formatCurrency(groupSummary.totalCredit)}</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">Outstanding Balance</Typography>
+                  <Typography variant="h6" color="error.main">{formatCurrency(summaryTotals.outstandingBalance)}</Typography>
                 </Grid>
               </Grid>
-
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Invoice</TableCell>
-                      <TableCell align="right">Amount</TableCell>
-                      <TableCell align="right">Old Balance</TableCell>
-                      <TableCell align="right">Total Amount</TableCell>
-                      <TableCell align="right">Payment</TableCell>
-                      <TableCell>Payment Method</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell align="right">Balance</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {transactions.map((transaction, txIndex) => {
-                      const currentAmount = parseFloat(transaction.subtotal || transaction.amount || transaction.total || 0)
-                      const oldBalance = parseFloat(transaction.old_balance || transaction.previous_balance || 0)
-                      const totalAmount = parseFloat(transaction.total_amount || transaction.total || 0)
-                      // Use corrected payment amount (0 for FULLY_CREDIT, but preserve for settlements)
-    let correctedPaid = 0;
-    if (transaction.payment_method === 'FULLY_CREDIT' && transaction.payment_type !== 'OUTSTANDING_SETTLEMENT') {
-      correctedPaid = 0;
-    } else if (transaction.payment_type === 'OUTSTANDING_SETTLEMENT' || transaction.transaction_type === 'SETTLEMENT') {
-      // For settlements, use payment_amount directly from database
-      correctedPaid = parseFloat(transaction.payment_amount || transaction.paid_amount || 0) || 0;
-    } else {
-      correctedPaid = parseFloat(transaction.paid_amount || transaction.payment_amount || 0) || 0;
-    }
-                      const balance = parseFloat(transaction.running_balance || transaction.balance || (totalAmount - correctedPaid))
-
-                      return (
-                        <TableRow key={transaction.transaction_id || txIndex}>
-                          <TableCell>{formatDate(transaction.transaction_date)}</TableCell>
-                          <TableCell>{transaction.invoice_no}</TableCell>
-                          <TableCell align="right">{formatCurrency(currentAmount)}</TableCell>
-                          <TableCell align="right">{formatCurrency(oldBalance)}</TableCell>
-                          <TableCell align="right">{formatCurrency(totalAmount)}</TableCell>
-                          <TableCell align="right">{formatCurrency(correctedPaid)}</TableCell>
-                          <TableCell>{transaction.payment_method}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={transaction.payment_status_display}
-                              color={getPaymentStatusColor(transaction.payment_status)}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell align="right">{formatCurrency(balance)}</TableCell>
-                          <TableCell>
-                            <Tooltip title={transaction.transaction_type === 'RETURN' ? "View Return Items" : "View Sale Items"}>
-                              <IconButton
-                                size="small"
-                                onClick={() => fetchSaleItems(transaction.transaction_id, transaction)}
-                                color="primary"
-                                disabled={loadingSaleItems}
-                              >
-                                <ReceiptIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
             </Paper>
-          )
-        })}
-      </Box>
+          </Box>
+        )}
+
+        {totalRecords > 50 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Pagination
+              count={Math.ceil(totalRecords / 50)}
+              page={ledgerPage}
+              onChange={(event, page) => {
+                setLedgerPage(page)
+                const identifier = getCustomerIdentifier(selectedCustomer)
+                if (identifier) loadCustomerLedger(identifier)
+              }}
+              color="primary"
+            />
+          </Box>
+        )}
+      </>
     )
   }
 
@@ -1029,15 +592,7 @@ const calculateSummaryTotals = () => {
       <DashboardLayout>
         {/* Admin Mode Indicator */}
         {isAdminMode && scopeInfo && (
-          <Box sx={{ 
-            bgcolor: 'warning.light', 
-            color: 'warning.contrastText', 
-            p: 1, 
-            textAlign: 'center',
-            borderBottom: 1,
-            borderColor: 'warning.main',
-            mb: 2
-          }}>
+          <Box sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', p: 1, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main', mb: 2 }}>
             <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
               🔧 ADMIN MODE: Operating as {scopeInfo.scopeType === 'BRANCH' ? 'Cashier' : 'Warehouse Keeper'} for {scopeInfo.scopeName}
             </Typography>
@@ -1048,16 +603,9 @@ const calculateSummaryTotals = () => {
           {/* Header */}
           <Box sx={{ mb: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h4" component="h1">
-                Customer Ledger
-              </Typography>
+              <Typography variant="h4" component="h1">Customer Ledger</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<ViewIcon />}
-                  size="small"
-                  onClick={handleViewAllLedger}
-                >
+                <Button variant="contained" startIcon={<ViewIcon />} size="small" onClick={handleViewAllLedger}>
                   See All Ledger
                 </Button>
                 <Tooltip title="Refresh customer data">
@@ -1090,9 +638,7 @@ const calculateSummaryTotals = () => {
                     placeholder="Name or phone number"
                     InputProps={{
                       endAdornment: (
-                        <IconButton onClick={handleSearch}>
-                          <SearchIcon />
-                        </IconButton>
+                        <IconButton onClick={handleSearch}><SearchIcon /></IconButton>
                       )
                     }}
                   />
@@ -1102,10 +648,7 @@ const calculateSummaryTotals = () => {
                     <InputLabel>Balance Filter</InputLabel>
                     <Select
                       value={hasBalanceFilter}
-                      onChange={(e) => {
-                        setHasBalanceFilter(e.target.value)
-                        setCustomersPage(1) // Reset to first page when filter changes
-                      }}
+                      onChange={(e) => { setHasBalanceFilter(e.target.value); setCustomersPage(1) }}
                       label="Balance Filter"
                     >
                       <MenuItem value="all">All Customers</MenuItem>
@@ -1115,13 +658,7 @@ const calculateSummaryTotals = () => {
                   </FormControl>
                 </Grid>
                 <Grid item xs={12} md={2}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<RefreshIcon />}
-                    onClick={loadCustomers}
-                    disabled={loading}
-                  >
+                  <Button fullWidth variant="outlined" startIcon={<RefreshIcon />} onClick={loadCustomers} disabled={loading}>
                     Refresh
                   </Button>
                 </Grid>
@@ -1166,12 +703,7 @@ const calculateSummaryTotals = () => {
                       <TableBody>
                         {customers && customers.length > 0 ? customers.map((customer, index) => (
                           <TableRow key={index}>
-                            <TableCell>
-                              {customer.last_transaction_date 
-                                ? formatDate(customer.last_transaction_date)
-                                : 'N/A'
-                              }
-                            </TableCell>
+                            <TableCell>{customer.last_transaction_date ? formatDate(customer.last_transaction_date) : 'N/A'}</TableCell>
                             <TableCell>
                               <Typography variant="body2" fontWeight="medium">
                                 {customer.customer_name || 'N/A'}
@@ -1179,64 +711,34 @@ const calculateSummaryTotals = () => {
                             </TableCell>
                             <TableCell>{customer.customer_phone || 'N/A'}</TableCell>
                             <TableCell>{customer.total_transactions}</TableCell>
-                            <TableCell>
-                              {(() => {
-                                console.log('Customer data for', customer.customer_name, ':', customer)
-                                return formatCurrency(customer.total_amount || 0)
-                              })()}
-                            </TableCell>
-                            <TableCell>
-                              {(() => {
-                                console.log('Total paid for', customer.customer_name, ':', customer.total_paid)
-                                return formatCurrency(customer.total_paid || 0)
-                              })()}
-                            </TableCell>
+                            <TableCell>{formatCurrency(customer.total_amount || 0)}</TableCell>
+                            <TableCell>{formatCurrency(customer.total_paid || 0)}</TableCell>
                             <TableCell>
                               <Chip
-                                label={(() => {
-                                  const balance = customer.current_balance || 0
-                                  console.log('Balance for', customer.customer_name, ':', balance)
-                                  return formatCurrency(balance)
-                                })()}
+                                label={formatCurrency(customer.current_balance || 0)}
                                 color={getBalanceColor(customer.current_balance || 0)}
                                 size="small"
                               />
                             </TableCell>
                             <TableCell>
                               <Tooltip title="View Ledger">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleViewLedger(customer)}
-                                  color="primary"
-                                >
+                                <IconButton size="small" onClick={() => handleViewLedger(customer)} color="primary">
                                   <ViewIcon />
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="View Detailed Ledger">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleViewDetailedLedger(customer)}
-                                  color="info"
-                                >
+                                <IconButton size="small" onClick={() => handleViewDetailedLedger(customer)} color="info">
                                   <ReceiptIcon />
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Export PDF">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleExportLedger(getCustomerIdentifier(customer))}
-                                  color="secondary"
-                                >
+                                <IconButton size="small" onClick={() => handleExportLedger(getCustomerIdentifier(customer))} color="secondary">
                                   <DownloadIcon />
                                 </IconButton>
                               </Tooltip>
                               {canEditCustomer && (
                                 <Tooltip title="Edit Customer Info">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleOpenEditDialog(customer)}
-                                    color="warning"
-                                  >
+                                  <IconButton size="small" onClick={() => handleOpenEditDialog(customer)} color="warning">
                                     <EditIcon />
                                   </IconButton>
                                 </Tooltip>
@@ -1256,7 +758,6 @@ const calculateSummaryTotals = () => {
                     </Table>
                   </TableContainer>
 
-                  {/* Pagination */}
                   {pagination.customers.total > 20 && (
                     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                       <Pagination
@@ -1272,13 +773,10 @@ const calculateSummaryTotals = () => {
             </CardContent>
           </Card>
 
-          {/* Customer Ledger Dialog */}
+          {/* Customer Ledger Dialog (individual customers only) */}
           <Dialog
             open={ledgerDialogOpen}
-            onClose={() => {
-              setLedgerDialogOpen(false)
-              dispatch(clearCurrentLedger())
-            }}
+            onClose={() => { setLedgerDialogOpen(false); dispatch(clearCurrentLedger()) }}
             maxWidth="lg"
             fullWidth
           >
@@ -1287,44 +785,32 @@ const calculateSummaryTotals = () => {
                 <Typography variant="h6">
                   Customer Ledger: {getCustomerDisplayName(selectedCustomer)}
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Tooltip title="Refresh data">
-                    <IconButton onClick={handleManualRefresh} size="small">
-                      <RefreshIcon />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
+                <Tooltip title="Refresh data">
+                  <IconButton onClick={handleManualRefresh} size="small">
+                    <RefreshIcon />
+                  </IconButton>
+                </Tooltip>
               </Box>
             </DialogTitle>
             <DialogContent>
               {currentCustomerLedger && (
                 <>
-                  {viewingAllCustomers && (
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                      Displaying combined ledger across all customers. Use filters to narrow the date range before exporting.
-                    </Alert>
-                  )}
-
                   {/* Filters */}
                   <Box sx={{ mb: 3 }}>
                     <Grid container spacing={2} alignItems="center">
                       <Grid item xs={12} md={3}>
                         <TextField
-                          fullWidth
-                          label="Start Date"
-                          type="date"
+                          fullWidth label="Start Date" type="date"
                           value={ledgerFilters.startDate}
-                          onChange={(e) => setLedgerFilters({...ledgerFilters, startDate: e.target.value})}
+                          onChange={(e) => setLedgerFilters({ ...ledgerFilters, startDate: e.target.value })}
                           InputLabelProps={{ shrink: true }}
                         />
                       </Grid>
                       <Grid item xs={12} md={3}>
                         <TextField
-                          fullWidth
-                          label="End Date"
-                          type="date"
+                          fullWidth label="End Date" type="date"
                           value={ledgerFilters.endDate}
-                          onChange={(e) => setLedgerFilters({...ledgerFilters, endDate: e.target.value})}
+                          onChange={(e) => setLedgerFilters({ ...ledgerFilters, endDate: e.target.value })}
                           InputLabelProps={{ shrink: true }}
                         />
                       </Grid>
@@ -1333,7 +819,7 @@ const calculateSummaryTotals = () => {
                           <InputLabel>Transaction Type</InputLabel>
                           <Select
                             value={ledgerFilters.transactionType}
-                            onChange={(e) => setLedgerFilters({...ledgerFilters, transactionType: e.target.value})}
+                            onChange={(e) => setLedgerFilters({ ...ledgerFilters, transactionType: e.target.value })}
                             label="Transaction Type"
                           >
                             <MenuItem value="all">All</MenuItem>
@@ -1344,64 +830,36 @@ const calculateSummaryTotals = () => {
                         </FormControl>
                       </Grid>
                       <Grid item xs={12} md={3}>
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          startIcon={<FilterIcon />}
-                          onClick={handleLedgerFilterChange}
-                        >
+                        <Button fullWidth variant="contained" startIcon={<FilterIcon />} onClick={handleLedgerFilterChange}>
                           Apply Filters
                         </Button>
                       </Grid>
                     </Grid>
                   </Box>
 
-                  {viewingAllCustomers ? (
-                    currentCustomerLedger?.groupedLedgers && currentCustomerLedger.groupedLedgers.length > 0 
-                      ? renderAllCustomerLedgers() 
-                      : currentCustomerLedger?.transactions && currentCustomerLedger.transactions.length > 0
-                        ? renderSingleCustomerLedger() // Fallback to single view if groupedLedgers not available
-                        : renderAllCustomerLedgers() // Show empty message
-                  ) : renderSingleCustomerLedger()}
+                  {renderCustomerLedger()}
                 </>
               )}
             </DialogContent>
             <DialogActions>
-              <Button 
-                variant="outlined" 
-                startIcon={<ExportIcon />}
-                onClick={handleExportClick}
-                sx={{ minWidth: 120 }}
-                disabled={!selectedCustomer}
-              >
+              <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExportClick} sx={{ minWidth: 120 }} disabled={!selectedCustomer}>
                 Export
               </Button>
-              <Button onClick={() => setLedgerDialogOpen(false)}>
-                Close
-              </Button>
+              <Button onClick={() => setLedgerDialogOpen(false)}>Close</Button>
             </DialogActions>
           </Dialog>
-          
+
           {/* Sale Items Dialog */}
-          <Dialog 
-            open={saleItemsDialogOpen} 
-            onClose={() => setSaleItemsDialogOpen(false)} 
-            maxWidth="md" 
-            fullWidth
-          >
+          <Dialog open={saleItemsDialogOpen} onClose={() => setSaleItemsDialogOpen(false)} maxWidth="md" fullWidth>
             <DialogTitle>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6">
-                  Sale Items - {selectedSale?.invoice_no || 'N/A'}
-                </Typography>
+                <Typography variant="h6">Sale Items - {selectedSale?.invoice_no || 'N/A'}</Typography>
                 <Button onClick={() => setSaleItemsDialogOpen(false)}>Close</Button>
               </Box>
             </DialogTitle>
             <DialogContent>
               {loadingSaleItems ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                  <CircularProgress />
-                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}><CircularProgress /></Box>
               ) : saleItems.length > 0 ? (
                 <TableContainer component={Paper} sx={{ mt: 2 }}>
                   <Table size="small">
@@ -1431,62 +889,43 @@ const calculateSummaryTotals = () => {
                 </TableContainer>
               ) : (
                 <Box sx={{ p: 3, textAlign: 'center' }}>
-                  <Typography variant="body1" color="text.secondary">
-                    No items found for this sale.
-                  </Typography>
+                  <Typography variant="body1" color="text.secondary">No items found for this sale.</Typography>
                 </Box>
               )}
             </DialogContent>
           </Dialog>
-          
+
           {/* Export Menu */}
           <Menu
             anchorEl={exportAnchorEl}
             open={Boolean(exportAnchorEl)}
             onClose={handleExportClose}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'left',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'left' }}
           >
             <MenuItem onClick={() => handleExportAction('pdf', false)}>
-              <ListItemIcon>
-                <DownloadIcon fontSize="small" />
-              </ListItemIcon>
+              <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
               Export as PDF
             </MenuItem>
             <MenuItem onClick={() => handleExportAction('pdf', true)}>
-              <ListItemIcon>
-                <DownloadIcon fontSize="small" />
-              </ListItemIcon>
+              <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
               Detailed PDF
             </MenuItem>
             <MenuItem onClick={() => handleExportAction('excel', false)}>
-              <ListItemIcon>
-                <DownloadIcon fontSize="small" />
-              </ListItemIcon>
+              <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
               Export as Excel
             </MenuItem>
             <MenuItem onClick={() => handleExportAction('excel', true)}>
-              <ListItemIcon>
-                <DownloadIcon fontSize="small" />
-              </ListItemIcon>
+              <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
               Detailed Excel
             </MenuItem>
           </Menu>
+
           {/* Edit Customer Dialog */}
           <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
             <DialogTitle>Edit Customer Info</DialogTitle>
             <DialogContent>
-              {editError && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {editError}
-                </Alert>
-              )}
+              {editError && <Alert severity="error" sx={{ mb: 2 }}>{editError}</Alert>}
               <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField
                   label="Customer Name"
@@ -1504,11 +943,7 @@ const calculateSummaryTotals = () => {
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button
-                variant="contained"
-                onClick={handleSaveEdit}
-                disabled={editSaving}
-              >
+              <Button variant="contained" onClick={handleSaveEdit} disabled={editSaving}>
                 {editSaving ? <CircularProgress size={20} /> : 'Save'}
               </Button>
             </DialogActions>
