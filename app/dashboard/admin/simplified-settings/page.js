@@ -9,6 +9,7 @@ import {
   IconButton, Tooltip, AlertTitle, TextField
 } from '@mui/material';
 import { Business, Warehouse, Edit, Settings, Refresh, CheckCircle, Info } from '@mui/icons-material';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import api from '../../../../utils/axios';
 import RouteGuard from '../../../../components/auth/RouteGuard';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
@@ -109,6 +110,13 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
 
     { type: 'section', section: 'Customer Management' },
     { key: 'allowCashierCustomerEdit', label: 'Allow Cashier Customer Edit', description: 'Cashiers can edit customer name and phone number', type: 'switch' },
+    {
+      key: 'allowWhatsappLedger',
+      label: 'Allow WhatsApp Ledger Sharing',
+      description: 'Cashiers can share full detailed customer ledger (with all invoice items) via WhatsApp',
+      type: 'switch',
+      icon: 'whatsapp'
+    },
 
     { type: 'section', section: 'Company Management' },
     { key: 'allowCompanyCreate', label: 'Allow Company Creation', description: 'Branch users can add new companies',            type: 'switch' },
@@ -175,7 +183,6 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {/* Sales icon legend */}
           <Alert severity="info" sx={{ mb: 3 }}>
             <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by &quot;Allow Cashier Sales Edit&quot; &nbsp;|&nbsp; 🗑 Delete — controlled by &quot;Allow Cashier Sales Delete&quot;
           </Alert>
@@ -191,7 +198,10 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
                 }
                 return (
                   <Grid item xs={12} md={6} key={setting.key}>
-                    <Card variant="outlined">
+                    <Card
+                      variant="outlined"
+                      sx={setting.icon === 'whatsapp' ? { borderColor: '#25D366', borderWidth: 2 } : {}}
+                    >
                       <CardContent>
                         {setting.type === 'switch' ? (
                           <FormControlLabel
@@ -199,12 +209,17 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
                               <Switch
                                 checked={Boolean(editingSettings[setting.key])}
                                 onChange={handleSettingChange(setting.key)}
-                                color="primary"
+                                color={setting.icon === 'whatsapp' ? 'success' : 'primary'}
                               />
                             }
                             label={
                               <Box>
-                                <Typography variant="body1" component="div">{setting.label}</Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  {setting.icon === 'whatsapp' && (
+                                    <WhatsAppIcon sx={{ fontSize: 16, color: '#25D366' }} />
+                                  )}
+                                  <Typography variant="body1" component="div">{setting.label}</Typography>
+                                </Box>
                                 <Typography variant="body2" color="textSecondary">{setting.description}</Typography>
                               </Box>
                             }
@@ -323,10 +338,17 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
     { key: 'allowCompanyDelete', label: 'Allow Company Delete',   description: 'Warehouse keepers can delete companies',              type: 'switch' },
 
     { type: 'section', section: 'Retailer Management' },
-    { key: 'allowRetailerCreate',       label: 'Allow Retailer Creation',      description: 'Warehouse keepers can add new retailers',                       type: 'switch' },
-    { key: 'allowRetailerEdit',         label: 'Allow Retailer Edit',          description: 'Warehouse keepers can edit existing retailers',                  type: 'switch' },
-    { key: 'allowRetailerDelete',       label: 'Allow Retailer Delete',        description: 'Warehouse keepers can delete retailers',                         type: 'switch' },
-    { key: 'allowRetailerCustomerEdit', label: 'Allow Retailer/Customer Edit', description: 'Warehouse keepers can edit retailer and customer name/phone',    type: 'switch' },
+    { key: 'allowRetailerCreate',       label: 'Allow Retailer Creation',      description: 'Warehouse keepers can add new retailers',                    type: 'switch' },
+    { key: 'allowRetailerEdit',         label: 'Allow Retailer Edit',          description: 'Warehouse keepers can edit existing retailers',               type: 'switch' },
+    { key: 'allowRetailerDelete',       label: 'Allow Retailer Delete',        description: 'Warehouse keepers can delete retailers',                      type: 'switch' },
+    { key: 'allowRetailerCustomerEdit', label: 'Allow Retailer/Customer Edit', description: 'Warehouse keepers can edit retailer and customer name/phone', type: 'switch' },
+    {
+      key: 'allowWhatsappLedger',
+      label: 'Allow WhatsApp Ledger Sharing',
+      description: 'Warehouse keepers can share full detailed customer ledger (with all invoice items) via WhatsApp',
+      type: 'switch',
+      icon: 'whatsapp'
+    },
 
     { type: 'section', section: 'Transfer Settings' },
     { key: 'allowWarehouseTransfers',              label: 'Allow Warehouse Transfers',                description: 'Allow transfers from this warehouse',                     type: 'switch' },
@@ -390,7 +412,6 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
           </Box>
         </DialogTitle>
         <DialogContent dividers>
-          {/* Sales icon legend */}
           <Alert severity="info" sx={{ mb: 3 }}>
             <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by &quot;Allow Warehouse Sales Edit&quot; &nbsp;|&nbsp; 🗑 Delete — controlled by &quot;Allow Warehouse Sales Delete&quot;
           </Alert>
@@ -406,7 +427,10 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
                 }
                 return (
                   <Grid item xs={12} md={6} key={setting.key}>
-                    <Card variant="outlined">
+                    <Card
+                      variant="outlined"
+                      sx={setting.icon === 'whatsapp' ? { borderColor: '#25D366', borderWidth: 2 } : {}}
+                    >
                       <CardContent>
                         {setting.type === 'switch' ? (
                           <FormControlLabel
@@ -414,12 +438,17 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
                               <Switch
                                 checked={Boolean(editingSettings[setting.key])}
                                 onChange={handleSettingChange(setting.key)}
-                                color="primary"
+                                color={setting.icon === 'whatsapp' ? 'success' : 'primary'}
                               />
                             }
                             label={
                               <Box>
-                                <Typography variant="body1" component="div">{setting.label}</Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  {setting.icon === 'whatsapp' && (
+                                    <WhatsAppIcon sx={{ fontSize: 16, color: '#25D366' }} />
+                                  )}
+                                  <Typography variant="body1" component="div">{setting.label}</Typography>
+                                </Box>
                                 <Typography variant="body2" color="textSecondary">{setting.description}</Typography>
                               </Box>
                             }
