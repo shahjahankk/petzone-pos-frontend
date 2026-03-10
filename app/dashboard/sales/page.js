@@ -881,18 +881,24 @@ const SalesManagement = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
   const [entityToDelete, setEntityToDelete] = useState(null)
 
-  const canManageSales = () => {
-    if (user?.role === 'ADMIN') return true
-    if (user?.role === 'CASHIER') {
-      return branchSettings?.allowCashierSalesEdit || false
-    }
-    if (user?.role === 'WAREHOUSE_KEEPER') {
-      return warehouseSettings?.allowWarehouseSales || false
-    }
-    return false
-  }
+  // View — always true (eye icon always visible)
+  const canView = true
 
-  const canEdit = canManageSales()
+  // Edit — admin always; cashier needs allowCashierSalesEdit; warehouse keeper needs allowWarehouseSalesEdit
+  const canEdit = (() => {
+    if (user?.role === 'ADMIN') return true
+    if (user?.role === 'CASHIER') return Boolean(branchSettings?.allowCashierSalesEdit)
+    if (user?.role === 'WAREHOUSE_KEEPER') return Boolean(warehouseSettings?.allowWarehouseSalesEdit)
+    return false
+  })()
+
+  // Delete — admin always; cashier needs allowCashierSalesDelete; warehouse keeper needs allowWarehouseSalesDelete
+  const canDelete = (() => {
+    if (user?.role === 'ADMIN') return true
+    if (user?.role === 'CASHIER') return Boolean(branchSettings?.allowCashierSalesDelete)
+    if (user?.role === 'WAREHOUSE_KEEPER') return Boolean(warehouseSettings?.allowWarehouseSalesDelete)
+    return false
+  })()
 
   const handleManualRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1)
@@ -2272,31 +2278,32 @@ const SalesManagement = () => {
                                       <ViewIcon />
                                     </IconButton>
                                   </Tooltip>
-                                  {/* Edit + Delete — only when canEdit (admin toggle ON or settings allow) */}
+                                  {/* Edit — only when canEdit toggle is ON */}
                                   {canEdit && (
-                                    <>
-                                      <Tooltip title="Edit Invoice">
-                                        <IconButton
-                                          size="small"
-                                          onClick={() => handleEditInvoice(sale)}
-                                          color="secondary"
-                                        >
-                                          <ReceiptIcon />
-                                        </IconButton>
-                                      </Tooltip>
-                                      <Tooltip title="Delete">
-                                        <IconButton
-                                          size="small"
-                                          onClick={() => {
-                                            setEntityToDelete(sale)
-                                            setOpenDeleteDialog(true)
-                                          }}
-                                          color="error"
-                                        >
-                                          <DeleteIcon />
-                                        </IconButton>
-                                      </Tooltip>
-                                    </>
+                                    <Tooltip title="Edit Invoice">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleEditInvoice(sale)}
+                                        color="secondary"
+                                      >
+                                        <ReceiptIcon />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                  {/* Delete — only when canDelete toggle is ON */}
+                                  {canDelete && (
+                                    <Tooltip title="Delete">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                          setEntityToDelete(sale)
+                                          setOpenDeleteDialog(true)
+                                        }}
+                                        color="error"
+                                      >
+                                        <DeleteIcon />
+                                      </IconButton>
+                                    </Tooltip>
                                   )}
                                 </Box>
                               </TableCell>

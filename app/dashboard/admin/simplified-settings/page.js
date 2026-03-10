@@ -2,34 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Switch,
-  FormControlLabel,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Grid,
-  Alert,
-  CircularProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Chip,
-  Tabs,
-  Tab,
-  IconButton,
-  Tooltip,
-  AlertTitle,
-  TextField
+  Box, Typography, Card, CardContent, Switch, FormControlLabel,
+  Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  Grid, Alert, CircularProgress, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Paper, Chip, Tabs, Tab,
+  IconButton, Tooltip, AlertTitle, TextField
 } from '@mui/material';
 import { Business, Warehouse, Edit, Settings, Refresh, CheckCircle, Info } from '@mui/icons-material';
 import api from '../../../../utils/axios';
@@ -37,7 +14,6 @@ import RouteGuard from '../../../../components/auth/RouteGuard';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
 import withAuth from '../../../../components/auth/withAuth';
 
-// Tab panel component
 function TabPanel({ children, value, index, ...other }) {
   return (
     <div
@@ -52,7 +28,7 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-// ==================== BRANCH SETTINGS COMPONENT ====================
+// ==================== BRANCH SETTINGS ====================
 const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
   const [error, setError] = useState(null);
   const [selectedBranch, setSelectedBranch] = useState(null);
@@ -61,15 +37,9 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
   const [changedSettings, setChangedSettings] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // ✅ Returns response.data.data.settings — the clean permissions object from controller
   const loadBranchSettings = async (branchId) => {
-    try {
-      const response = await api.get(`/branches/${branchId}/settings`);
-      return response.data.data.settings;
-    } catch (err) {
-      console.error('Failed to load branch settings:', err);
-      throw err;
-    }
+    const response = await api.get(`/branches/${branchId}/settings`);
+    return response.data.data.settings;
   };
 
   const handleEditSettings = async (branch) => {
@@ -98,15 +68,10 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
 
   const handleSaveSettings = async () => {
     if (!selectedBranch) return;
-    if (Object.keys(changedSettings).length === 0) {
-      setSettingsDialogOpen(false);
-      return;
-    }
+    if (Object.keys(changedSettings).length === 0) { setSettingsDialogOpen(false); return; }
     setSaving(true);
     try {
-      await api.put(`/branches/${selectedBranch.id}/settings`, {
-        settings: editingSettings
-      });
+      await api.put(`/branches/${selectedBranch.id}/settings`, { settings: editingSettings });
       const refreshResponse = await api.get('/branches');
       onBranchesChange(refreshResponse.data.data || []);
       setChangedSettings({});
@@ -129,23 +94,26 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
 
   const settingsConfig = [
     { type: 'section', section: 'Cashier Permissions' },
-    { key: 'allowCashierInventoryAdd',  label: 'Allow Cashier Inventory Add',  description: 'Cashiers can add NEW inventory items',                          type: 'switch' },
-    { key: 'allowCashierInventoryEdit', label: 'Allow Cashier Inventory Edit', description: 'Cashiers can EDIT existing inventory items',                     type: 'switch' },
-    { key: 'allowCashierSalesEdit',     label: 'Allow Cashier Sales Edit',     description: 'Cashiers can add/edit sales (if off: view only)',                type: 'switch' },
-    { key: 'allowCashierSalesDelete',   label: 'Allow Cashier Sales Delete',   description: 'Cashiers can delete sales (requires sales edit permission)',     type: 'switch' },
-    { key: 'allowCashierReturns',       label: 'Allow Cashier Returns',        description: 'Cashiers can process returns',                                   type: 'switch' },
-    { key: 'allowCashierCustomers',     label: 'Allow Cashier Customers',      description: 'Cashiers can manage customers',                                  type: 'switch' },
-    { key: 'allowCashierPOS',           label: 'Allow Cashier POS',            description: 'Cashiers can use POS system',                                   type: 'switch' },
-    { key: 'allowCashierLedger',        label: 'Allow Cashier Ledger',         description: 'Cashiers can access ledger',                                     type: 'switch' },
-    { key: 'openAccountSystem',         label: 'Open Account System',          description: 'Enable open account functionality',                              type: 'switch' },
+    { key: 'allowCashierInventoryAdd',  label: 'Allow Cashier Inventory Add',  description: 'Cashiers can add NEW inventory items',                      type: 'switch' },
+    { key: 'allowCashierInventoryEdit', label: 'Allow Cashier Inventory Edit', description: 'Cashiers can EDIT existing inventory items',                 type: 'switch' },
+
+    { type: 'section', section: 'Sales Permissions (View is always ON for Cashiers)' },
+    { key: 'allowCashierSalesEdit',   label: 'Allow Cashier Sales Edit',   description: 'Cashiers can edit invoices — when OFF, view only',           type: 'switch' },
+    { key: 'allowCashierSalesDelete', label: 'Allow Cashier Sales Delete', description: 'Cashiers can delete sales — when OFF, delete button hidden',  type: 'switch' },
+
+    { key: 'allowCashierReturns',   label: 'Allow Cashier Returns',   description: 'Cashiers can process returns',      type: 'switch' },
+    { key: 'allowCashierCustomers', label: 'Allow Cashier Customers', description: 'Cashiers can manage customers',     type: 'switch' },
+    { key: 'allowCashierPOS',       label: 'Allow Cashier POS',       description: 'Cashiers can use POS system',      type: 'switch' },
+    { key: 'allowCashierLedger',    label: 'Allow Cashier Ledger',    description: 'Cashiers can access ledger',       type: 'switch' },
+    { key: 'openAccountSystem',     label: 'Open Account System',     description: 'Enable open account functionality', type: 'switch' },
 
     { type: 'section', section: 'Customer Management' },
-    { key: 'allowCashierCustomerEdit',  label: 'Allow Cashier Customer Edit',  description: 'Cashiers can edit customer name and phone number',               type: 'switch' },
+    { key: 'allowCashierCustomerEdit', label: 'Allow Cashier Customer Edit', description: 'Cashiers can edit customer name and phone number', type: 'switch' },
 
     { type: 'section', section: 'Company Management' },
-    { key: 'allowCompanyCreate',        label: 'Allow Company Creation',       description: 'Branch users can add new companies',                            type: 'switch' },
-    { key: 'allowCompanyEdit',          label: 'Allow Company Edit',           description: 'Branch users can edit existing companies',                       type: 'switch' },
-    { key: 'allowCompanyDelete',        label: 'Allow Company Delete',         description: 'Branch users can delete companies',                              type: 'switch' },
+    { key: 'allowCompanyCreate', label: 'Allow Company Creation', description: 'Branch users can add new companies',            type: 'switch' },
+    { key: 'allowCompanyEdit',   label: 'Allow Company Edit',     description: 'Branch users can edit existing companies',       type: 'switch' },
+    { key: 'allowCompanyDelete', label: 'Allow Company Delete',   description: 'Branch users can delete companies',              type: 'switch' },
 
     { type: 'section', section: 'Transfer Settings' },
     { key: 'allowBranchTransfers',               label: 'Allow Branch Transfers',                description: 'Allow transfers from this branch',                       type: 'switch' },
@@ -160,16 +128,14 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <Business sx={{ fontSize: 28, color: 'primary.main' }} />
-          <Typography variant="h5" component="h2">Branch Settings</Typography>
+          <Typography variant="h5">Branch Settings</Typography>
         </Box>
         <Typography variant="body2" color="textSecondary">
-          Configure cashier permissions, company management, and transfer settings for each branch
+          Configure cashier permissions for each branch. <strong>View (eye icon) is always visible</strong> — only Edit and Delete are toggled separately.
         </Typography>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
 
       <TableContainer component={Paper}>
         <Table>
@@ -186,7 +152,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
               const summary = getSettingsSummary(branch);
               return (
                 <TableRow key={branch.id}>
-                  <TableCell><Typography variant="body1" fontWeight="medium">{branch.name}</Typography></TableCell>
+                  <TableCell><Typography fontWeight="medium">{branch.name}</Typography></TableCell>
                   <TableCell><Chip label={branch.code} size="small" /></TableCell>
                   <TableCell><Typography variant="body2">{summary.enabled}/{summary.total} ({summary.percentage}%)</Typography></TableCell>
                   <TableCell>
@@ -205,65 +171,61 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Settings />
-            <Typography variant="h6">Edit Settings for {selectedBranch?.name}</Typography>
+            <Typography variant="h6">Edit Settings — {selectedBranch?.name}</Typography>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
+          {/* Sales icon legend */}
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by "Allow Cashier Sales Edit" &nbsp;|&nbsp; 🗑 Delete — controlled by "Allow Cashier Sales Delete"
+          </Alert>
           {selectedBranch && (
-            <Box>
-              <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                Branch Code: {selectedBranch.code}
-              </Typography>
-              <Grid container spacing={3}>
-                {settingsConfig.map((setting, index) => {
-                  if (setting.type === 'section') {
-                    return (
-                      <Grid item xs={12} key={`section-${index}`}>
-                        <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main' }}>{setting.section}</Typography>
-                      </Grid>
-                    );
-                  }
+            <Grid container spacing={3}>
+              {settingsConfig.map((setting, index) => {
+                if (setting.type === 'section') {
                   return (
-                    <Grid item xs={12} md={6} key={setting.key}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          {setting.type === 'switch' ? (
-                            <FormControlLabel
-                              control={
-                                <Switch
-                                  // ✅ Boolean() handles 1, true, "1" correctly
-                                  checked={Boolean(editingSettings[setting.key])}
-                                  onChange={handleSettingChange(setting.key)}
-                                  color="primary"
-                                />
-                              }
-                              label={
-                                <Box>
-                                  <Typography variant="body1" component="div">{setting.label}</Typography>
-                                  <Typography variant="body2" color="textSecondary">{setting.description}</Typography>
-                                </Box>
-                              }
-                            />
-                          ) : (
-                            <Box>
-                              <Typography variant="body1" gutterBottom>{setting.label}</Typography>
-                              <TextField
-                                type="number"
-                                value={editingSettings[setting.key] || ''}
-                                onChange={handleNumberChange(setting.key)}
-                                size="small"
-                                fullWidth
-                                helperText={setting.description}
-                              />
-                            </Box>
-                          )}
-                        </CardContent>
-                      </Card>
+                    <Grid item xs={12} key={`section-${index}`}>
+                      <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main' }}>{setting.section}</Typography>
                     </Grid>
                   );
-                })}
-              </Grid>
-            </Box>
+                }
+                return (
+                  <Grid item xs={12} md={6} key={setting.key}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        {setting.type === 'switch' ? (
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={Boolean(editingSettings[setting.key])}
+                                onChange={handleSettingChange(setting.key)}
+                                color="primary"
+                              />
+                            }
+                            label={
+                              <Box>
+                                <Typography variant="body1" component="div">{setting.label}</Typography>
+                                <Typography variant="body2" color="textSecondary">{setting.description}</Typography>
+                              </Box>
+                            }
+                          />
+                        ) : (
+                          <Box>
+                            <Typography variant="body1" gutterBottom>{setting.label}</Typography>
+                            <TextField
+                              type="number"
+                              value={editingSettings[setting.key] || ''}
+                              onChange={handleNumberChange(setting.key)}
+                              size="small" fullWidth helperText={setting.description}
+                            />
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
+            </Grid>
           )}
         </DialogContent>
         <DialogActions>
@@ -277,7 +239,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
   );
 };
 
-// ==================== WAREHOUSE SETTINGS COMPONENT ====================
+// ==================== WAREHOUSE SETTINGS ====================
 const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
   const [error, setError] = useState(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
@@ -286,15 +248,9 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
   const [changedSettings, setChangedSettings] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // ✅ Returns response.data.data.settings — the clean permissions object from controller
   const loadWarehouseSettings = async (warehouseId) => {
-    try {
-      const response = await api.get(`/warehouses/${warehouseId}/settings`);
-      return response.data.data.settings;
-    } catch (err) {
-      console.error('Failed to load warehouse settings:', err);
-      throw err;
-    }
+    const response = await api.get(`/warehouses/${warehouseId}/settings`);
+    return response.data.data.settings;
   };
 
   const handleEditSettings = async (warehouse) => {
@@ -321,31 +277,24 @@ const SimplifiedWarehouseSettings = ({ warehouses, onWarehousesChange }) => {
     setChangedSettings(prev => ({ ...prev, [key]: value }));
   };
 
-const handleSaveSettings = async () => {
-  if (!selectedWarehouse) return;
-  if (Object.keys(changedSettings).length === 0) {
-    setSettingsDialogOpen(false);
-    return;
-  }
-  setSaving(true);
-  try {
-    // ✅ Inside the function so it reads current editingSettings
-    const { allowWarehouseCompanyCRUD, allowWarehouseRetailerCRUD, ...settingsToSave } = editingSettings;
-    
-    await api.put(`/warehouses/${selectedWarehouse.id}/settings`, {
-      settings: settingsToSave
-    });
-    const refreshResponse = await api.get('/warehouses');
-    onWarehousesChange(refreshResponse.data.data || []);
-    setChangedSettings({});
-    setSettingsDialogOpen(false);
-    setError(null);
-  } catch (err) {
-    setError('Failed to save warehouse settings');
-  } finally {
-    setSaving(false);
-  }
-};
+  const handleSaveSettings = async () => {
+    if (!selectedWarehouse) return;
+    if (Object.keys(changedSettings).length === 0) { setSettingsDialogOpen(false); return; }
+    setSaving(true);
+    try {
+      const { allowWarehouseCompanyCRUD, allowWarehouseRetailerCRUD, ...settingsToSave } = editingSettings;
+      await api.put(`/warehouses/${selectedWarehouse.id}/settings`, { settings: settingsToSave });
+      const refreshResponse = await api.get('/warehouses');
+      onWarehousesChange(refreshResponse.data.data || []);
+      setChangedSettings({});
+      setSettingsDialogOpen(false);
+      setError(null);
+    } catch (err) {
+      setError('Failed to save warehouse settings');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const getSettingsSummary = (warehouse) => {
     const settings = warehouse.settings || {};
@@ -357,33 +306,36 @@ const handleSaveSettings = async () => {
 
   const settingsConfig = [
     { type: 'section', section: 'Basic Warehouse Operations' },
-    { key: 'allowWarehouseInventoryAdd',  label: 'Allow Warehouse Inventory Add',  description: 'Warehouse keepers can add NEW inventory items',         type: 'switch' },
-    { key: 'allowWarehouseInventoryEdit', label: 'Allow Warehouse Inventory Edit', description: 'Warehouse keepers can EDIT existing inventory items',    type: 'switch' },
-    { key: 'allowWarehouseReturns',       label: 'Allow Warehouse Returns',        description: 'Warehouse keepers can process returns',                  type: 'switch' },
-    { key: 'allowWarehouseSales',         label: 'Allow Warehouse Sales Management', description: 'Warehouse keepers can view and manage sales',          type: 'switch' },
-    { key: 'allowWarehouseLedgerEdit',    label: 'Allow Ledger Edit',              description: 'Enable warehouse keeper to edit ledger accounts',        type: 'switch' },
-    { key: 'requireApprovalForTransfers', label: 'Require Approval for Transfers', description: 'Transfers need approval before processing',              type: 'switch' },
-    { key: 'autoStockAlerts',             label: 'Auto Stock Alerts',              description: 'Enable automatic stock level alerts',                    type: 'switch' },
+    { key: 'allowWarehouseInventoryAdd',  label: 'Allow Warehouse Inventory Add',  description: 'Warehouse keepers can add NEW inventory items',      type: 'switch' },
+    { key: 'allowWarehouseInventoryEdit', label: 'Allow Warehouse Inventory Edit', description: 'Warehouse keepers can EDIT existing inventory items', type: 'switch' },
+    { key: 'allowWarehouseReturns',       label: 'Allow Warehouse Returns',        description: 'Warehouse keepers can process returns',              type: 'switch' },
+    { key: 'allowWarehouseLedgerEdit',    label: 'Allow Ledger Edit',              description: 'Enable warehouse keeper to edit ledger accounts',    type: 'switch' },
+    { key: 'requireApprovalForTransfers', label: 'Require Approval for Transfers', description: 'Transfers need approval before processing',          type: 'switch' },
+    { key: 'autoStockAlerts',             label: 'Auto Stock Alerts',              description: 'Enable automatic stock level alerts',                type: 'switch' },
+
+    { type: 'section', section: 'Sales Permissions (View is always ON for Warehouse Keepers)' },
+    { key: 'allowWarehouseSalesEdit',   label: 'Allow Warehouse Sales Edit',   description: 'Warehouse keepers can edit invoices — when OFF, view only',          type: 'switch' },
+    { key: 'allowWarehouseSalesDelete', label: 'Allow Warehouse Sales Delete', description: 'Warehouse keepers can delete sales — when OFF, delete button hidden', type: 'switch' },
 
     { type: 'section', section: 'Company Management' },
-    { key: 'allowCompanyCreate', label: 'Allow Company Creation', description: 'Warehouse keepers can add new companies',    type: 'switch' },
-    { key: 'allowCompanyEdit',   label: 'Allow Company Edit',     description: 'Warehouse keepers can edit existing companies', type: 'switch' },
-    { key: 'allowCompanyDelete', label: 'Allow Company Delete',   description: 'Warehouse keepers can delete companies',     type: 'switch' },
+    { key: 'allowCompanyCreate', label: 'Allow Company Creation', description: 'Warehouse keepers can add new companies',            type: 'switch' },
+    { key: 'allowCompanyEdit',   label: 'Allow Company Edit',     description: 'Warehouse keepers can edit existing companies',       type: 'switch' },
+    { key: 'allowCompanyDelete', label: 'Allow Company Delete',   description: 'Warehouse keepers can delete companies',              type: 'switch' },
 
     { type: 'section', section: 'Retailer Management' },
-    { key: 'allowRetailerCreate',       label: 'Allow Retailer Creation',       description: 'Warehouse keepers can add new retailers',               type: 'switch' },
-    { key: 'allowRetailerEdit',         label: 'Allow Retailer Edit',           description: 'Warehouse keepers can edit existing retailers',          type: 'switch' },
-    { key: 'allowRetailerDelete',       label: 'Allow Retailer Delete',         description: 'Warehouse keepers can delete retailers',                 type: 'switch' },
-    { key: 'allowRetailerCustomerEdit', label: 'Allow Retailer/Customer Edit',  description: 'Warehouse keepers can edit retailer and customer name/phone', type: 'switch' },
+    { key: 'allowRetailerCreate',       label: 'Allow Retailer Creation',      description: 'Warehouse keepers can add new retailers',                       type: 'switch' },
+    { key: 'allowRetailerEdit',         label: 'Allow Retailer Edit',          description: 'Warehouse keepers can edit existing retailers',                  type: 'switch' },
+    { key: 'allowRetailerDelete',       label: 'Allow Retailer Delete',        description: 'Warehouse keepers can delete retailers',                         type: 'switch' },
+    { key: 'allowRetailerCustomerEdit', label: 'Allow Retailer/Customer Edit', description: 'Warehouse keepers can edit retailer and customer name/phone',    type: 'switch' },
 
     { type: 'section', section: 'Transfer Settings' },
-    { key: 'allowWarehouseTransfers',              label: 'Allow Warehouse Transfers',              description: 'Allow transfers from this warehouse',                      type: 'switch' },
-    { key: 'allowWarehouseToWarehouseTransfers',   label: 'Allow Warehouse to Warehouse Transfers', description: 'Allow transfers from warehouse to other warehouses',       type: 'switch' },
-    { key: 'allowWarehouseToBranchTransfers',      label: 'Allow Warehouse to Branch Transfers',    description: 'Allow transfers from warehouse to branch',                 type: 'switch' },
-    { key: 'requireApprovalForWarehouseTransfers', label: 'Require Approval for Warehouse Transfers', description: 'Require admin approval for warehouse transfers',        type: 'switch' },
-    { key: 'maxTransferAmount',                    label: 'Maximum Transfer Amount',                description: 'Maximum amount allowed for transfers',                    type: 'number' },
-    { key: 'autoApproveSmallTransfers',            label: 'Auto-Approve Small Transfers',           description: 'Auto-approve transfers under threshold',                  type: 'switch' },
-    { key: 'smallTransferThreshold',               label: 'Small Transfer Threshold',               description: 'Amount threshold for auto-approval',                      type: 'number' },
+    { key: 'allowWarehouseTransfers',              label: 'Allow Warehouse Transfers',                description: 'Allow transfers from this warehouse',                     type: 'switch' },
+    { key: 'allowWarehouseToWarehouseTransfers',   label: 'Allow Warehouse to Warehouse Transfers',   description: 'Allow transfers from warehouse to other warehouses',      type: 'switch' },
+    { key: 'allowWarehouseToBranchTransfers',      label: 'Allow Warehouse to Branch Transfers',      description: 'Allow transfers from warehouse to branch',                type: 'switch' },
+    { key: 'requireApprovalForWarehouseTransfers', label: 'Require Approval for Warehouse Transfers', description: 'Require admin approval for warehouse transfers',          type: 'switch' },
+    { key: 'maxTransferAmount',          label: 'Maximum Transfer Amount',    description: 'Maximum amount allowed for transfers',          type: 'number' },
+    { key: 'autoApproveSmallTransfers',  label: 'Auto-Approve Small Transfers', description: 'Auto-approve transfers under threshold',       type: 'switch' },
+    { key: 'smallTransferThreshold',     label: 'Small Transfer Threshold',   description: 'Amount threshold for auto-approval',            type: 'number' },
   ];
 
   return (
@@ -391,16 +343,14 @@ const handleSaveSettings = async () => {
       <Box sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           <Warehouse sx={{ fontSize: 28, color: 'primary.main' }} />
-          <Typography variant="h5" component="h2">Warehouse Settings</Typography>
+          <Typography variant="h5">Warehouse Settings</Typography>
         </Box>
         <Typography variant="body2" color="textSecondary">
-          Configure granular permissions for warehouse keepers
+          Configure granular permissions for warehouse keepers. <strong>View (eye icon) is always visible</strong> — only Edit and Delete are toggled separately.
         </Typography>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>
-      )}
+      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
 
       <TableContainer component={Paper}>
         <Table>
@@ -417,7 +367,7 @@ const handleSaveSettings = async () => {
               const summary = getSettingsSummary(warehouse);
               return (
                 <TableRow key={warehouse.id}>
-                  <TableCell><Typography variant="body1" fontWeight="medium">{warehouse.name}</Typography></TableCell>
+                  <TableCell><Typography fontWeight="medium">{warehouse.name}</Typography></TableCell>
                   <TableCell><Chip label={warehouse.code} size="small" /></TableCell>
                   <TableCell><Typography variant="body2">{summary.enabled}/{summary.total} ({summary.percentage}%)</Typography></TableCell>
                   <TableCell>
@@ -436,65 +386,61 @@ const handleSaveSettings = async () => {
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Settings />
-            <Typography variant="h6">Edit Settings for {selectedWarehouse?.name}</Typography>
+            <Typography variant="h6">Edit Settings — {selectedWarehouse?.name}</Typography>
           </Box>
         </DialogTitle>
         <DialogContent dividers>
+          {/* Sales icon legend */}
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <strong>Sales Action Icons:</strong>&nbsp; 👁 View — always visible &nbsp;|&nbsp; ✏️ Edit — controlled by "Allow Warehouse Sales Edit" &nbsp;|&nbsp; 🗑 Delete — controlled by "Allow Warehouse Sales Delete"
+          </Alert>
           {selectedWarehouse && (
-            <Box>
-              <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                Warehouse Code: {selectedWarehouse.code}
-              </Typography>
-              <Grid container spacing={3}>
-                {settingsConfig.map((setting, index) => {
-                  if (setting.type === 'section') {
-                    return (
-                      <Grid item xs={12} key={`section-${index}`}>
-                        <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main' }}>{setting.section}</Typography>
-                      </Grid>
-                    );
-                  }
+            <Grid container spacing={3}>
+              {settingsConfig.map((setting, index) => {
+                if (setting.type === 'section') {
                   return (
-                    <Grid item xs={12} md={6} key={setting.key}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          {setting.type === 'switch' ? (
-                            <FormControlLabel
-                              control={
-                                <Switch
-                                  // ✅ Boolean() handles 1, true, "1" correctly
-                                  checked={Boolean(editingSettings[setting.key])}
-                                  onChange={handleSettingChange(setting.key)}
-                                  color="primary"
-                                />
-                              }
-                              label={
-                                <Box>
-                                  <Typography variant="body1" component="div">{setting.label}</Typography>
-                                  <Typography variant="body2" color="textSecondary">{setting.description}</Typography>
-                                </Box>
-                              }
-                            />
-                          ) : (
-                            <Box>
-                              <Typography variant="body1" gutterBottom>{setting.label}</Typography>
-                              <TextField
-                                type="number"
-                                value={editingSettings[setting.key] || ''}
-                                onChange={handleNumberChange(setting.key)}
-                                size="small"
-                                fullWidth
-                                helperText={setting.description}
-                              />
-                            </Box>
-                          )}
-                        </CardContent>
-                      </Card>
+                    <Grid item xs={12} key={`section-${index}`}>
+                      <Typography variant="h6" sx={{ mt: 2, mb: 1, color: 'primary.main' }}>{setting.section}</Typography>
                     </Grid>
                   );
-                })}
-              </Grid>
-            </Box>
+                }
+                return (
+                  <Grid item xs={12} md={6} key={setting.key}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        {setting.type === 'switch' ? (
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={Boolean(editingSettings[setting.key])}
+                                onChange={handleSettingChange(setting.key)}
+                                color="primary"
+                              />
+                            }
+                            label={
+                              <Box>
+                                <Typography variant="body1" component="div">{setting.label}</Typography>
+                                <Typography variant="body2" color="textSecondary">{setting.description}</Typography>
+                              </Box>
+                            }
+                          />
+                        ) : (
+                          <Box>
+                            <Typography variant="body1" gutterBottom>{setting.label}</Typography>
+                            <TextField
+                              type="number"
+                              value={editingSettings[setting.key] || ''}
+                              onChange={handleNumberChange(setting.key)}
+                              size="small" fullWidth helperText={setting.description}
+                            />
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
+            </Grid>
           )}
         </DialogContent>
         <DialogActions>
@@ -508,15 +454,13 @@ const handleSaveSettings = async () => {
   );
 };
 
-// ==================== MAIN SETTINGS PAGE ====================
+// ==================== MAIN PAGE ====================
 const SimplifiedSettingsPage = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [branches, setBranches] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  const handleTabChange = (event, newValue) => setActiveTab(newValue);
 
   const handleRefresh = async () => {
     setLoading(true);
@@ -545,7 +489,7 @@ const SimplifiedSettingsPage = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Settings sx={{ fontSize: 32, color: 'primary.main' }} />
-                <Typography variant="h4" component="h1">System Settings</Typography>
+                <Typography variant="h4">System Settings</Typography>
               </Box>
               <Tooltip title="Refresh Settings">
                 <IconButton onClick={handleRefresh} disabled={loading}><Refresh /></IconButton>
@@ -561,7 +505,6 @@ const SimplifiedSettingsPage = () => {
           </Box>
 
           {loading && <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}><CircularProgress /></Box>}
-
           {error && (
             <Alert severity="error" sx={{ mb: 3 }}>
               <AlertTitle>Error Loading Settings</AlertTitle>
@@ -571,9 +514,9 @@ const SimplifiedSettingsPage = () => {
 
           <Paper sx={{ width: '100%' }}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-              <Tabs value={activeTab} onChange={handleTabChange} aria-label="simplified settings tabs">
-                <Tab icon={<Business />} label="Branch Settings" id="simplified-settings-tab-0" aria-controls="simplified-settings-tabpanel-0" />
-                <Tab icon={<Warehouse />} label="Warehouse Settings" id="simplified-settings-tab-1" aria-controls="simplified-settings-tabpanel-1" />
+              <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+                <Tab icon={<Business />} label="Branch Settings" />
+                <Tab icon={<Warehouse />} label="Warehouse Settings" />
               </Tabs>
             </Box>
             <TabPanel value={activeTab} index={0}>

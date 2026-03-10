@@ -12,7 +12,42 @@ html, body {
 }
 
 /* ===========================
-   PRINT SETTINGS
+   SCREEN STYLES (preview in dialog)
+   These apply on-screen only — no @media print wrapper.
+   Use % / px widths so the dialog preview looks correct.
+=========================== */
+
+.receipt-container {
+  background: #fff;
+  color: #000;
+}
+
+/* Thermal: fixed narrow column */
+.receipt-container.thermal-layout {
+  width: 280px;
+  max-width: 280px;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.1;
+  padding: 8px 10px;
+  margin: 0 auto;
+}
+
+/* Color/A4: full width on screen — the dialog container constrains it */
+.receipt-container.color-layout {
+  width: 100%;
+  max-width: 100%;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  padding: 16px 24px;
+  margin: 0 auto;
+  /* NO min-height — don't force A4 height on screen */
+}
+
+/* ===========================
+   PRINT STYLES
+   Only applied when the browser's print dialog is open.
 =========================== */
 @media print {
 
@@ -21,32 +56,42 @@ html, body {
     padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    background: #fff !important;
   }
 
-  /* ===========================
-     THERMAL PRINTER (80mm)
-  =========================== */
-  @page thermal {
+  /* Hide everything on the page except the print window content */
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+
+  /* Remove scrollbars */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── Thermal 80mm ── */
+  @page {
     size: 80mm auto;
-    margin: 0;
+    margin: 4mm 2mm;
   }
 
   .receipt-container.thermal-layout {
-    page: thermal;
     width: 80mm !important;
     max-width: 80mm !important;
     padding: 4px 6px !important;
-    margin: 0 auto !important;
+    margin: 0 !important;
     font-family: monospace !important;
     font-size: 11px !important;
     line-height: 1.1 !important;
     color: #000 !important;
     background: #fff !important;
+    /* No min-height — thermal rolls are continuous */
   }
 
   .receipt-container.thermal-layout * {
     font-family: monospace !important;
     color: #000 !important;
+    background: transparent !important;
   }
 
   .receipt-container.thermal-layout img {
@@ -57,21 +102,14 @@ html, body {
     filter: grayscale(100%) !important;
   }
 
-  /* ===========================
-     A4 PORTRAIT (COLOR INVOICE)
-  =========================== */
-  @page a4-portrait {
-    size: A4 portrait;
-    margin: 0;
-  }
-
+  /* ── Color / A4 Portrait ── */
   .receipt-container.color-layout {
-    page: a4-portrait;
-    width: 210mm !important;
-    min-height: 297mm !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    /* Let @page control the page size — don't force mm here */
+    padding: 0 !important;
     margin: 0 !important;
-    padding: 12mm 14mm !important;
-    font-family: Arial, sans-serif !important;
+    font-family: Arial, Helvetica, sans-serif !important;
     font-size: 12px !important;
     line-height: 1.35 !important;
     color: #000 !important;
@@ -79,7 +117,7 @@ html, body {
   }
 
   .receipt-container.color-layout * {
-    font-family: Arial, sans-serif !important;
+    font-family: Arial, Helvetica, sans-serif !important;
     color: #000 !important;
   }
 
@@ -87,32 +125,19 @@ html, body {
     max-width: 160px !important;
     display: block !important;
   }
-
-  /* ===========================
-     A4 LANDSCAPE (WAREHOUSE)
-  =========================== */
-  @page a4-landscape {
-    size: A4 landscape;
-    margin: 0;
-  }
-
-  .receipt-container.warehouse-layout {
-    page: a4-landscape;
-    width: 297mm !important;
-    min-height: 210mm !important;
-    margin: 0 !important;
-    padding: 12mm 14mm !important;
-    font-family: Arial, sans-serif !important;
-    font-size: 12px !important;
-    line-height: 1.35 !important;
-    color: #000 !important;
-    background: #fff !important;
-  }
-
-  /* ===========================
-     REMOVE SCROLLBARS
-  =========================== */
-  ::-webkit-scrollbar {
-    display: none;
-  }
 }
+
+/* ===========================
+   PER-PAPER-SIZE PAGE RULES
+   Applied from JS via PrintDialog's printWindow.document.write
+   The @page rules below are used when that HTML is printed.
+   They live here for reference but the active ones are injected
+   by PrintDialog directly so they can be dynamic.
+=========================== */
+
+/*
+  Thermal:   size: 80mm auto;   margin: 4mm 2mm;
+  A4:        size: A4 portrait; margin: 10mm 12mm;
+  Letter:    size: Letter;      margin: 10mm 12mm;
+  Landscape: size: A4 landscape; margin: 10mm 12mm;
+*/

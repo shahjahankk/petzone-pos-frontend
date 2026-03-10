@@ -117,10 +117,16 @@ export default function PrintDialog({
     const isThermal   = layout === 'thermal'
     const isLandscape = printSettings.orientation === 'landscape'
 
+    // Paper size for @page rule
     let pageSize = isThermal ? '80mm auto' : printSettings.paperSize === 'Letter' ? 'Letter' : 'A4'
     if (!isThermal && isLandscape) pageSize += ' landscape'
-    const margin = isThermal ? '0' : '0.5in'
-    const width  = isThermal ? '280px' : '100%'
+    // Thermal: minimal margin so nothing clips on the roll
+    // Color/A4: comfortable margin — content never touches the paper edge
+    const pageMargin = isThermal ? '3mm 2mm' : '10mm 12mm'
+    const fontFamily = isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'
+    const fontSize   = isThermal ? '11px' : (printSettings.fontSize || '12px')
+    const lineHeight = isThermal ? '1.1' : '1.4'
+    const wrapWidth  = isThermal ? '76mm' : '100%'
 
     printWindow.document.write(`<!DOCTYPE html>
 <html>
@@ -128,37 +134,36 @@ export default function PrintDialog({
   <title>Print — ${printData?.receiptNumber || printData?.invoiceNo || 'Invoice'}</title>
   <meta charset="UTF-8">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    @page { size: ${pageSize}; margin: ${pageMargin}; }
+
     body {
-      font-family: ${isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'};
-      font-size: ${isThermal ? '11px' : printSettings.fontSize || '12px'};
-      line-height: ${isThermal ? '1.1' : '1.5'};
+      font-family: ${fontFamily};
+      font-size: ${fontSize};
+      line-height: ${lineHeight};
       color: #000;
       background: #fff;
-      padding: 20px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     .print-wrapper {
-      width: ${width};
-      max-width: ${isThermal ? width : '1200px'};
-      margin: 0 auto;
+      width: ${wrapWidth};
+      max-width: ${isThermal ? '76mm' : '100%'};
+      margin: 0 ${isThermal ? 'auto' : '0'};
     }
-    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-    th, td { padding: ${isThermal ? '2px 4px' : '8px 12px'}; text-align: left; border-bottom: 1px solid #ddd; }
-    th { font-weight: bold; background-color: ${isThermal ? 'transparent' : '#f5f5f5'}; }
-    @media print {
-      @page { size: ${pageSize}; margin: ${margin}; }
-      body { padding: 0; font-size: ${isThermal ? '11px' : printSettings.fontSize || '12px'}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .print-wrapper { padding: ${isThermal ? '4px' : '20px'}; }
-      .no-print { display: none !important; }
-    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; vertical-align: top; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
   </style>
 </head>
 <body>
   <div class="print-wrapper">${content}</div>
   <script>
-    window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+    window.onload = function() { setTimeout(function() { window.print(); }, 300); };
     window.onafterprint = function() { window.close(); };
-    setTimeout(function() { if (!window.closed) window.close(); }, 4000);
+    setTimeout(function() { if (!window.closed) window.close(); }, 5000);
   <\/script>
 </body>
 </html>`)
