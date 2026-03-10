@@ -328,7 +328,7 @@ function CustomerLedgerPage() {
     return lines.join('\n')
   }
 
-  // ── WhatsApp share: PDF print + WhatsApp Web (no number) ──────────────────
+  // ── WhatsApp share: auto-download HTML + open WhatsApp Web ──
   const handleWhatsappShare = async (customer, filtersOverride = null) => {
     const identifier = getCustomerIdentifier(customer)
     if (!identifier) return
@@ -336,7 +336,7 @@ function CustomerLedgerPage() {
     try {
       const activeFilters = filtersOverride || ledgerFilters
 
-      // Step 1: Fetch detailed PDF HTML from backend and open print dialog
+      // Step 1: Fetch detailed ledger HTML from backend
       const exportParams = new URLSearchParams({ format: 'pdf', detailed: 'true', limit: '1000' })
       if (activeFilters.startDate) exportParams.append('startDate', activeFilters.startDate)
       if (activeFilters.endDate) exportParams.append('endDate', activeFilters.endDate)
@@ -348,20 +348,26 @@ function CustomerLedgerPage() {
         { responseType: 'text' }
       )
 
-      // Open print window — user saves as PDF
-      const printWindow = window.open('', '_blank', 'width=900,height=700')
-      if (printWindow) {
-        printWindow.document.write(exportRes.data)
-        printWindow.document.close()
-        setTimeout(() => { try { printWindow.focus(); printWindow.print() } catch {} }, 800)
-      }
+      // Step 2: AUTO-DOWNLOAD as HTML file (no popup, no print dialog)
+      const customerName = customer.customer_name || customer.customer_phone || identifier
+      const safeFileName = customerName.replace(/[^a-zA-Z0-9]/g, '_')
+      const dateStr = new Date().toISOString().split('T')[0]
+      const blob = new Blob([exportRes.data], { type: 'text/html' })
+      const downloadUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = `Ledger_${safeFileName}_${dateStr}.html`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
 
-      // Step 2: Fetch summary for short WhatsApp message
+      // Step 3: Fetch summary for short WhatsApp message
       const ledgerRes = await api.get(`/customer-ledger/${encodeURIComponent(identifier)}?limit=1&offset=0`)
       const summary = ledgerRes.data?.data?.summary || {}
       const customerInfo = ledgerRes.data?.data?.customer || {}
-      const customerName = customerInfo.name || customerInfo.customer_name || customer.customer_name || 'Customer'
-      const customerPhone = customerInfo.phone || customerInfo.customer_phone || customer.customer_phone || ''
+      const custName = customerInfo.name || customerInfo.customer_name || customer.customer_name || 'Customer'
+      const custPhone = customerInfo.phone || customerInfo.customer_phone || customer.customer_phone || ''
       const from = activeFilters.startDate ? formatDate(activeFilters.startDate) : 'All Time'
       const to = activeFilters.endDate ? formatDate(activeFilters.endDate) : 'Today'
       const period = (activeFilters.startDate || activeFilters.endDate) ? `${from} - ${to}` : 'All Time'
@@ -369,23 +375,23 @@ function CustomerLedgerPage() {
       const message = [
         `*CUSTOMER LEDGER*`,
         `---------------------------`,
-        `Customer: ${customerName}`,
-        customerPhone ? `Phone: ${customerPhone}` : null,
+        `Customer: ${custName}`,
+        custPhone ? `Phone: ${custPhone}` : null,
         `Period: ${period}`,
         `---------------------------`,
         `Total Amount:  ${formatCurrency(summary.totalAmount || 0)}`,
         `Total Paid:    ${formatCurrency(summary.totalPaid || 0)}`,
         `*Outstanding:  ${formatCurrency(summary.outstandingBalance || 0)}*`,
         `---------------------------`,
-        `(Full detailed ledger attached as PDF)`,
+        `(Full detailed ledger attached)`,
         `Sent via POS System - ${new Date().toLocaleDateString()}`
       ].filter(Boolean).join('\n')
 
-      // Step 3: Open WhatsApp Web with NO number — user picks contact themselves
+      // Step 4: Open WhatsApp Web — no number, user picks contact
       const encodedMsg = encodeURIComponent(message)
       setTimeout(() => {
         window.open(`https://web.whatsapp.com/send?text=${encodedMsg}`, '_blank')
-      }, 600)
+      }, 500)
 
     } catch (err) {
       console.error('WhatsApp share error:', err)
