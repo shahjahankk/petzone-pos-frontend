@@ -64,7 +64,7 @@ function CustomerBalancesPage() {
   const pageSummary = (customers || []).reduce((acc, c) => {
     acc.totalAmount  += parseFloat(c.total_amount        || c.totalAmount        || 0)
     acc.totalPaid    += parseFloat(c.total_paid          || c.totalPaid          || 0)
-    acc.totalBalance += parseFloat(c.outstanding_balance || c.outstandingBalance || c.balance || 0)
+    acc.totalBalance += parseFloat(c.current_balance || c.outstanding_balance || c.outstandingBalance || c.balance || 0)
     return acc
   }, { totalAmount: 0, totalPaid: 0, totalBalance: 0 })
 
