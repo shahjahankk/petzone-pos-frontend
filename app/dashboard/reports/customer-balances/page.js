@@ -227,7 +227,7 @@ function CustomerBalancesPage() {
                     const address = customer.customer_address || customer.address || '—'
                     const total   = parseFloat(customer.total_amount        || customer.totalAmount        || 0)
                     const paid    = parseFloat(customer.total_paid          || customer.totalPaid          || 0)
-                    const balance = parseFloat(customer.outstanding_balance || customer.outstandingBalance || customer.balance || 0)
+                    const balance = parseFloat(customer.current_balance || customer.outstanding_balance || customer.outstandingBalance || customer.balance || 0)    
                     const rowNum  = (page - 1) * LIMIT + index + 1
 
                     return (
