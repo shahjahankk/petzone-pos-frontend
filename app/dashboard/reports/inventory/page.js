@@ -196,13 +196,13 @@ export default function InventoryReportsPage() {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <DatePicker label="From Date" value={filters.dateFrom}
+                <DatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
                   onChange={(d) => setFilters(p => ({ ...p, dateFrom: d }))}
                   slots={{ textField: TextField }}
                   slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <DatePicker label="To Date" value={filters.dateTo}
+                <DatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
                   onChange={(d) => setFilters(p => ({ ...p, dateTo: d }))}
                   slots={{ textField: TextField }}
                   slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />

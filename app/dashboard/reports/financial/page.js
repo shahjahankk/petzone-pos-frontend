@@ -173,13 +173,13 @@ export default function FinancialReportsPage() {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <DatePicker label="From Date" value={filters.dateFrom}
+                <DatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
                   onChange={(d) => setFilters(p => ({ ...p, dateFrom: d }))}
                   slots={{ textField: TextField }}
                   slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <DatePicker label="To Date" value={filters.dateTo}
+                <DatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
                   onChange={(d) => setFilters(p => ({ ...p, dateTo: d }))}
                   slots={{ textField: TextField }}
                   slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />
@@ -217,7 +217,7 @@ export default function FinancialReportsPage() {
               <Paper sx={{ ...styles.paper, p: 2.5, height: 360, display: 'flex', flexDirection: 'column' }} elevation={0}>
                 <Typography sx={styles.sectionTitle}>Revenue vs Expenses</Typography>
                 <Box sx={{ flex: 1, minHeight: 0 }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={280}>
                     <LineChart data={revenueData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                       <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} />
@@ -270,7 +270,7 @@ export default function FinancialReportsPage() {
               <Paper sx={{ ...styles.paper, p: 2.5, height: 340, display: 'flex', flexDirection: 'column' }} elevation={0}>
                 <Typography sx={styles.sectionTitle}>Cash Flow Analysis</Typography>
                 <Box sx={{ flex: 1, minHeight: 0 }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={cashFlowData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                       <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} />
