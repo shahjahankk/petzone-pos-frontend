@@ -8,94 +8,91 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { fetchBranchSettings } from '../../app/store/slices/branchesSlice'
 
 /**
- * RouteGuard component for protecting routes based on user roles and permissions
- * @param {Object} props
- * @param {React.ReactNode} props.children - Content to render if user has access
- * @param {string|string[]} props.allowedRoles - Role(s) that can access this route
- * @param {string} props.requiredPermission - Specific permission required
- * @param {boolean} props.requireAuth - If true, user must be authenticated (default: true)
- * @param {boolean} props.loadBranchSettings - If true, load branch settings (default: false)
+ * RouteGuard — page-level wrapper for role and permission checks.
+ * Sits inside RouteProtection, which already handles the auth redirect.
+ *
+ * @param {React.ReactNode} props.children
+ * @param {string|string[]} props.allowedRoles       - Role(s) that can access this route
+ * @param {string}          props.requiredPermission - Specific permission required
+ * @param {boolean}         props.requireAuth        - Must be authenticated (default: true)
+ * @param {boolean}         props.loadBranchSettings - Load branch settings on mount (default: false)
  */
-const RouteGuard = ({ 
-  children, 
-  allowedRoles, 
+const RouteGuard = ({
+  children,
+  allowedRoles,
   requiredPermission,
   requireAuth = true,
-  loadBranchSettings = false
+  loadBranchSettings = false,
 }) => {
   const router = useRouter()
   const pathname = usePathname()
   const dispatch = useDispatch()
-  
-  const { user, isAuthenticated, isLoading } = useSelector((state) => state.auth)
-  const { branchSettings, isLoading: branchLoading } = useSelector((state) => state.branches)
-  
-  const { 
-    hasRoleHierarchy, 
-    hasPermission, 
-    canAccessPath,
-    isAdmin 
-  } = usePermissions()
+
+  // FIX: added authInitialized to selector
+  const { user, isAuthenticated, isLoading, authInitialized } = useSelector(
+    (state) => state.auth
+  )
+  const { branchSettings, isLoading: branchLoading } = useSelector(
+    (state) => state.branches
+  )
+
+  const { hasRoleHierarchy, hasPermission, canAccessPath } = usePermissions()
 
   useEffect(() => {
-    // Redirect to login if not authenticated and auth is required
-    if (requireAuth && !isAuthenticated && !isLoading) {
+    // FIX: don't act until auth has been initialized from localStorage.
+    // Old code used `!isAuthenticated && !isLoading` which fired immediately
+    // on first render before initializeAuth had run.
+    if (!authInitialized || isLoading) return
+
+    if (requireAuth && !isAuthenticated) {
       router.push('/login')
       return
     }
 
-    // Load branch settings if required and user is authenticated
     if (loadBranchSettings && isAuthenticated && user?.branchId && !branchSettings && user?.role !== 'CASHIER') {
       dispatch(fetchBranchSettings(user.branchId))
     }
-  }, [isAuthenticated, isLoading, requireAuth, loadBranchSettings, user?.branchId, user?.role, branchSettings, dispatch, router])
+  }, [
+    authInitialized,
+    isAuthenticated,
+    isLoading,
+    requireAuth,
+    loadBranchSettings,
+    user?.branchId,
+    user?.role,
+    branchSettings,
+    dispatch,
+    router,
+  ])
 
-  // Show loading spinner while checking authentication
-  if (requireAuth && isLoading) {
+  // Wait for auth initialization and any in-flight login request
+  if (!authInitialized || (requireAuth && isLoading)) {
     return (
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
-        }}
-      >
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
         <Typography sx={{ ml: 2 }}>Checking authentication...</Typography>
       </Box>
     )
   }
 
-  // Show loading spinner while loading branch settings
+  // Wait for branch settings to load
   if (loadBranchSettings && branchLoading) {
     return (
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
-        }}
-      >  
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
         <Typography sx={{ ml: 2 }}>Loading branch settings...</Typography>
       </Box>
     )
   }
 
-  // Check if user has access to current path
+  // Path-level access check
   if (requireAuth && isAuthenticated && !canAccessPath(pathname)) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           action={
-            <Button 
-              color="inherit" 
-              size="small" 
-              onClick={() => router.push('/dashboard')}
-            >
+            <Button color="inherit" size="small" onClick={() => router.push('/dashboard')}>
               Go to Dashboard
             </Button>
           }
@@ -106,18 +103,14 @@ const RouteGuard = ({
     )
   }
 
-  // Check role-based access
+  // Role-based access check
   if (allowedRoles && !hasRoleHierarchy(allowedRoles)) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert 
-          severity="warning" 
+        <Alert
+          severity="warning"
           action={
-            <Button 
-              color="inherit" 
-              size="small" 
-              onClick={() => router.push('/dashboard')}
-            >
+            <Button color="inherit" size="small" onClick={() => router.push('/dashboard')}>
               Go to Dashboard
             </Button>
           }
@@ -128,18 +121,14 @@ const RouteGuard = ({
     )
   }
 
-  // Check specific permission
+  // Specific permission check
   if (requiredPermission && !hasPermission(requiredPermission)) {
     return (
       <Box sx={{ p: 3 }}>
-        <Alert 
-          severity="warning" 
+        <Alert
+          severity="warning"
           action={
-            <Button 
-              color="inherit" 
-              size="small" 
-              onClick={() => router.push('/dashboard')}
-            >
+            <Button color="inherit" size="small" onClick={() => router.push('/dashboard')}>
               Go to Dashboard
             </Button>
           }
@@ -150,7 +139,6 @@ const RouteGuard = ({
     )
   }
 
-  // All checks passed, render children
   return children
 }
 
