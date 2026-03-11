@@ -26,6 +26,7 @@ import {
   LocalShipping,
   ShoppingBag,
   PersonAdd,
+  AccountBalanceWallet,
   ShoppingCartCheckout,
 } from '@mui/icons-material'
 
@@ -345,6 +346,7 @@ export const menuConfig = [
     isSection: true,
     order: 12,
   },
+  
   {
     id: 'analytics',
     label: 'Analytics',
@@ -379,6 +381,14 @@ export const menuConfig = [
         path: '/dashboard/reports/sales',
         roles: ['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'],
         order: 2,
+      },
+      {
+        id: 'customer-balances',
+        label: 'Customer Balances',
+        icon: <AccountBalanceWallet />,
+        path: '/dashboard/reports/customer-balances',
+        roles: ['ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'],
+        order: 5,
       },
       {
         id: 'reports-inventory',
