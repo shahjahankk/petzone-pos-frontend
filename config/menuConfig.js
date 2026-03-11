@@ -213,7 +213,7 @@ export const menuConfig = [
     label: 'WAREHOUSE',
     isSection: true,
     order: 7,
-    roles: ['WAREHOUSE_KEEPER', 'ADMIN'],
+    roles: ['WAREHOUSE_KEEPER', 'ADMIN'], // Exclude CASHIER
   },
   {
     id: 'warehouse-billing',
@@ -365,6 +365,14 @@ export const menuConfig = [
     section: 'reports',
     isGroup: true,
     children: [
+      // {
+      //   id: 'reports-all',
+      //   label: 'All Reports',
+      //   icon: <BarChart />,
+      //   path: '/dashboard/reports',
+      //   roles: ['ADMIN'],
+      //   order: 1,
+      // },
       {
         id: 'reports-sales',
         label: 'Sales Reports',
@@ -437,7 +445,7 @@ export const menuConfig = [
     label: 'SYSTEM',
     isSection: true,
     order: 15,
-    roles: ['ADMIN'],
+    roles: ['ADMIN'], // Exclude CASHIER and WAREHOUSE_KEEPER
   },
   {
     id: 'admin-dashboard',
@@ -483,8 +491,14 @@ export const getMenuItemsForRole = (role) => {
 
   return menuConfig
     .filter(item => {
-      if (item.isSection) return !item.roles || item.roles.includes(role)
+      // Include section headers only if role has access
+      if (item.isSection) {
+        return !item.roles || item.roles.includes(role)
+      }
+      
+      // Include items that the role has access to
       if (item.roles && item.roles.includes(role)) return true
+      
       return false
     })
     .map(item => {
@@ -502,23 +516,31 @@ export const getMenuItemsForRole = (role) => {
 // Helper function to check if a path is accessible for a role
 export const isPathAccessibleForRole = (path, role) => {
   if (!role || !path) return false
-
-  if (path === '/' || path === '/dashboard') return true
-
-  const directMatch = menuConfig.find(item => item.path === path && item.roles?.includes(role))
+  
+  // Allow access to root paths for authenticated users
+  if (path === '/' || path === '/dashboard') {
+    return true
+  }
+  
+  // Check direct menu items
+  const directMatch = menuConfig.find(item => item.path === path && item.roles.includes(role))
   if (directMatch) return true
-
-  const nestedMatch = menuConfig.find(item =>
-    item.isGroup &&
-    item.children &&
+  
+  // Check nested menu items
+  const nestedMatch = menuConfig.find(item => 
+    item.isGroup && 
+    item.children && 
     item.children.some(child => child.path === path && child.roles.includes(role))
   )
   if (nestedMatch) return true
-
+  
+  // Check sub-paths (e.g., /pos/terminal should be accessible if /pos is accessible)
   const subPathMatch = menuConfig.find(item => {
-    if (item.path && path.startsWith(item.path + '/') && item.roles?.includes(role)) return true
+    if (item.path && path.startsWith(item.path + '/') && item.roles.includes(role)) {
+      return true
+    }
     if (item.isGroup && item.children) {
-      return item.children.some(child =>
+      return item.children.some(child => 
         child.path && path.startsWith(child.path + '/') && child.roles.includes(role)
       )
     }
@@ -533,13 +555,17 @@ export const getAllAccessiblePathsForRole = (role) => {
   if (!role) return []
 
   const paths = []
-
+  
   menuConfig.forEach(item => {
-    if (item.roles?.includes(role)) {
-      if (item.path) paths.push(item.path)
+    if (item.roles.includes(role)) {
+      if (item.path) {
+        paths.push(item.path)
+      }
       if (item.isGroup && item.children) {
         item.children.forEach(child => {
-          if (child.roles.includes(role) && child.path) paths.push(child.path)
+          if (child.roles.includes(role) && child.path) {
+            paths.push(child.path)
+          }
         })
       }
     }
@@ -550,9 +576,11 @@ export const getAllAccessiblePathsForRole = (role) => {
 
 // Helper function to get menu item by path
 export const getMenuItemByPath = (path) => {
+  // Check direct menu items
   let item = menuConfig.find(item => item.path === path)
   if (item) return item
-
+  
+  // Check nested menu items
   for (const group of menuConfig) {
     if (group.isGroup && group.children) {
       item = group.children.find(child => child.path === path)
@@ -567,11 +595,14 @@ export const getMenuItemByPath = (path) => {
 export const getBreadcrumbPath = (path) => {
   const item = getMenuItemByPath(path)
   if (!item) return []
-
+  
+  // If it's a nested item, include parent
   for (const group of menuConfig) {
     if (group.isGroup && group.children) {
       const child = group.children.find(child => child.path === path)
-      if (child) return [group, child]
+      if (child) {
+        return [group, child]
+      }
     }
   }
 
