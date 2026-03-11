@@ -14,7 +14,6 @@ import {
   Person as PersonIcon
 } from '@mui/icons-material'
 import withAuth from '../../../../components/auth/withAuth'
-import DashboardLayout from '../../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../../components/auth/RouteGuard'
 import { fetchAllCustomersWithSummaries, clearError } from '../../../store/slices/customerLedgerSlice'
 
@@ -342,11 +341,10 @@ function CustomerBalancesPage() {
 
 function CustomerBalancesPageWrapper() {
   return (
-    <DashboardLayout>
       <RouteGuard allowedRoles={['ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER']}>
         <CustomerBalancesPage />
       </RouteGuard>
-    </DashboardLayout>
+    
   )
 }
 
