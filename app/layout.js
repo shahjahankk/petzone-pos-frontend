@@ -2,7 +2,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { CustomThemeProvider } from './theme/ThemeProvider'
 import { ReduxProvider } from './store/ReduxProvider'
-import RouteProtection from '../components/auth/RouteProtectionSimple'
+import RouteProtection from '../components/auth/RouteProtection'
 import AuthInitializer from '../components/auth/AuthInitializer'
 import InstallPrompt from '../components/pwa/InatallPrompt'
 
