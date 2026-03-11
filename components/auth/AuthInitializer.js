@@ -4,26 +4,19 @@ import { useEffect, useRef } from 'react'
 import { useDispatch } from 'react-redux'
 import { initializeAuth } from '../../app/store/slices/authSlice'
 
+// Dispatches initializeAuth once on app startup to hydrate auth state
+// from localStorage. This is the ONLY place initializeAuth should be called.
 const AuthInitializer = () => {
   const dispatch = useDispatch()
   const initialized = useRef(false)
 
   useEffect(() => {
-    // Prevent multiple initializations
-    if (initialized.current) {
-      return
-    }
-
-    // Add small delay to ensure DOM is ready
-    const timer = setTimeout(() => {
-      dispatch(initializeAuth())
-      initialized.current = true
-    }, 100)
-
-    return () => clearTimeout(timer)
+    if (initialized.current) return
+    dispatch(initializeAuth())
+    initialized.current = true
   }, [dispatch])
 
-  return null // This component doesn't render anything
+  return null
 }
 
 export default AuthInitializer

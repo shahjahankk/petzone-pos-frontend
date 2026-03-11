@@ -1,35 +1,32 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useSelector, useDispatch } from 'react-redux'
+import { useSelector } from 'react-redux'
 import { useRouter } from 'next/navigation'
-import { initializeAuth } from '../../app/store/slices/authSlice'
 import { Box, CircularProgress, Typography } from '@mui/material'
 
 export default function withAuth(WrappedComponent) {
   return function AuthenticatedComponent(props) {
-    const dispatch = useDispatch()
     const router = useRouter()
-    const { isAuthenticated, isLoading, token } = useSelector((state) => state.auth)
+    const { isAuthenticated, isLoading, token, authInitialized } = useSelector(
+      (state) => state.auth
+    )
 
     useEffect(() => {
-      // Initialize auth state on mount
-      dispatch(initializeAuth())
-    }, [dispatch])
+      // FIX: wait for authInitialized before deciding to redirect.
+      // Without this, the initial Redux state (isAuthenticated=false) causes
+      // an immediate redirect to /login before localStorage has been read.
+      if (!authInitialized) return
 
-    useEffect(() => {
-      // Redirect to login if not authenticated and not loading
-      // Add a small delay to prevent race conditions
-      if (!isLoading && !isAuthenticated && !token) {
-        const timer = setTimeout(() => {
-          router.push('/login')
-        }, 100)
-        return () => clearTimeout(timer)
+      if (!isAuthenticated && !token) {
+        router.push('/login')
       }
-    }, [isAuthenticated, isLoading, token, router])
+    }, [authInitialized, isAuthenticated, token, router])
 
-    // Show loading spinner while checking authentication
-    if (isLoading || (!isAuthenticated && !token)) {
+    // FIX: show spinner only while auth hasn't been initialized yet,
+    // or while a login request is in flight.
+    // Removes the flash-of-spinner on every navigation for logged-in users.
+    if (!authInitialized || isLoading) {
       return (
         <Box
           sx={{
@@ -49,12 +46,11 @@ export default function withAuth(WrappedComponent) {
       )
     }
 
-    // If not authenticated, don't render the component (redirect will happen)
+    // Auth is initialized but user is not authenticated — redirect is in flight
     if (!isAuthenticated) {
       return null
     }
 
-    // Render the protected component
     return <WrappedComponent {...props} />
   }
 }

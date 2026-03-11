@@ -7,14 +7,9 @@ export const loginUser = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const response = await authAPI.login(email, password)
-      
-      // FIX: Access nested data object
-      const { accessToken, refreshToken, user } = response.data.data 
-      
-      // Store tokens using new naming convention
+      const { accessToken, refreshToken, user } = response.data.data
       authAPI.setTokens(accessToken, refreshToken)
       localStorage.setItem('user', JSON.stringify(user))
-      
       return { accessToken, refreshToken, user }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Login failed')
@@ -22,19 +17,17 @@ export const loginUser = createAsyncThunk(
   }
 )
 
-export const refreshToken = createAsyncThunk(
+// FIX: renamed from `refreshToken` to `refreshAccessToken` to avoid collision
+// with the `refreshToken` state field
+export const refreshAccessToken = createAsyncThunk(
   'auth/refreshToken',
   async (_, { rejectWithValue }) => {
     try {
       const response = await authAPI.refreshAccessToken()
       const { accessToken, refreshToken } = response.data.data
-      
-      // Update both tokens
       authAPI.setTokens(accessToken, refreshToken)
-      
       return { accessToken, refreshToken }
     } catch (error) {
-      // Clear tokens on refresh failure
       authAPI.clearTokens()
       return rejectWithValue(error.response?.data?.message || error.message || 'Token refresh failed')
     }
@@ -47,7 +40,7 @@ const initialState = {
   refreshToken: null,
   isAuthenticated: false,
   isLoading: false,
-  authInitialized: false,
+  authInitialized: false, // guards against redirect before localStorage is read
   error: null,
 }
 
@@ -56,70 +49,57 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     logout: (state) => {
-      // Clear tokens and user data
       authAPI.clearTokens()
-      
-      // Reset state
       state.user = null
       state.token = null
       state.refreshToken = null
       state.isAuthenticated = false
+      state.authInitialized = true // stay initialized after logout
       state.error = null
     },
     clearError: (state) => {
       state.error = null
     },
     initializeAuth: (state) => {
-      // Prevent multiple initializations
-      if (state.isLoading) {
+      // FIX: removed the broken isLoading guard — it never worked because
+      // this reducer is synchronous (isLoading never persists between calls)
+      // authInitialized guard is the correct dedup mechanism
+      if (state.authInitialized) {
         return
       }
-      
-      // Set loading state during initialization
-      state.isLoading = true
-      
-      // Check if we're in browser environment
+
       if (typeof window === 'undefined') {
-        state.isLoading = false
+        state.authInitialized = true
         return
       }
-      
+
       try {
-        // Get all auth data from localStorage
         const accessToken = localStorage.getItem('accessToken')
         const refreshToken = localStorage.getItem('refreshToken')
         const userData = localStorage.getItem('user')
-        
-        
+
         if (accessToken && refreshToken && userData) {
-          // Parse user data
           const user = JSON.parse(userData)
-          
-          // Set all state at once - ensure all fields are set
           state.token = accessToken
           state.refreshToken = refreshToken
           state.user = user
           state.isAuthenticated = true
-          
         } else {
-          // No valid auth data - clear everything
           state.isAuthenticated = false
           state.user = null
           state.token = null
           state.refreshToken = null
-          
         }
       } catch (error) {
-        // Clear everything on error
         authAPI.clearTokens()
         state.isAuthenticated = false
         state.user = null
         state.token = null
         state.refreshToken = null
       }
-      
-      // Clear loading state immediately
-      state.isLoading = false
+
+      // FIX: isLoading was set true then false in same call — UI never saw it.
+      // Removed. initializeAuth is synchronous so no loading state needed.
       state.authInitialized = true
     },
     setUser: (state, action) => {
@@ -139,6 +119,7 @@ const authSlice = createSlice({
         state.token = action.payload.accessToken
         state.refreshToken = action.payload.refreshToken
         state.user = action.payload.user
+        state.authInitialized = true
         state.error = null
       })
       .addCase(loginUser.rejected, (state, action) => {
@@ -146,16 +127,14 @@ const authSlice = createSlice({
         state.isAuthenticated = false
         state.error = action.payload
       })
-      
-      // Register
-      
-      // Refresh Token
-      .addCase(refreshToken.fulfilled, (state, action) => {
+
+      // Refresh Token — FIX: updated to use renamed thunk `refreshAccessToken`
+      .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.token = action.payload.accessToken
         state.refreshToken = action.payload.refreshToken
         state.isAuthenticated = true
       })
-      .addCase(refreshToken.rejected, (state) => {
+      .addCase(refreshAccessToken.rejected, (state) => {
         state.isAuthenticated = false
         state.token = null
         state.refreshToken = null
