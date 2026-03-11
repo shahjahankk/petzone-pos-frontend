@@ -2,749 +2,315 @@
 
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import DashboardLayout from '../../../../components/layout/DashboardLayout'
 import {
-  Box,
-  Card,
-  CardContent,
-  Grid,
-  Typography,
-  Paper,
-  Button,
-  CircularProgress,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  TextField,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Divider,
-  LinearProgress,
-  alpha,
-  useTheme,
+  Box, Card, CardContent, Grid, Typography, Paper, Button,
+  Alert, FormControl, InputLabel, Select, MenuItem, TextField,
+  Chip, Table, TableBody, TableCell, TableContainer, TableHead,
+  TableRow, LinearProgress,
 } from '@mui/material'
-import {
-  Refresh,
-  Assessment,
-  FilterList,
-  Download,
-  AccountBalance,
-  TrendingUp,
-  TrendingDown,
-  Receipt,
-  AttachMoney,
-  PieChart,
-  ShowChart,
-  ArrowUpward,
-  ArrowDownward,
-} from '@mui/icons-material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { Refresh, FilterList, Download, AttachMoney, TrendingUp, Receipt, PieChart as PieIcon, ArrowUpward, ArrowDownward } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  BarChart, 
-  Bar, 
-  PieChart as RechartsPieChart, 
-  Pie, 
-  Cell,
-  AreaChart,
-  Area,
-  Legend
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { fetchFinancialReports } from '../../../store/slices/reportsSlice'
+import RouteGuard from '../../../../components/auth/RouteGuard'
 
-const FinancialReportsPage = () => {
+const styles = {
+  page: {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #050d1a 0%, #0a1628 50%, #050d1a 100%)',
+    fontFamily: "'DM Sans', sans-serif",
+    p: 3,
+  },
+  header: {
+    background: 'linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(5,150,105,0.08) 100%)',
+    border: '1px solid rgba(16,185,129,0.25)',
+    borderRadius: 3, p: 3, mb: 3,
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  },
+  statCard: (accent) => ({
+    background: 'rgba(255,255,255,0.03)',
+    border: `1px solid ${accent}30`,
+    borderLeft: `4px solid ${accent}`,
+    borderRadius: 2,
+    transition: 'transform 0.2s',
+    '&:hover': { transform: 'translateY(-2px)' },
+  }),
+  paper: {
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.07)',
+    borderRadius: 2,
+  },
+  filterPaper: {
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 2, p: 2.5, mb: 3,
+  },
+  label: { color: 'rgba(255,255,255,0.4)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 1 },
+  value: (c) => ({ color: c || '#fff', fontWeight: 700, fontSize: '1.75rem', mt: 0.5 }),
+  sectionTitle: { color: '#fff', fontWeight: 600, fontSize: '1rem', mb: 2 },
+  tableHead: { background: 'rgba(16,185,129,0.08)' },
+  tableCell: { color: 'rgba(255,255,255,0.65)', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.82rem' },
+  tableHeadCell: { color: '#6ee7b7', fontWeight: 700, borderBottom: '1px solid rgba(16,185,129,0.25)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 0.5 },
+}
+
+const inputSx = {
+  '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.4)' },
+  '& .MuiOutlinedInput-root': {
+    color: '#fff',
+    '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
+    '&:hover fieldset': { borderColor: 'rgba(16,185,129,0.5)' },
+    '&.Mui-focused fieldset': { borderColor: '#10b981' },
+  },
+  '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.4)' },
+}
+
+const TOOLTIP_STYLE = {
+  contentStyle: { background: '#0a1628', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, color: '#fff', fontSize: 12 },
+}
+
+export default function FinancialReportsPage() {
   const dispatch = useDispatch()
-  const theme = useTheme()
-  const { user } = useSelector((state) => state.auth)
-  const { financialReports, isLoading, error } = useSelector((state) => state.reports)
-  
+  const { financialReports, isLoading, error } = useSelector((s) => s.reports)
   const [filters, setFilters] = useState({
-    period: 'monthly',
-    year: new Date().getFullYear(),
-    quarter: 'Q1',
-    dateFrom: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+    period: 'monthly', year: new Date().getFullYear(), quarter: 'Q1',
+    dateFrom: new Date(Date.now() - 365 * 86400000),
     dateTo: new Date(),
   })
 
-  useEffect(() => {
-    dispatch(fetchFinancialReports(filters))
-  }, [dispatch, filters])
+  useEffect(() => { dispatch(fetchFinancialReports(filters)) }, [dispatch, filters])
 
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }))
+  const revenueData = Array.isArray(financialReports?.revenueByPeriod) ? financialReports.revenueByPeriod : []
+  const cashFlowData = Array.isArray(financialReports?.cashFlowData) ? financialReports.cashFlowData : []
+  const expenseBreakdown = Array.isArray(financialReports?.expenseBreakdown) ? financialReports.expenseBreakdown : []
+  const profitabilityMetrics = Array.isArray(financialReports?.profitabilityMetrics) ? financialReports.profitabilityMetrics : []
+  const financialRatios = Array.isArray(financialReports?.financialRatios) ? financialReports.financialRatios : []
+  const topRevenueSources = Array.isArray(financialReports?.topRevenueSources) ? financialReports.topRevenueSources : []
+
+  const PIE_COLORS = ['#10b981', '#06b6d4', '#6366f1', '#f59e0b', '#ef4444', '#8b5cf6']
+
+  const handleExportCSV = () => {
+    const rows = [
+      ['Metric', 'Value'],
+      ['Total Revenue', financialReports?.totalRevenue || 0],
+      ['Net Profit', financialReports?.netProfit || 0],
+      ['Cash Flow', financialReports?.cashFlow || 0],
+      ['Profit Margin', `${financialReports?.profitMargin || 0}%`],
+    ]
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' }))
+    a.download = `financial-report-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
   }
 
-  const handleRefresh = () => {
-    dispatch(fetchFinancialReports(filters))
-  }
-
-  const handleExport = () => {
-    console.log('Exporting financial report...')
-  }
-
-  // Process financial data from API
-  const revenueData = financialReports?.revenueByPeriod || []
-  const cashFlowData = financialReports?.cashFlowData || []
-  const expenseBreakdown = financialReports?.expenseBreakdown || []
-  const profitabilityMetrics = financialReports?.profitabilityMetrics || []
-  const financialRatios = financialReports?.financialRatios || []
-  const topRevenueSources = financialReports?.topRevenueSources || []
-
-  // Modern color palette
-  const chartColors = {
-    revenue: theme.palette.primary.main,
-    expenses: theme.palette.error.main,
-    profit: theme.palette.success.main,
-    operating: theme.palette.info.main,
-    investing: theme.palette.warning.main,
-    financing: theme.palette.secondary.main,
-  }
-
-  // Data aggregation function for fewer data points
-  const aggregateData = (data, maxPoints = 8) => {
-    if (data.length <= maxPoints) return data;
-    
-    const aggregated = [];
-    const step = Math.ceil(data.length / maxPoints);
-    
-    for (let i = 0; i < data.length; i += step) {
-      const chunk = data.slice(i, i + step);
-      const aggregatedPoint = {
-        month: chunk[0].month,
-        revenue: chunk.reduce((sum, item) => sum + (item.revenue || 0), 0) / chunk.length,
-        expenses: chunk.reduce((sum, item) => sum + (item.expenses || 0), 0) / chunk.length
-      };
-      aggregated.push(aggregatedPoint);
-    }
-    
-    return aggregated;
-  };
-
-  const aggregatedRevenueData = aggregateData(revenueData);
-
-  const MetricCard = ({ title, value, change, icon, color = 'primary' }) => (
-    <Card 
-      sx={{ 
-        background: `linear-gradient(135deg, ${alpha(theme.palette[color].main, 0.1)} 0%, ${alpha(theme.palette[color].main, 0.05)} 100%)`,
-        border: `1px solid ${alpha(theme.palette[color].main, 0.2)}`,
-        backdropFilter: 'blur(10px)',
-        borderRadius: 3,
-        position: 'relative',
-        overflow: 'visible',
-        transition: 'all 0.3s ease-in-out',
-        '&:hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: `0 8px 32px ${alpha(theme.palette[color].main, 0.15)}`,
-        }
-      }}
-    >
-      <CardContent sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography 
-              color="textSecondary" 
-              gutterBottom 
-              variant="h6"
-              sx={{ 
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                opacity: 0.8,
-                mb: 1
-              }}
-            >
-              {title}
-            </Typography>
-            <Typography 
-              variant="h4" 
-              sx={{ 
-                fontWeight: 700,
-                background: `linear-gradient(135deg, ${theme.palette[color].main}, ${theme.palette[color].dark})`,
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                color: 'transparent',
-                mb: 1
-              }}
-            >
-              {value}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {change.includes('+') ? (
-                <ArrowUpward sx={{ fontSize: 16, color: 'success.main' }} />
-              ) : (
-                <ArrowDownward sx={{ fontSize: 16, color: 'error.main' }} />
-              )}
-              <Typography 
-                variant="body2" 
-                color={change.includes('+') ? 'success.main' : 'error.main'}
-                sx={{ fontWeight: 600 }}
-              >
-                {change} vs last period
-              </Typography>
-            </Box>
-          </Box>
-          <Box
-            sx={{
-              p: 1.5,
-              borderRadius: 2,
-              background: `linear-gradient(135deg, ${theme.palette[color].main}, ${theme.palette[color].dark})`,
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              ml: 2
-            }}
-          >
-            {icon}
-          </Box>
-        </Box>
-      </CardContent>
-    </Card>
-  )
+  const fmt = (v) => Number(v || 0).toLocaleString()
 
   return (
-    <DashboardLayout>
+    <RouteGuard allowedRoles={['ADMIN']}>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Box sx={{ py: 2 }}>
-          {/* Header Section */}
-          <Box 
-            sx={{ 
-              mb: 4,
-              padding: 4,
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
-              borderRadius: 3,
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-            }}
-          >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box>
-                <Typography 
-                  variant="h4" 
-                  gutterBottom
-                  sx={{ 
-                    fontWeight: 700,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    color: 'transparent',
-                  }}
-                >
-                  Financial Reports
-                </Typography>
-                <Typography 
-                  variant="subtitle1" 
-                  sx={{ 
-                    opacity: 0.8,
-                    fontSize: '1.1rem'
-                  }}
-                >
-                  Comprehensive financial analysis, profitability metrics, and cash flow insights
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<Refresh />}
-                  onClick={handleRefresh}
-                  disabled={isLoading}
-                  sx={{
-                    borderRadius: 2,
-                    px: 3,
-                    py: 1,
-                    border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                    '&:hover': {
-                      border: `2px solid ${theme.palette.primary.main}`,
-                      background: alpha(theme.palette.primary.main, 0.04),
-                    }
-                  }}
-                >
-                  Refresh
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<Download />}
-                  onClick={handleExport}
-                  sx={{
-                    borderRadius: 2,
-                    px: 3,
-                    py: 1,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                    boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
-                    '&:hover': {
-                      boxShadow: `0 6px 25px ${alpha(theme.palette.primary.main, 0.4)}`,
-                      transform: 'translateY(-1px)',
-                    }
-                  }}
-                >
-                  Export
-                </Button>
-              </Box>
+        <Box sx={styles.page}>
+          <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+
+          {/* Header */}
+          <Box sx={styles.header}>
+            <Box>
+              <Typography sx={{ color: '#6ee7b7', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 2, mb: 0.5 }}>
+                Reports / Financial
+              </Typography>
+              <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700 }}>Financial Reports</Typography>
+              <Typography sx={{ color: 'rgba(255,255,255,0.4)', mt: 0.5, fontSize: '0.875rem' }}>
+                Profitability, cash flow, and financial ratios
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <Button onClick={() => dispatch(fetchFinancialReports(filters))} disabled={isLoading}
+                startIcon={<Refresh />} variant="outlined"
+                sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#fff', '&:hover': { borderColor: '#10b981', background: 'rgba(16,185,129,0.08)' } }}>
+                Refresh
+              </Button>
+              <Button onClick={handleExportCSV} startIcon={<Download />} variant="contained"
+                sx={{ background: 'linear-gradient(135deg, #10b981, #059669)', '&:hover': { background: 'linear-gradient(135deg, #059669, #047857)' } }}>
+                Export CSV
+              </Button>
             </Box>
           </Box>
 
-          {error && (
-            <Alert 
-              severity="error" 
-              sx={{ 
-                mb: 3,
-                borderRadius: 2,
-                border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
-              }}
-            >
-              {error}
-            </Alert>
-          )}
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
           {/* Filters */}
-          <Paper 
-            sx={{ 
-              p: 3, 
-              mb: 4,
-              borderRadius: 3,
-              background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`,
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-              boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-              <Box
-                sx={{
-                  p: 1,
-                  borderRadius: 2,
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                  color: 'white',
-                  mr: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <FilterList fontSize="small" />
-              </Box>
-              <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                Report Filters
-              </Typography>
+          <Paper sx={styles.filterPaper} elevation={0}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <FilterList sx={{ color: '#10b981', fontSize: 18 }} />
+              <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: '0.875rem' }}>Filters</Typography>
             </Box>
-            <Grid container spacing={3}>
-              {[
-                { field: 'period', label: 'Period', options: ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] },
-                { field: 'year', label: 'Year', options: [2024, 2023, 2022] },
-                { field: 'quarter', label: 'Quarter', options: ['Q1', 'Q2', 'Q3', 'Q4'] },
-              ].map((filterConfig) => (
-                <Grid item xs={12} sm={6} md={2.4} key={filterConfig.field}>
-                  <FormControl fullWidth>
-                    <InputLabel sx={{ fontWeight: 600 }}>{filterConfig.label}</InputLabel>
-                    <Select
-                      value={filters[filterConfig.field]}
-                      onChange={(e) => handleFilterChange(filterConfig.field, e.target.value)}
-                      label={filterConfig.label}
-                      sx={{
-                        borderRadius: 2,
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: alpha(theme.palette.primary.main, 0.2),
-                        },
-                        '&:hover .MuiOutlinedInput-notchedOutline': {
-                          borderColor: alpha(theme.palette.primary.main, 0.4),
-                        },
-                      }}
-                    >
-                      {filterConfig.options.map(option => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              ))}
-              <Grid item xs={12} sm={6} md={2.4}>
-                <DatePicker
-                  label="From Date"
-                  value={filters.dateFrom}
-                  onChange={(date) => handleFilterChange('dateFrom', date)}
-                  renderInput={(params) => 
-                    <TextField 
-                      {...params} 
-                      fullWidth 
-                      sx={{
-                        borderRadius: 2,
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: alpha(theme.palette.primary.main, 0.2),
-                        },
-                      }}
-                    />}
-                />
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small" sx={inputSx}>
+                  <InputLabel>Period</InputLabel>
+                  <Select value={filters.period} onChange={(e) => setFilters(p => ({ ...p, period: e.target.value }))} label="Period">
+                    {['daily','weekly','monthly','quarterly','yearly'].map(v => <MenuItem key={v} value={v}>{v.charAt(0).toUpperCase()+v.slice(1)}</MenuItem>)}
+                  </Select>
+                </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <DatePicker
-                  label="To Date"
-                  value={filters.dateTo}
-                  onChange={(date) => handleFilterChange('dateTo', date)}
-                  renderInput={(params) => 
-                    <TextField 
-                      {...params} 
-                      fullWidth 
-                      sx={{
-                        borderRadius: 2,
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: alpha(theme.palette.primary.main, 0.2),
-                        },
-                      }}
-                    />}
-                />
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small" sx={inputSx}>
+                  <InputLabel>Year</InputLabel>
+                  <Select value={filters.year} onChange={(e) => setFilters(p => ({ ...p, year: e.target.value }))} label="Year">
+                    {[2026,2025,2024,2023,2022].map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small" sx={inputSx}>
+                  <InputLabel>Quarter</InputLabel>
+                  <Select value={filters.quarter} onChange={(e) => setFilters(p => ({ ...p, quarter: e.target.value }))} label="Quarter">
+                    {['Q1','Q2','Q3','Q4'].map(q => <MenuItem key={q} value={q}>{q}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <DatePicker label="From Date" value={filters.dateFrom}
+                  onChange={(d) => setFilters(p => ({ ...p, dateFrom: d }))}
+                  slots={{ textField: TextField }}
+                  slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <DatePicker label="To Date" value={filters.dateTo}
+                  onChange={(d) => setFilters(p => ({ ...p, dateTo: d }))}
+                  slots={{ textField: TextField }}
+                  slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />
               </Grid>
             </Grid>
           </Paper>
 
-          {/* Key Financial Metrics */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <MetricCard
-                title="Total Revenue"
-                value={`$${financialReports?.totalRevenue?.toLocaleString() || '0'}`}
-                change={financialReports?.totalRevenue > 0 ? '+12.5%' : '0.0%'}
-                icon={<AttachMoney sx={{ fontSize: 24 }} />}
-                color="primary"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <MetricCard
-                title="Net Profit"
-                value={`$${financialReports?.netProfit?.toLocaleString() || '0'}`}
-                change={financialReports?.netProfit > 0 ? '+8.3%' : '0.0%'}
-                icon={<TrendingUp sx={{ fontSize: 24 }} />}
-                color="success"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <MetricCard
-                title="Operating Cash Flow"
-                value={`$${financialReports?.cashFlow?.toLocaleString() || '0'}`}
-                change={financialReports?.cashFlow > 0 ? '+15.2%' : '0.0%'}
-                icon={<Receipt sx={{ fontSize: 24 }} />}
-                color="info"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <MetricCard
-                title="Profit Margin"
-                value={`${financialReports?.profitMargin?.toFixed(1) || '0.0'}%`}
-                change={financialReports?.profitMargin > 0 ? '+2.1%' : '0.0%'}
-                icon={<PieChart sx={{ fontSize: 24 }} />}
-                color="warning"
-              />
-            </Grid>
+          {/* Summary Cards */}
+          <Grid container spacing={2.5} sx={{ mb: 3 }}>
+            {[
+              { label: 'Total Revenue', value: fmt(financialReports?.totalRevenue), accent: '#10b981', icon: <AttachMoney /> },
+              { label: 'Net Profit', value: fmt(financialReports?.netProfit), accent: '#06b6d4', icon: <TrendingUp /> },
+              { label: 'Cash Flow', value: fmt(financialReports?.cashFlow), accent: '#6366f1', icon: <Receipt /> },
+              { label: 'Profit Margin', value: `${Number(financialReports?.profitMargin || 0).toFixed(1)}%`, accent: '#f59e0b', icon: <PieIcon /> },
+            ].map((c) => (
+              <Grid item xs={12} sm={6} md={3} key={c.label}>
+                <Card sx={styles.statCard(c.accent)} elevation={0}>
+                  <CardContent sx={{ p: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Box>
+                        <Typography sx={styles.label}>{c.label}</Typography>
+                        <Typography sx={styles.value(c.accent)}>{c.value}</Typography>
+                      </Box>
+                      <Box sx={{ color: c.accent, opacity: 0.7 }}>{c.icon}</Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
           </Grid>
 
-          {/* Revenue and Profit Trends - Optimized Chart Sizes */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
+          {/* Revenue Trend + Expense Breakdown */}
+          <Grid container spacing={2.5} sx={{ mb: 3 }}>
             <Grid item xs={12} md={8}>
-              <Paper 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 3,
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`,
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-                  height: '400px', // Reduced from 500px
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  Revenue vs Expenses Trend
-                </Typography>
+              <Paper sx={{ ...styles.paper, p: 2.5, height: 360, display: 'flex', flexDirection: 'column' }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Revenue vs Expenses</Typography>
                 <Box sx={{ flex: 1, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart 
-                      data={aggregatedRevenueData} 
-                      margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
-                    >
-                      <CartesianGrid 
-                        strokeDasharray="3 3" 
-                        stroke={alpha(theme.palette.common.black, 0.1)} 
-                        vertical={false} // Remove vertical grid lines
-                      />
-                      <XAxis 
-                        dataKey="month" 
-                        tick={{ fontSize: 11 }} // Smaller font
-                        interval="preserveStartEnd" // Show fewer labels
-                      />
-                      <YAxis 
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(value) => `$${value / 1000}k`}
-                        width={35} // Fixed width
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          borderRadius: 8,
-                          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                          boxShadow: `0 4px 20px ${alpha(theme.palette.common.black, 0.1)}`,
-                          fontSize: '12px' // Smaller tooltip
-                        }}
-                        formatter={(value) => [`$${Math.round(value).toLocaleString()}`, 'Amount']}
-                      />
-                      <Legend 
-                        verticalAlign="top"
-                        height={30} // Reduced height
-                        iconSize={10} // Smaller icons
-                        iconType="circle"
-                      />
-                      <Line 
-                        name="Revenue"
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke={chartColors.revenue} 
-                        strokeWidth={2} // Thinner lines
-                        dot={false} // Remove dots for cleaner look
-                        activeDot={{ r: 4, stroke: chartColors.revenue, strokeWidth: 2 }}
-                      />
-                      <Line 
-                        name="Expenses"
-                        type="monotone" 
-                        dataKey="expenses" 
-                        stroke={chartColors.expenses} 
-                        strokeWidth={2} // Thinner lines
-                        dot={false} // Remove dots for cleaner look
-                        activeDot={{ r: 4, stroke: chartColors.expenses, strokeWidth: 2 }}
-                      />
+                    <LineChart data={revenueData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} />
+                      <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} tickFormatter={v => `${Math.round(v/1000)}k`} />
+                      <Tooltip {...TOOLTIP_STYLE} formatter={v => [Number(v).toLocaleString(), '']} />
+                      <Legend iconSize={10} wrapperStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }} />
+                      <Line name="Revenue" type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                      <Line name="Expenses" type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </Box>
               </Paper>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Paper 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 3,
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`,
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-                  height: '400px', // Reduced from 500px
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  Expense Breakdown
-                </Typography>
-                <Box sx={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
-                  <ResponsiveContainer width="60%" height="100%">
-                    <RechartsPieChart>
-                      <Pie
-                        data={expenseBreakdown}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ percentage }) => `${percentage?.toFixed(0) || '0'}%`}
-                        outerRadius={80} // Reduced radius
-                        innerRadius={40} // Reduced inner radius
-                        dataKey="amount"
-                        paddingAngle={1} // Reduced padding
-                      >
-                        {expenseBreakdown.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.color || theme.palette.primary.main} 
-                            stroke={theme.palette.background.paper}
-                            strokeWidth={1} // Thinner strokes
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          borderRadius: 8,
-                          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                          fontSize: '12px'
-                        }}
-                        formatter={(value, name, props) => [
-                          `$${value.toLocaleString()}`, 
-                          props.payload.category
-                        ]}
-                      />
-                    </RechartsPieChart>
-                  </ResponsiveContainer>
-                  
-                  {/* Custom Legend */}
-                  <Box sx={{ width: '40%', pl: 2 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, fontSize: '0.8rem' }}>
-                      Categories:
-                    </Typography>
-                    {expenseBreakdown.map((entry, index) => (
-                      <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Box
-                          sx={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            backgroundColor: entry.color || theme.palette.primary.main,
-                            mr: 1,
-                            flexShrink: 0
-                          }}
-                        />
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', lineHeight: 1.2 }}>
-                          {entry.category}
-                        </Typography>
-                      </Box>
-                    ))}
+              <Paper sx={{ ...styles.paper, p: 2.5, height: 360, display: 'flex', flexDirection: 'column' }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Expense Breakdown</Typography>
+                {expenseBreakdown.length === 0 ? (
+                  <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Typography sx={{ color: 'rgba(255,255,255,0.25)' }}>No expense data</Typography>
                   </Box>
-                </Box>
+                ) : (
+                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie data={expenseBreakdown} cx="50%" cy="50%" innerRadius={45} outerRadius={75}
+                          dataKey="amount" paddingAngle={2} labelLine={false}>
+                          {expenseBreakdown.map((e, i) => <Cell key={i} fill={e.color || PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip {...TOOLTIP_STYLE} formatter={v => [Number(v).toLocaleString(), '']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <Box sx={{ mt: 1 }}>
+                      {expenseBreakdown.map((e, i) => (
+                        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: e.color || PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                          <Typography sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem', flex: 1 }}>{e.category}</Typography>
+                          <Typography sx={{ color: '#fff', fontSize: '0.75rem', fontWeight: 600 }}>{Number(e.amount || 0).toLocaleString()}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
               </Paper>
             </Grid>
           </Grid>
 
-          {/* Cash Flow Analysis - Optimized Chart Sizes */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid item xs={12} md={6}>
-              <Paper 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 3,
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`,
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-                  height: '380px', // Reduced from 450px
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  Cash Flow Analysis
-                </Typography>
+          {/* Cash Flow + Profitability */}
+          <Grid container spacing={2.5} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={7}>
+              <Paper sx={{ ...styles.paper, p: 2.5, height: 340, display: 'flex', flexDirection: 'column' }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Cash Flow Analysis</Typography>
                 <Box sx={{ flex: 1, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart 
-                      data={cashFlowData} 
-                      margin={{ top: 15, right: 20, left: 15, bottom: 5 }}
-                    >
-                      <CartesianGrid 
-                        strokeDasharray="3 3" 
-                        stroke={alpha(theme.palette.common.black, 0.1)} 
-                        vertical={false} // Remove vertical grid lines
-                      />
-                      <XAxis 
-                        dataKey="month" 
-                        tick={{ fontSize: 11 }} // Smaller font
-                      />
-                      <YAxis 
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(value) => `$${value / 1000}k`}
-                        width={35}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          borderRadius: 8,
-                          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                          fontSize: '12px'
-                        }}
-                        formatter={(value) => [`$${value.toLocaleString()}`, 'Amount']}
-                      />
-                      <Legend 
-                        verticalAlign="top"
-                        height={30}
-                        iconSize={10}
-                        iconType="circle"
-                      />
-                      <Bar 
-                        name="Operating"
-                        dataKey="operating" 
-                        fill={chartColors.operating}
-                        radius={[3, 3, 0, 0]} // Smaller radius
-                        maxBarSize={35} // Slightly smaller bars
-                      />
-                      <Bar 
-                        name="Investing"
-                        dataKey="investing" 
-                        fill={chartColors.investing}
-                        radius={[3, 3, 0, 0]}
-                        maxBarSize={35}
-                      />
-                      <Bar 
-                        name="Financing"
-                        dataKey="financing" 
-                        fill={chartColors.financing}
-                        radius={[3, 3, 0, 0]}
-                        maxBarSize={35}
-                      />
+                    <BarChart data={cashFlowData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} />
+                      <YAxis tick={{ fill: 'rgba(255,255,255,0.35)', fontSize: 11 }} tickFormatter={v => `${Math.round(v/1000)}k`} />
+                      <Tooltip {...TOOLTIP_STYLE} />
+                      <Legend iconSize={10} wrapperStyle={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }} />
+                      <Bar name="Operating" dataKey="operating" fill="#10b981" radius={[3,3,0,0]} maxBarSize={28} />
+                      <Bar name="Investing" dataKey="investing" fill="#6366f1" radius={[3,3,0,0]} maxBarSize={28} />
+                      <Bar name="Financing" dataKey="financing" fill="#f59e0b" radius={[3,3,0,0]} maxBarSize={28} />
                     </BarChart>
                   </ResponsiveContainer>
                 </Box>
               </Paper>
             </Grid>
-            <Grid item xs={12} md={6}>
-              <Paper 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 3,
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`,
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-                  height: '380px', // Reduced from 450px
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  Profitability Metrics
-                </Typography>
-                <Box sx={{ mt: 1, flex: 1, overflow: 'auto', pr: 1 }}>
-                  {profitabilityMetrics.map((metric, index) => (
-                    <Box key={index} sx={{ mb: 2.5 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
-                          {metric.metric}
-                        </Typography>
-                        <Typography variant="body2" fontWeight="bold" sx={{ 
-                          color: metric.status === 'excellent' ? 'success.main' : 'primary.main',
-                          fontSize: '0.8rem'
-                        }}>
-                          {metric.value}
-                        </Typography>
+            <Grid item xs={12} md={5}>
+              <Paper sx={{ ...styles.paper, p: 2.5, height: 340, display: 'flex', flexDirection: 'column' }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Profitability Metrics</Typography>
+                <Box sx={{ flex: 1, overflow: 'auto', pr: 0.5 }}>
+                  {profitabilityMetrics.length === 0 ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                      <Typography sx={{ color: 'rgba(255,255,255,0.25)' }}>No metrics data</Typography>
+                    </Box>
+                  ) : profitabilityMetrics.map((m, i) => (
+                    <Box key={i} sx={{ mb: 2.5 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+                        <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.82rem', fontWeight: 500 }}>{m.metric}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography sx={{ color: '#10b981', fontWeight: 700, fontSize: '0.82rem' }}>{m.value}</Typography>
+                          {m.trend?.includes('↑')
+                            ? <ArrowUpward sx={{ fontSize: 13, color: '#10b981' }} />
+                            : <ArrowDownward sx={{ fontSize: 13, color: '#ef4444' }} />}
+                        </Box>
                       </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={parseFloat(metric.value?.replace('%', '') || 0)} 
-                          sx={{ 
-                            flexGrow: 1, 
-                            height: 8, // Slightly smaller
-                            borderRadius: 3,
-                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                            '& .MuiLinearProgress-bar': {
-                              borderRadius: 3,
-                              background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            }
-                          }}
-                        />
-                        <Typography variant="caption" sx={{ 
-                          fontWeight: 600,
-                          color: metric.trend?.includes('↑') ? 'success.main' : 'error.main',
-                          fontSize: '0.7rem',
-                          minWidth: '35px'
-                        }}>
-                          {metric.trend}
-                        </Typography>
-                      </Box>
+                      <LinearProgress variant="determinate"
+                        value={Math.min(parseFloat(m.value?.replace('%','') || 0), 100)}
+                        sx={{
+                          height: 6, borderRadius: 3,
+                          bgcolor: 'rgba(255,255,255,0.07)',
+                          '& .MuiLinearProgress-bar': { borderRadius: 3, background: 'linear-gradient(90deg, #10b981, #06b6d4)' },
+                        }} />
                     </Box>
                   ))}
                 </Box>
@@ -752,163 +318,81 @@ const FinancialReportsPage = () => {
             </Grid>
           </Grid>
 
-          {/* Financial Ratios and Revenue Sources */}
-          <Grid container spacing={3}>
+          {/* Financial Ratios + Revenue Sources */}
+          <Grid container spacing={2.5}>
             <Grid item xs={12} md={6}>
-              <Paper 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 3,
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`,
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-                  height: '380px', // Slightly reduced
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  Financial Ratios
-                </Typography>
-                <Box sx={{ flex: 1, overflow: 'auto' }}>
-                  <TableContainer>
-                    <Table stickyHeader size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 600, borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, fontSize: '0.8rem', py: 1 }}>
-                            Ratio
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600, borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, fontSize: '0.8rem', py: 1 }}>
-                            Value
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600, borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, fontSize: '0.8rem', py: 1 }}>
-                            Benchmark
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 600, borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, fontSize: '0.8rem', py: 1 }}>
-                            Status
+              <Paper sx={{ ...styles.paper, p: 2.5 }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Financial Ratios</Typography>
+                <TableContainer sx={{ maxHeight: 300 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        {['Ratio', 'Value', 'Benchmark', 'Status'].map(h => (
+                          <TableCell key={h} sx={{ ...styles.tableHeadCell, background: 'rgba(16,185,129,0.08)' }}>{h}</TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {financialRatios.length === 0 ? (
+                        <TableRow><TableCell colSpan={4} align="center" sx={{ ...styles.tableCell, py: 4 }}>No data</TableCell></TableRow>
+                      ) : financialRatios.map((r, i) => (
+                        <TableRow key={i} sx={{ '&:hover': { background: 'rgba(16,185,129,0.04)' } }}>
+                          <TableCell sx={styles.tableCell}>{r.ratio}</TableCell>
+                          <TableCell sx={{ ...styles.tableCell, fontWeight: 600, color: '#6ee7b7' }}>{r.value}</TableCell>
+                          <TableCell sx={styles.tableCell}>{r.benchmark}</TableCell>
+                          <TableCell sx={styles.tableCell}>
+                            <Chip label={r.status?.toUpperCase()} size="small" sx={{
+                              background: r.status === 'excellent' ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
+                              color: r.status === 'excellent' ? '#10b981' : '#818cf8',
+                              fontSize: '0.65rem', height: 20,
+                            }} />
                           </TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {financialRatios.map((ratio, index) => (
-                          <TableRow 
-                            key={index}
-                            sx={{ 
-                              '&:last-child td': { borderBottom: 0 },
-                              '&:hover': {
-                                backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                              }
-                            }}
-                          >
-                            <TableCell sx={{ borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.05)}`, fontSize: '0.75rem', py: 1 }}>
-                              {ratio.ratio}
-                            </TableCell>
-                            <TableCell align="right" sx={{ borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.05)}`, fontSize: '0.75rem', py: 1 }}>
-                              {ratio.value}
-                            </TableCell>
-                            <TableCell align="right" sx={{ borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.05)}`, fontSize: '0.75rem', py: 1 }}>
-                              {ratio.benchmark}
-                            </TableCell>
-                            <TableCell sx={{ borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.05)}`, py: 1 }}>
-                              <Chip 
-                                label={ratio.status?.toUpperCase()} 
-                                color={ratio.status === 'excellent' ? 'success' : 'primary'} 
-                                size="small"
-                                sx={{ 
-                                  fontWeight: 600,
-                                  borderRadius: 1,
-                                  fontSize: '0.65rem',
-                                  height: '20px'
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Paper>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Paper 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 3,
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.paper, 0.6)} 100%)`,
-                  backdropFilter: 'blur(10px)',
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                  boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-                  height: '380px', // Slightly reduced
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  Top Revenue Sources
-                </Typography>
-                <Box sx={{ flex: 1, overflow: 'auto' }}>
-                  <TableContainer>
-                    <Table stickyHeader size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 600, borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, fontSize: '0.8rem', py: 1 }}>
-                            Source
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600, borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, fontSize: '0.8rem', py: 1 }}>
-                            Revenue
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600, borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`, fontSize: '0.8rem', py: 1 }}>
-                            Growth
+              <Paper sx={{ ...styles.paper, p: 2.5 }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Top Revenue Sources</Typography>
+                <TableContainer sx={{ maxHeight: 300 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        {['Source', 'Revenue', 'Growth'].map(h => (
+                          <TableCell key={h} align={h !== 'Source' ? 'right' : 'left'} sx={{ ...styles.tableHeadCell, background: 'rgba(16,185,129,0.08)' }}>{h}</TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {topRevenueSources.length === 0 ? (
+                        <TableRow><TableCell colSpan={3} align="center" sx={{ ...styles.tableCell, py: 4 }}>No data</TableCell></TableRow>
+                      ) : topRevenueSources.map((s, i) => (
+                        <TableRow key={i} sx={{ '&:hover': { background: 'rgba(16,185,129,0.04)' } }}>
+                          <TableCell sx={styles.tableCell}>{s.source}</TableCell>
+                          <TableCell align="right" sx={{ ...styles.tableCell, color: '#6ee7b7', fontWeight: 600 }}>{Number(s.revenue || 0).toLocaleString()}</TableCell>
+                          <TableCell align="right" sx={styles.tableCell}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                              {s.growth?.includes('+')
+                                ? <ArrowUpward sx={{ fontSize: 13, color: '#10b981' }} />
+                                : <ArrowDownward sx={{ fontSize: 13, color: '#ef4444' }} />}
+                              <Typography sx={{ color: s.growth?.includes('+') ? '#10b981' : '#ef4444', fontWeight: 600, fontSize: '0.8rem' }}>
+                                {s.growth}
+                              </Typography>
+                            </Box>
                           </TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {topRevenueSources.map((source, index) => (
-                          <TableRow 
-                            key={index}
-                            sx={{ 
-                              '&:last-child td': { borderBottom: 0 },
-                              '&:hover': {
-                                backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                              }
-                            }}
-                          >
-                            <TableCell sx={{ borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.05)}`, fontSize: '0.75rem', py: 1 }}>
-                              {source.source}
-                            </TableCell>
-                            <TableCell align="right" sx={{ borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.05)}`, fontSize: '0.75rem', py: 1 }}>
-                              ${source.revenue?.toLocaleString()}
-                            </TableCell>
-                            <TableCell align="right" sx={{ borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.05)}`, py: 1 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                {source.growth?.includes('+') ? (
-                                  <ArrowUpward sx={{ fontSize: 14, color: 'success.main' }} />
-                                ) : (
-                                  <ArrowDownward sx={{ fontSize: 14, color: 'error.main' }} />
-                                )}
-                                <Typography 
-                                  color={source.growth?.includes('+') ? 'success.main' : 'error.main'}
-                                  sx={{ fontWeight: 600, fontSize: '0.75rem' }}
-                                >
-                                  {source.growth}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Paper>
             </Grid>
           </Grid>
         </Box>
       </LocalizationProvider>
-    </DashboardLayout>
+    </RouteGuard>
   )
 }
-
-export default FinancialReportsPage

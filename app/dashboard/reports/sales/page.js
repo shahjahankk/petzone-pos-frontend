@@ -2,613 +2,329 @@
 
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import DashboardLayout from '../../../../components/layout/DashboardLayout'
 import {
-  Box,
-  Card,
-  CardContent,
-  Grid,
-  Typography,
-  Paper,
-  Button,
-  CircularProgress,
-  Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  TextField,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Menu,
+  Box, Card, CardContent, Grid, Typography, Paper, Button,
+  Alert, FormControl, InputLabel, Select, MenuItem, TextField,
+  Chip, Table, TableBody, TableCell, TableContainer, TableHead,
+  TableRow, Menu,
 } from '@mui/material'
 import {
-  Refresh,
-  Assessment,
-  FilterList,
-  Download,
-  TrendingUp,
-  TrendingDown,
+  Refresh, Assessment, FilterList, Download,
+  TrendingUp, TrendingDown, ShoppingCart, Person,
 } from '@mui/icons-material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Legend,
+} from 'recharts'
 import { fetchSalesReports } from '../../../store/slices/reportsSlice'
+import RouteGuard from '../../../../components/auth/RouteGuard'
 
-const SalesReportsPage = () => {
+// ── Styles ────────────────────────────────────────────────────────────────────
+const styles = {
+  page: {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+    fontFamily: "'DM Sans', sans-serif",
+    p: 3,
+  },
+  header: {
+    background: 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(168,85,247,0.1) 100%)',
+    border: '1px solid rgba(99,102,241,0.25)',
+    borderRadius: 3,
+    p: 3,
+    mb: 3,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statCard: (accent) => ({
+    background: 'rgba(255,255,255,0.04)',
+    border: `1px solid ${accent}40`,
+    borderLeft: `4px solid ${accent}`,
+    borderRadius: 2,
+    backdropFilter: 'blur(10px)',
+    transition: 'transform 0.2s',
+    '&:hover': { transform: 'translateY(-2px)' },
+  }),
+  paper: {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 2,
+    backdropFilter: 'blur(10px)',
+  },
+  filterPaper: {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 2,
+    p: 2.5,
+    mb: 3,
+  },
+  label: { color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 1 },
+  value: (color) => ({ color: color || '#fff', fontWeight: 700, fontSize: '1.8rem', mt: 0.5 }),
+  sectionTitle: { color: '#fff', fontWeight: 600, fontSize: '1rem', mb: 2 },
+  tableHead: { background: 'rgba(99,102,241,0.15)' },
+  tableCell: { color: 'rgba(255,255,255,0.7)', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '0.82rem' },
+  tableHeadCell: { color: '#a5b4fc', fontWeight: 700, borderBottom: '1px solid rgba(99,102,241,0.3)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 },
+}
+
+const inputSx = {
+  '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)' },
+  '& .MuiOutlinedInput-root': {
+    color: '#fff',
+    '& fieldset': { borderColor: 'rgba(255,255,255,0.15)' },
+    '&:hover fieldset': { borderColor: 'rgba(99,102,241,0.5)' },
+    '&.Mui-focused fieldset': { borderColor: '#6366f1' },
+  },
+  '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.5)' },
+  '& .MuiMenuItem-root': { color: '#fff' },
+}
+
+const TOOLTIP_STYLE = {
+  contentStyle: { background: '#1e293b', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 8, color: '#fff', fontSize: 12 },
+  labelStyle: { color: '#a5b4fc' },
+}
+
+export default function SalesReportsPage() {
   const dispatch = useDispatch()
-  const { user } = useSelector((state) => state.auth)
-  const { salesReports, isLoading, error } = useSelector((state) => state.reports)
-  const [exportMenuAnchor, setExportMenuAnchor] = useState(null)
-  
+  const { user } = useSelector((s) => s.auth)
+  const { salesReports, isLoading, error } = useSelector((s) => s.reports)
+  const [exportAnchor, setExportAnchor] = useState(null)
+
   const [filters, setFilters] = useState({
-    branch: 'all',
-    cashier: 'all',
-    dateFrom: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+    branch: 'all', cashier: 'all', period: 'daily',
+    dateFrom: new Date(Date.now() - 30 * 86400000),
     dateTo: new Date(),
-    reportType: 'daily',
-    period: 'daily' // daily, weekly, monthly, quarterly, yearly
   })
 
-  useEffect(() => {
-    // Prepare parameters for sales report with date range
-    const params = {
+  const buildParams = () => {
+    const p = {
       dateRange: {
-        start: filters.dateFrom.toISOString().split('T')[0],
-        end: filters.dateTo.toISOString().split('T')[0]
-      }
+        start: filters.dateFrom?.toISOString().split('T')[0],
+        end: filters.dateTo?.toISOString().split('T')[0],
+      },
     }
-    
-    // Add branch and cashier filters if provided
-    if (filters.branch && filters.branch !== 'all') {
-      params.branch = filters.branch
-    }
-    if (filters.cashier && filters.cashier !== 'all') {
-      params.cashier = filters.cashier
-    }
-    
-    dispatch(fetchSalesReports(params))
-  }, [dispatch, filters, user])
-
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }))
-    
-    // Auto-adjust date range based on period selection
-    if (field === 'period') {
-      const now = new Date()
-      let dateFrom, dateTo = now
-      
-      switch (value) {
-        case 'daily':
-          dateFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) // 7 days
-          break
-        case 'weekly':
-          dateFrom = new Date(now.getTime() - 4 * 7 * 24 * 60 * 60 * 1000) // 4 weeks
-          break
-        case 'monthly':
-          dateFrom = new Date(now.getTime() - 12 * 30 * 24 * 60 * 60 * 1000) // 12 months
-          break
-        case 'quarterly':
-          dateFrom = new Date(now.getTime() - 4 * 90 * 24 * 60 * 60 * 1000) // 4 quarters
-          break
-        case 'yearly':
-          dateFrom = new Date(now.getTime() - 5 * 365 * 24 * 60 * 60 * 1000) // 5 years
-          break
-        default:
-          dateFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) // 30 days
-      }
-      
-      setFilters(prev => ({ ...prev, dateFrom, dateTo }))
-    }
+    if (filters.branch !== 'all') p.branch = filters.branch
+    if (filters.cashier !== 'all') p.cashier = filters.cashier
+    return p
   }
 
-  const handleRefresh = () => {
-    // Prepare parameters for sales report with date range
-    const params = {
-      dateRange: {
-        start: filters.dateFrom.toISOString().split('T')[0],
-        end: filters.dateTo.toISOString().split('T')[0]
+  useEffect(() => { dispatch(fetchSalesReports(buildParams())) }, [dispatch, filters])
+
+  const handleFilter = (field, value) => {
+    setFilters((prev) => {
+      const next = { ...prev, [field]: value }
+      if (field === 'period') {
+        const now = new Date()
+        const map = { daily: 7, weekly: 28, monthly: 365, quarterly: 365, yearly: 1825 }
+        next.dateFrom = new Date(now - (map[value] || 30) * 86400000)
+        next.dateTo = now
       }
-    }
-    
-    // Add branch and cashier filters if provided
-    if (filters.branch && filters.branch !== 'all') {
-      params.branch = filters.branch
-    }
-    if (filters.cashier && filters.cashier !== 'all') {
-      params.cashier = filters.cashier
-    }
-    
-    dispatch(fetchSalesReports(params))
+      return next
+    })
   }
 
-  const handleExport = async () => {
-    try {
-      // Prepare data for CSV
-      const exportData = [
-        // Summary data
-        { Category: 'Sales Summary', Value: '' },
-        { Category: 'Total Sales', Value: salesReports?.totalSales || 0 },
-        { Category: 'Total Transactions', Value: salesReports?.totalTransactions || 0 },
-        { Category: 'Average Ticket', Value: salesReports?.averageTicket || 0 },
-        { Category: '', Value: '' },
-        // Sales by date
-        { Category: 'Sales by Date', Value: '' },
-        ...salesData.map(item => ({
-          Category: item.date || 'N/A',
-          Value: item.sales || 0
-        })),
-        { Category: '', Value: '' },
-        // Sales by branch
-        { Category: 'Sales by Branch', Value: '' },
-        ...branchData.map(item => ({
-          Category: item.branch || 'N/A',
-          Value: `${item.sales || 0} (${item.transactions || 0} transactions)`
-        })),
-        { Category: '', Value: '' },
-        // Sales by cashier
-        { Category: 'Sales by Cashier', Value: '' },
-        ...cashierData.map(item => ({
-          Category: item.cashier || 'N/A',
-          Value: `${item.sales || 0} (${item.transactions || 0} transactions)`
-        }))
-      ]
-      
-      // Convert to CSV
-      const headers = ['Category', 'Value']
-      const csvContent = [
-        headers.join(','),
-        ...exportData.map(row => `${row.Category || ''},${row.Value || ''}`)
-      ].join('\n')
-      
-      // Create download link
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `sales-report-${new Date().toISOString().split('T')[0]}.csv`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Export error:', error)
-      alert('Failed to export sales report. Please try again.')
-    }
+  const salesData = Array.isArray(salesReports?.salesByDate) ? salesReports.salesByDate : []
+  const branchData = salesReports?.salesByBranch && !Array.isArray(salesReports.salesByBranch)
+    ? Object.entries(salesReports.salesByBranch).map(([branch, d]) => ({ branch, sales: d.sales || 0, transactions: d.transactions || 0 }))
+    : []
+  const cashierData = salesReports?.salesByCashier && !Array.isArray(salesReports.salesByCashier)
+    ? Object.entries(salesReports.salesByCashier).map(([cashier, d]) => ({ cashier, sales: d.sales || 0, transactions: d.transactions || 0 }))
+    : []
+  const recentSales = Array.isArray(salesReports?.recentSales) ? salesReports.recentSales : []
+  const filteredBranch = user?.role === 'WAREHOUSE_KEEPER' ? branchData.filter(i => i.branch === user.warehouseName) : branchData
+
+  const fmt = (v) => Number(v || 0).toLocaleString()
+
+  const handleExportCSV = () => {
+    const rows = [['Date', 'Sales'], ...salesData.map(r => [r.date, r.sales])]
+    const csv = rows.map(r => r.join(',')).join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `sales-report-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    setExportAnchor(null)
   }
 
   const handleExportPDF = () => {
-    // Generate PDF content
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Sales Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h1 { text-align: center; }
-            .header { text-align: center; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .summary { margin: 20px 0; }
-            .summary-row { display: flex; justify-content: space-between; padding: 5px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Sales Report</h1>
-            <p>Generated on: ${new Date().toLocaleString()}</p>
-            <p>Period: ${filters.period}</p>
-          </div>
-          
-          <div class="summary">
-            <h2>Summary</h2>
-            <div class="summary-row">
-              <strong>Total Sales:</strong> <span>${salesReports?.totalSales || 0}</span>
-            </div>
-            <div class="summary-row">
-              <strong>Total Transactions:</strong> <span>${salesReports?.totalTransactions || 0}</span>
-            </div>
-            <div class="summary-row">
-              <strong>Average Ticket:</strong> <span>${salesReports?.averageTicket || 0}</span>
-            </div>
-          </div>
-
-          ${salesData.length > 0 ? `
-          <h2>Sales by Date</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Sales</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${salesData.map(item => `
-                <tr>
-                  <td>${item.date}</td>
-                  <td>${item.sales}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          ` : ''}
-
-          ${branchData.length > 0 ? `
-          <h2>Sales by Branch</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Branch</th>
-                <th>Sales</th>
-                <th>Transactions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${branchData.map(item => `
-                <tr>
-                  <td>${item.branch}</td>
-                  <td>${item.sales}</td>
-                  <td>${item.transactions}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          ` : ''}
-
-          ${cashierData.length > 0 ? `
-          <h2>Sales by Cashier</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Cashier</th>
-                <th>Sales</th>
-                <th>Transactions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${cashierData.map(item => `
-                <tr>
-                  <td>${item.cashier}</td>
-                  <td>${item.sales}</td>
-                  <td>${item.transactions}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          ` : ''}
-          
-          <div class="header" style="margin-top: 40px;">
-            <p>PetzonePOS Dashboard - Sales Report</p>
-          </div>
-        </body>
-      </html>
-    `
-    
-    // Open in new window for printing
-    const printWindow = window.open('', '_blank')
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
-    setTimeout(() => {
-      printWindow.print()
-    }, 500)
+    const w = window.open('', '_blank')
+    w.document.write(`<html><head><title>Sales Report</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f0f0f0}</style></head><body>
+      <h1>Sales Report — ${new Date().toLocaleDateString()}</h1>
+      <h3>Summary</h3>
+      <p>Total Sales: ${fmt(salesReports?.totalSales)} | Transactions: ${fmt(salesReports?.totalTransactions)} | Avg Ticket: ${fmt(salesReports?.averageTicket)}</p>
+      <h3>Sales by Date</h3>
+      <table><tr><th>Date</th><th>Sales</th></tr>${salesData.map(r => `<tr><td>${r.date}</td><td>${r.sales}</td></tr>`).join('')}</table>
+      </body></html>`)
+    w.document.close()
+    setTimeout(() => w.print(), 400)
+    setExportAnchor(null)
   }
 
-  // Use real data from API - ensure it's always an array
-  // The backend returns salesByDate as an array, not an object
-  const salesData = Array.isArray(salesReports?.salesByDate) ? salesReports.salesByDate : []
-  const branchData = salesReports?.salesByBranch && typeof salesReports.salesByBranch === 'object' && !Array.isArray(salesReports.salesByBranch) ? 
-    Object.entries(salesReports.salesByBranch).map(([branch, data]) => ({
-      branch,
-      sales: data.sales || 0,
-      transactions: data.transactions || 0
-    })) : []
-  const cashierData = salesReports?.salesByCashier && typeof salesReports.salesByCashier === 'object' && !Array.isArray(salesReports.salesByCashier) ? 
-    Object.entries(salesReports.salesByCashier).map(([cashier, data]) => ({
-      cashier,
-      sales: data.sales || 0,
-      transactions: data.transactions || 0
-    })) : []
-  const recentSales = Array.isArray(salesReports?.recentSales) ? salesReports.recentSales : []
-  
-  // Debug logging
-  console.log('Sales Reports Debug:', {
-    salesReports,
-    salesData,
-    branchData,
-    cashierData,
-    recentSales,
-    totalSales: salesReports?.totalSales,
-    totalRevenue: salesReports?.totalRevenue,
-    totalTransactions: salesReports?.totalTransactions,
-    averageTicket: salesReports?.averageTicket
-  })
-  
-  // For warehouse keepers, show only their warehouse data
-  const filteredBranchData = user?.role === 'WAREHOUSE_KEEPER' ? 
-    branchData.filter(item => item.branch === user.warehouseName) : branchData
-
   return (
-    <DashboardLayout>
+    <RouteGuard allowedRoles={['ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER']}>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={styles.page}>
+          {/* Google Font */}
+          <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
+
+          {/* Header */}
+          <Box sx={styles.header}>
             <Box>
-              <Typography variant="h4" gutterBottom>
+              <Typography sx={{ color: '#a5b4fc', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: 2, mb: 0.5 }}>
+                Reports / Sales
+              </Typography>
+              <Typography variant="h4" sx={{ color: '#fff', fontWeight: 700, letterSpacing: '-0.5px' }}>
                 Sales Reports
               </Typography>
-              <Typography variant="subtitle1" color="textSecondary">
-                Detailed sales analytics and performance metrics
+              <Typography sx={{ color: 'rgba(255,255,255,0.45)', mt: 0.5, fontSize: '0.875rem' }}>
+                Detailed analytics and performance metrics
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="outlined"
-                startIcon={<Refresh />}
-                onClick={handleRefresh}
-                disabled={isLoading}
-              >
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <Button onClick={() => dispatch(fetchSalesReports(buildParams()))} disabled={isLoading}
+                startIcon={<Refresh />} variant="outlined"
+                sx={{ borderColor: 'rgba(255,255,255,0.2)', color: '#fff', '&:hover': { borderColor: '#6366f1', background: 'rgba(99,102,241,0.1)' } }}>
                 Refresh
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<Download />}
-                onClick={(e) => setExportMenuAnchor(e.currentTarget)}
-              >
+              <Button onClick={(e) => setExportAnchor(e.currentTarget)} startIcon={<Download />} variant="contained"
+                sx={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', '&:hover': { background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' } }}>
                 Export
               </Button>
-              <Menu
-                anchorEl={exportMenuAnchor}
-                open={Boolean(exportMenuAnchor)}
-                onClose={() => setExportMenuAnchor(null)}
-              >
-                <MenuItem onClick={() => { setExportMenuAnchor(null); handleExport(); }}>
-                  <Download sx={{ mr: 1 }} />
-                  Export to Excel
-                </MenuItem>
-                <MenuItem onClick={() => { setExportMenuAnchor(null); handleExportPDF(); }}>
-                  <Download sx={{ mr: 1 }} />
-                  Export to PDF
-                </MenuItem>
+              <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}
+                PaperProps={{ sx: { background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' } }}>
+                <MenuItem onClick={handleExportCSV} sx={{ color: '#fff' }}>Export CSV</MenuItem>
+                <MenuItem onClick={handleExportPDF} sx={{ color: '#fff' }}>Export PDF</MenuItem>
               </Menu>
             </Box>
           </Box>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          )}
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
           {/* Filters */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              <FilterList sx={{ mr: 1, verticalAlign: 'middle' }} />
-              Filters
-            </Typography>
+          <Paper sx={styles.filterPaper} elevation={0}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <FilterList sx={{ color: '#6366f1', fontSize: 18 }} />
+              <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: '0.875rem' }}>Filters</Typography>
+            </Box>
             <Grid container spacing={2}>
-              {user?.role === 'ADMIN' && (
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Branch</InputLabel>
-                  <Select
-                    value={filters.branch}
-                    onChange={(e) => handleFilterChange('branch', e.target.value)}
-                    label="Branch"
-                  >
-                    <MenuItem value="all">All Branches</MenuItem>
-                    <MenuItem value="main">Main Branch</MenuItem>
-                    <MenuItem value="downtown">Downtown</MenuItem>
-                    <MenuItem value="mall">Mall</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              )}
-              {user?.role === 'ADMIN' && (
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Cashier</InputLabel>
-                  <Select
-                    value={filters.cashier}
-                    onChange={(e) => handleFilterChange('cashier', e.target.value)}
-                    label="Cashier"
-                  >
-                    <MenuItem value="all">All Cashiers</MenuItem>
-                    <MenuItem value="john">John Doe</MenuItem>
-                    <MenuItem value="jane">Jane Smith</MenuItem>
-                    <MenuItem value="mike">Mike Johnson</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              )}
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <FormControl fullWidth>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small" sx={inputSx}>
                   <InputLabel>Period</InputLabel>
-                  <Select
-                    value={filters.period}
-                    onChange={(e) => handleFilterChange('period', e.target.value)}
-                    label="Period"
-                  >
-                    <MenuItem value="daily">Daily</MenuItem>
-                    <MenuItem value="weekly">Weekly</MenuItem>
-                    <MenuItem value="monthly">Monthly</MenuItem>
-                    <MenuItem value="quarterly">Quarterly</MenuItem>
-                    <MenuItem value="yearly">Yearly</MenuItem>
+                  <Select value={filters.period} onChange={(e) => handleFilter('period', e.target.value)} label="Period">
+                    {['daily','weekly','monthly','quarterly','yearly'].map(p => <MenuItem key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</MenuItem>)}
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <DatePicker
-                  label="From Date"
-                  value={filters.dateFrom}
-                  onChange={(date) => handleFilterChange('dateFrom', date)}
-                   enableAccessibleFieldDOMStructure={false}
-                   slots={{
-                     textField: TextField
-                   }}
-                   slotProps={{
-                     textField: { fullWidth: true }
-                   }}
-                />
+              {user?.role === 'ADMIN' && (
+                <Grid item xs={12} sm={6} md={2}>
+                  <FormControl fullWidth size="small" sx={inputSx}>
+                    <InputLabel>Branch</InputLabel>
+                    <Select value={filters.branch} onChange={(e) => handleFilter('branch', e.target.value)} label="Branch">
+                      <MenuItem value="all">All Branches</MenuItem>
+                      <MenuItem value="main">Main Branch</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              )}
+              <Grid item xs={12} sm={6} md={3}>
+                <DatePicker label="From Date" value={filters.dateFrom}
+                  onChange={(d) => handleFilter('dateFrom', d)}
+                  slots={{ textField: TextField }}
+                  slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />
               </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <DatePicker
-                  label="To Date"
-                  value={filters.dateTo}
-                  onChange={(date) => handleFilterChange('dateTo', date)}
-                  enableAccessibleFieldDOMStructure={false}
-                  slots={{
-                    textField: TextField
-                  }}
-                  slotProps={{
-                    textField: { fullWidth: true }
-                  }}
-                />
+              <Grid item xs={12} sm={6} md={3}>
+                <DatePicker label="To Date" value={filters.dateTo}
+                  onChange={(d) => handleFilter('dateTo', d)}
+                  slots={{ textField: TextField }}
+                  slotProps={{ textField: { fullWidth: true, size: 'small', sx: inputSx } }} />
               </Grid>
             </Grid>
           </Paper>
 
           {/* Summary Cards */}
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Total Sales
-                      </Typography>
-                      <Typography variant="h4">
-                        {salesReports?.totalSales?.toLocaleString() || '0'}
-                      </Typography>
+          <Grid container spacing={2.5} sx={{ mb: 3 }}>
+            {[
+              { label: 'Total Sales', value: fmt(salesReports?.totalSales), accent: '#6366f1', icon: <TrendingUp /> },
+              { label: 'Transactions', value: fmt(salesReports?.totalTransactions), accent: '#22d3ee', icon: <ShoppingCart /> },
+              { label: 'Avg. Ticket', value: fmt(salesReports?.averageTicket), accent: '#a78bfa', icon: <Assessment /> },
+              { label: 'Total Revenue', value: fmt(salesReports?.totalRevenue || salesReports?.totalSales), accent: '#34d399', icon: <TrendingUp /> },
+            ].map((c) => (
+              <Grid item xs={12} sm={6} md={3} key={c.label}>
+                <Card sx={styles.statCard(c.accent)} elevation={0}>
+                  <CardContent sx={{ p: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Box>
+                        <Typography sx={styles.label}>{c.label}</Typography>
+                        <Typography sx={styles.value(c.accent)}>{c.value}</Typography>
+                      </Box>
+                      <Box sx={{ color: c.accent, opacity: 0.7 }}>{c.icon}</Box>
                     </Box>
-                    <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Transactions
-                      </Typography>
-                      <Typography variant="h4">
-                        {salesReports?.totalTransactions?.toLocaleString() || '0'}
-                      </Typography>
-                    </Box>
-                    <Assessment sx={{ fontSize: 40, color: 'primary.main' }} />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Avg. Ticket
-                      </Typography>
-                      <Typography variant="h4">
-                        {salesReports?.averageTicket?.toFixed(2) || '0.00'}
-                      </Typography>
-                    </Box>
-                    <TrendingUp sx={{ fontSize: 40, color: 'info.main' }} />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Growth
-                      </Typography>
-                      <Typography variant="h4" color="success.main">
-                        +12.5%
-                      </Typography>
-                    </Box>
-                    <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
           </Grid>
 
           {/* Charts */}
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid size={{ xs: 12, md: 8 }}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  {filters.period === 'daily' ? 'Daily' : 
-                   filters.period === 'weekly' ? 'Weekly' :
-                   filters.period === 'monthly' ? 'Monthly' :
-                   filters.period === 'quarterly' ? 'Quarterly' :
-                   filters.period === 'yearly' ? 'Yearly' : 'Daily'} Sales Trend
+          <Grid container spacing={2.5} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={8}>
+              <Paper sx={{ ...styles.paper, p: 2.5 }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>
+                  {filters.period.charAt(0).toUpperCase() + filters.period.slice(1)} Sales Trend
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={salesData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="sales" stroke="#8884d8" strokeWidth={2} />
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={salesData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }} />
+                    <YAxis tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }} />
+                    <Tooltip {...TOOLTIP_STYLE} />
+                    <Line type="monotone" dataKey="sales" stroke="#6366f1" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </Paper>
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  {user?.role === 'ADMIN' ? 'Sales by Branch' : 'My Warehouse Sales'}
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ ...styles.paper, p: 2.5 }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>
+                  {user?.role === 'ADMIN' ? 'Sales by Branch' : 'Warehouse Sales'}
                 </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={filteredBranchData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="branch" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="sales" fill="#82ca9d" />
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={filteredBranch} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="branch" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }} />
+                    <YAxis tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }} />
+                    <Tooltip {...TOOLTIP_STYLE} />
+                    <Bar dataKey="sales" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
               </Paper>
             </Grid>
           </Grid>
 
-          {/* Detailed Tables */}
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  {user?.role === 'ADMIN' ? 'Sales by Cashier' : 'My Warehouse Cashiers'}
-                </Typography>
+          {/* Tables */}
+          <Grid container spacing={2.5}>
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ ...styles.paper, p: 2.5 }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Sales by Cashier</Typography>
                 <TableContainer>
-                  <Table>
-                    <TableHead>
+                  <Table size="small">
+                    <TableHead sx={styles.tableHead}>
                       <TableRow>
-                        <TableCell>Cashier</TableCell>
-                        <TableCell align="right">Sales</TableCell>
-                        <TableCell align="right">Transactions</TableCell>
+                        {['Cashier', 'Sales', 'Transactions'].map(h => (
+                          <TableCell key={h} align={h !== 'Cashier' ? 'right' : 'left'} sx={styles.tableHeadCell}>{h}</TableCell>
+                        ))}
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {cashierData.map((row, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{row.cashier}</TableCell>
-                          <TableCell align="right">{row.sales.toLocaleString()}</TableCell>
-                          <TableCell align="right">{row.transactions}</TableCell>
+                      {cashierData.length === 0 ? (
+                        <TableRow><TableCell colSpan={3} align="center" sx={{ ...styles.tableCell, py: 4 }}>No data available</TableCell></TableRow>
+                      ) : cashierData.map((row, i) => (
+                        <TableRow key={i} sx={{ '&:hover': { background: 'rgba(99,102,241,0.06)' } }}>
+                          <TableCell sx={styles.tableCell}><Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Person sx={{ fontSize: 16, color: '#6366f1' }} />{row.cashier}</Box></TableCell>
+                          <TableCell align="right" sx={{ ...styles.tableCell, color: '#34d399', fontWeight: 600 }}>{Number(row.sales).toLocaleString()}</TableCell>
+                          <TableCell align="right" sx={styles.tableCell}>{row.transactions}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -616,30 +332,27 @@ const SalesReportsPage = () => {
                 </TableContainer>
               </Paper>
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  {user?.role === 'ADMIN' ? 'Recent Transactions' : 'My Recent Transactions'}
-                </Typography>
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ ...styles.paper, p: 2.5 }} elevation={0}>
+                <Typography sx={styles.sectionTitle}>Recent Transactions</Typography>
                 <TableContainer>
-                  <Table>
-                    <TableHead>
+                  <Table size="small">
+                    <TableHead sx={styles.tableHead}>
                       <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Amount</TableCell>
-                        <TableCell>Cashier</TableCell>
-                        <TableCell>Status</TableCell>
+                        {['Date', 'Amount', 'Cashier', 'Status'].map(h => (
+                          <TableCell key={h} sx={styles.tableHeadCell}>{h}</TableCell>
+                        ))}
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {recentSales.slice(0, 5).map((row, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{row.date || row.created_at}</TableCell>
-                          <TableCell>{row.sales || row.total_amount || 0}</TableCell>
-                          <TableCell>{row.cashier || row.cashier_name || 'Unknown'}</TableCell>
-                          <TableCell>
-                            <Chip label="Completed" color="success" size="small" />
-                          </TableCell>
+                      {recentSales.length === 0 ? (
+                        <TableRow><TableCell colSpan={4} align="center" sx={{ ...styles.tableCell, py: 4 }}>No recent transactions</TableCell></TableRow>
+                      ) : recentSales.slice(0, 8).map((row, i) => (
+                        <TableRow key={i} sx={{ '&:hover': { background: 'rgba(99,102,241,0.06)' } }}>
+                          <TableCell sx={styles.tableCell}>{row.date || row.created_at}</TableCell>
+                          <TableCell sx={{ ...styles.tableCell, color: '#34d399', fontWeight: 600 }}>{Number(row.sales || row.total_amount || 0).toLocaleString()}</TableCell>
+                          <TableCell sx={styles.tableCell}>{row.cashier || row.cashier_name || '—'}</TableCell>
+                          <TableCell sx={styles.tableCell}><Chip label="Completed" size="small" sx={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', fontSize: '0.7rem', height: 22 }} /></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -650,8 +363,6 @@ const SalesReportsPage = () => {
           </Grid>
         </Box>
       </LocalizationProvider>
-    </DashboardLayout>
+    </RouteGuard>
   )
 }
-
-export default SalesReportsPage

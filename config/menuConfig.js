@@ -213,7 +213,7 @@ export const menuConfig = [
     label: 'WAREHOUSE',
     isSection: true,
     order: 7,
-    roles: ['WAREHOUSE_KEEPER', 'ADMIN'], // Exclude CASHIER
+    roles: ['WAREHOUSE_KEEPER', 'ADMIN'],
   },
   {
     id: 'warehouse-billing',
@@ -346,7 +346,6 @@ export const menuConfig = [
     isSection: true,
     order: 12,
   },
-  
   {
     id: 'analytics',
     label: 'Analytics',
@@ -366,14 +365,6 @@ export const menuConfig = [
     section: 'reports',
     isGroup: true,
     children: [
-      // {
-      //   id: 'reports-all',
-      //   label: 'All Reports',
-      //   icon: <BarChart />,
-      //   path: '/dashboard/reports',
-      //   roles: ['ADMIN'],
-      //   order: 1,
-      // },
       {
         id: 'reports-sales',
         label: 'Sales Reports',
@@ -381,6 +372,7 @@ export const menuConfig = [
         path: '/dashboard/reports/sales',
         roles: ['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'],
         order: 2,
+        newWindow: true,
       },
       {
         id: 'customer-balances',
@@ -388,7 +380,8 @@ export const menuConfig = [
         icon: <AccountBalanceWallet />,
         path: '/dashboard/reports/customer-balances',
         roles: ['ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'],
-        order: 5,
+        order: 3,
+        newWindow: true,
       },
       {
         id: 'reports-inventory',
@@ -396,7 +389,8 @@ export const menuConfig = [
         icon: <Inventory />,
         path: '/dashboard/reports/inventory',
         roles: ['ADMIN', 'WAREHOUSE_KEEPER'],
-        order: 3,
+        order: 4,
+        newWindow: true,
       },
       {
         id: 'reports-return-restock',
@@ -404,7 +398,8 @@ export const menuConfig = [
         icon: <Assignment />,
         path: '/dashboard/reports/return-restock',
         roles: ['ADMIN'],
-        order: 3.5,
+        order: 4.5,
+        newWindow: true,
       },
       {
         id: 'reports-stock',
@@ -412,7 +407,8 @@ export const menuConfig = [
         icon: <Assessment />,
         path: '/dashboard/stock-reports',
         roles: ['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'],
-        order: 4,
+        order: 5,
+        newWindow: true,
       },
       {
         id: 'reports-ledger',
@@ -421,6 +417,7 @@ export const menuConfig = [
         path: '/dashboard/reports/ledger',
         roles: ['ADMIN'],
         order: 6,
+        newWindow: true,
       },
       {
         id: 'reports-financial-reports',
@@ -429,6 +426,7 @@ export const menuConfig = [
         path: '/dashboard/reports/financial',
         roles: ['ADMIN'],
         order: 7,
+        newWindow: true,
       },
     ],
   },
@@ -439,7 +437,7 @@ export const menuConfig = [
     label: 'SYSTEM',
     isSection: true,
     order: 15,
-    roles: ['ADMIN'], // Exclude CASHIER and WAREHOUSE_KEEPER
+    roles: ['ADMIN'],
   },
   {
     id: 'admin-dashboard',
@@ -482,24 +480,18 @@ export const menuConfig = [
 // Helper function to get menu items for a specific role
 export const getMenuItemsForRole = (role) => {
   if (!role) return []
-  
+
   return menuConfig
     .filter(item => {
-      // Include section headers only if role has access
-      if (item.isSection) {
-        return !item.roles || item.roles.includes(role)
-      }
-      
-      // Include items that the role has access to
+      if (item.isSection) return !item.roles || item.roles.includes(role)
       if (item.roles && item.roles.includes(role)) return true
-      
       return false
     })
     .map(item => {
       if (item.isGroup && item.children) {
         return {
           ...item,
-          children: item.children.filter(child => child.roles.includes(role))
+          children: item.children.filter(child => child.roles.includes(role)),
         }
       }
       return item
@@ -510,78 +502,64 @@ export const getMenuItemsForRole = (role) => {
 // Helper function to check if a path is accessible for a role
 export const isPathAccessibleForRole = (path, role) => {
   if (!role || !path) return false
-  
-  // Allow access to root paths for authenticated users
-  if (path === '/' || path === '/dashboard') {
-    return true
-  }
-  
-  // Check direct menu items
-  const directMatch = menuConfig.find(item => item.path === path && item.roles.includes(role))
+
+  if (path === '/' || path === '/dashboard') return true
+
+  const directMatch = menuConfig.find(item => item.path === path && item.roles?.includes(role))
   if (directMatch) return true
-  
-  // Check nested menu items
-  const nestedMatch = menuConfig.find(item => 
-    item.isGroup && 
-    item.children && 
+
+  const nestedMatch = menuConfig.find(item =>
+    item.isGroup &&
+    item.children &&
     item.children.some(child => child.path === path && child.roles.includes(role))
   )
   if (nestedMatch) return true
-  
-  // Check sub-paths (e.g., /pos/terminal should be accessible if /pos is accessible)
+
   const subPathMatch = menuConfig.find(item => {
-    if (item.path && path.startsWith(item.path + '/') && item.roles.includes(role)) {
-      return true
-    }
+    if (item.path && path.startsWith(item.path + '/') && item.roles?.includes(role)) return true
     if (item.isGroup && item.children) {
-      return item.children.some(child => 
+      return item.children.some(child =>
         child.path && path.startsWith(child.path + '/') && child.roles.includes(role)
       )
     }
     return false
   })
-  
+
   return !!subPathMatch
 }
 
 // Helper function to get all accessible paths for a role
 export const getAllAccessiblePathsForRole = (role) => {
   if (!role) return []
-  
+
   const paths = []
-  
+
   menuConfig.forEach(item => {
-    if (item.roles.includes(role)) {
-      if (item.path) {
-        paths.push(item.path)
-      }
+    if (item.roles?.includes(role)) {
+      if (item.path) paths.push(item.path)
       if (item.isGroup && item.children) {
         item.children.forEach(child => {
-          if (child.roles.includes(role) && child.path) {
-            paths.push(child.path)
-          }
+          if (child.roles.includes(role) && child.path) paths.push(child.path)
         })
       }
     }
   })
-  
+
   return paths
 }
 
 // Helper function to get menu item by path
 export const getMenuItemByPath = (path) => {
-  // Check direct menu items
   let item = menuConfig.find(item => item.path === path)
   if (item) return item
-  
-  // Check nested menu items
+
   for (const group of menuConfig) {
     if (group.isGroup && group.children) {
       item = group.children.find(child => child.path === path)
       if (item) return item
     }
   }
-  
+
   return null
 }
 
@@ -589,17 +567,14 @@ export const getMenuItemByPath = (path) => {
 export const getBreadcrumbPath = (path) => {
   const item = getMenuItemByPath(path)
   if (!item) return []
-  
-  // If it's a nested item, include parent
+
   for (const group of menuConfig) {
     if (group.isGroup && group.children) {
       const child = group.children.find(child => child.path === path)
-      if (child) {
-        return [group, child]
-      }
+      if (child) return [group, child]
     }
   }
-  
+
   return [item]
 }
 
