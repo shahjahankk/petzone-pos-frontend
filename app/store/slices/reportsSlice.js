@@ -1,17 +1,36 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
+// ── Helper: normalize a date value to YYYY-MM-DD string ──────────────────────
+// Accepts: Date object, ISO string, or already-formatted string
+const toDateStr = (val) => {
+  if (!val) return null
+  if (val instanceof Date) return val.toISOString().split('T')[0]
+  if (typeof val === 'string') {
+    // Already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val
+    // ISO string like "2024-01-01T00:00:00.000Z"
+    return new Date(val).toISOString().split('T')[0]
+  }
+  return null
+}
+
 // Async thunks for reports API calls
 export const fetchSalesReports = createAsyncThunk(
   'reports/fetchSales',
-  async ({ branch, cashier, dateRange }, { rejectWithValue }) => {
+  async (args = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams()
-      if (branch) params.append('branch', branch)
-      if (cashier) params.append('cashier', cashier)
-      if (dateRange?.start) params.append('startDate', dateRange.start)
-      if (dateRange?.end) params.append('endDate', dateRange.end)
-      
+
+      // Support both flat shape { dateFrom, dateTo } and nested { dateRange: { start, end } }
+      const startDate = toDateStr(args.dateFrom || args.dateRange?.start)
+      const endDate   = toDateStr(args.dateTo   || args.dateRange?.end)
+
+      if (args.branch && args.branch !== 'all') params.append('branch', args.branch)
+      if (args.cashier && args.cashier !== 'all') params.append('cashier', args.cashier)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate)   params.append('endDate',   endDate)
+
       const response = await api.get(`/reports/sales?${params.toString()}`)
       return response.data.data
     } catch (error) {
@@ -25,21 +44,27 @@ export const fetchInventoryReports = createAsyncThunk(
   async (filters = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams()
-      if (filters.searchTerm) params.append('searchTerm', filters.searchTerm)
-      if (filters.scopeType) params.append('scopeType', filters.scopeType)
-      if (filters.scopeId) params.append('scopeId', filters.scopeId)
-      if (filters.transactionType) params.append('transactionType', filters.transactionType)
-      if (filters.itemCategory) params.append('itemCategory', filters.itemCategory)
-      if (filters.startDate) params.append('startDate', filters.startDate)
-      if (filters.endDate) params.append('endDate', filters.endDate)
-      if (filters.userRole) params.append('userRole', filters.userRole)
-      if (filters.page) params.append('page', filters.page)
-      if (filters.limit) params.append('limit', filters.limit)
-      
+
+      if (filters.searchTerm)      params.append('searchTerm',      filters.searchTerm)
+      if (filters.scopeType)       params.append('scopeType',        filters.scopeType)
+      if (filters.scopeId)         params.append('scopeId',          filters.scopeId)
+      if (filters.transactionType) params.append('transactionType',  filters.transactionType)
+      if (filters.itemCategory || filters.category)
+        params.append('itemCategory', filters.itemCategory || filters.category)
+      if (filters.userRole)        params.append('userRole',         filters.userRole)
+      if (filters.page)            params.append('page',             filters.page)
+      if (filters.limit)           params.append('limit',            filters.limit)
+
+      // Support both startDate/endDate and dateFrom/dateTo
+      const startDate = toDateStr(filters.startDate || filters.dateFrom)
+      const endDate   = toDateStr(filters.endDate   || filters.dateTo)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate)   params.append('endDate',   endDate)
+
       const response = await api.get(`/stock-reports?${params.toString()}`)
       return {
         data: response.data.data,
-        pagination: response.data.pagination
+        pagination: response.data.pagination,
       }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch inventory reports')
@@ -52,19 +77,24 @@ export const fetchStockSummary = createAsyncThunk(
   async (filters = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams()
-      if (filters.searchTerm) params.append('searchTerm', filters.searchTerm)
-      if (filters.scopeType) params.append('scopeType', filters.scopeType)
-      if (filters.scopeId) params.append('scopeId', filters.scopeId)
-      if (filters.itemCategory) params.append('itemCategory', filters.itemCategory)
-      if (filters.startDate) params.append('startDate', filters.startDate)
-      if (filters.endDate) params.append('endDate', filters.endDate)
-      if (filters.page) params.append('page', filters.page)
+
+      if (filters.searchTerm)  params.append('searchTerm',  filters.searchTerm)
+      if (filters.scopeType)   params.append('scopeType',   filters.scopeType)
+      if (filters.scopeId)     params.append('scopeId',     filters.scopeId)
+      if (filters.itemCategory || filters.category)
+        params.append('itemCategory', filters.itemCategory || filters.category)
+      if (filters.page)  params.append('page',  filters.page)
       if (filters.limit) params.append('limit', filters.limit)
-      
+
+      const startDate = toDateStr(filters.startDate || filters.dateFrom)
+      const endDate   = toDateStr(filters.endDate   || filters.dateTo)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate)   params.append('endDate',   endDate)
+
       const response = await api.get(`/stock-reports/summary?${params.toString()}`)
       return {
         data: response.data.data,
-        pagination: response.data.pagination
+        pagination: response.data.pagination,
       }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch stock summary')
@@ -77,12 +107,16 @@ export const fetchStockStatistics = createAsyncThunk(
   async (filters = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams()
+
       if (filters.scopeType) params.append('scopeType', filters.scopeType)
-      if (filters.scopeId) params.append('scopeId', filters.scopeId)
-      if (filters.category) params.append('category', filters.category)
-      if (filters.startDate) params.append('startDate', filters.startDate)
-      if (filters.endDate) params.append('endDate', filters.endDate)
-      
+      if (filters.scopeId)   params.append('scopeId',   filters.scopeId)
+      if (filters.category)  params.append('category',  filters.category)
+
+      const startDate = toDateStr(filters.startDate || filters.dateFrom)
+      const endDate   = toDateStr(filters.endDate   || filters.dateTo)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate)   params.append('endDate',   endDate)
+
       const response = await api.get(`/stock-reports/statistics?${params.toString()}`)
       return response.data.data
     } catch (error) {
@@ -93,12 +127,23 @@ export const fetchStockStatistics = createAsyncThunk(
 
 export const fetchLedgerReports = createAsyncThunk(
   'reports/fetchLedger',
-  async ({ dateRange }, { rejectWithValue }) => {
+  async (args = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams()
-      if (dateRange?.start) params.append('startDate', dateRange.start)
-      if (dateRange?.end) params.append('endDate', dateRange.end)
-      
+
+      // Support both flat { dateFrom, dateTo } and nested { dateRange: { start, end } }
+      const startDate = toDateStr(args.dateFrom || args.dateRange?.start)
+      const endDate   = toDateStr(args.dateTo   || args.dateRange?.end)
+
+      if (startDate) params.append('startDate', startDate)
+      if (endDate)   params.append('endDate',   endDate)
+
+      // Extra filters the ledger page may pass
+      if (args.account && args.account !== 'all')
+        params.append('account', args.account)
+      if (args.transactionType && args.transactionType !== 'all')
+        params.append('transactionType', args.transactionType)
+
       const response = await api.get(`/reports/ledger?${params.toString()}`)
       return response.data.data
     } catch (error) {
@@ -109,15 +154,20 @@ export const fetchLedgerReports = createAsyncThunk(
 
 export const fetchFinancialReports = createAsyncThunk(
   'reports/fetchFinancial',
-  async ({ period, year, quarter, dateFrom, dateTo }, { rejectWithValue }) => {
+  async (args = {}, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams()
-      if (period) params.append('period', period)
-      if (year) params.append('year', year)
-      if (quarter) params.append('quarter', quarter)
+
+      if (args.period)  params.append('period',  args.period)
+      if (args.year)    params.append('year',    args.year)
+      if (args.quarter) params.append('quarter', args.quarter)
+
+      // Normalize dates — accept Date objects or strings
+      const dateFrom = toDateStr(args.dateFrom)
+      const dateTo   = toDateStr(args.dateTo)
       if (dateFrom) params.append('dateFrom', dateFrom)
-      if (dateTo) params.append('dateTo', dateTo)
-      
+      if (dateTo)   params.append('dateTo',   dateTo)
+
       const response = await api.get(`/reports/financial?${params.toString()}`)
       return response.data.data
     } catch (error) {
@@ -179,7 +229,7 @@ const reportsSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Inventory reports
       .addCase(fetchInventoryReports.pending, (state) => {
         state.isLoading = true
@@ -195,7 +245,7 @@ const reportsSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Stock summary
       .addCase(fetchStockSummary.pending, (state) => {
         state.isLoading = true
@@ -211,7 +261,7 @@ const reportsSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Stock statistics
       .addCase(fetchStockStatistics.pending, (state) => {
         state.isLoading = true
@@ -227,7 +277,7 @@ const reportsSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Ledger reports
       .addCase(fetchLedgerReports.pending, (state) => {
         state.isLoading = true
@@ -243,7 +293,7 @@ const reportsSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Financial reports
       .addCase(fetchFinancialReports.pending, (state) => {
         state.isLoading = true
@@ -259,7 +309,7 @@ const reportsSlice = createSlice({
         state.isLoading = false
         state.error = action.payload
       })
-      
+
       // Reports summary
       .addCase(fetchReportsSummary.pending, (state) => {
         state.isLoading = true
