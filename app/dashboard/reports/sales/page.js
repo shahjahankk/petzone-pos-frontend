@@ -521,123 +521,181 @@ export default function SalesReportPage() {
                 <Grid item xs={6} sm={3}><KpiCard label="Avg Ticket"       value={fmtPKR(avgTicket)}           sub="Per real sale"                                                                              accent="#0288d1" icon={<ShoppingCart />} /></Grid>
               </Grid>
 
-              {/* Charts Row 1 */}
-              <Grid container spacing={2.5} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={8}>
-                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2.5 }}>
+              {/* Charts Row 1 — Daily bar chart full width */}
+              <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
+                <Grid item xs={12}>
+                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3 }}>
                     <SecTitle title="Daily: Collected vs Credit Given" icon={<BarIcon />} />
-                    {cfChart.length === 0 ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, color: 'text.disabled' }}><Typography>No data in period</Typography></Box> : (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={cfChart} margin={{ top: 10, right: 20, left: 10, bottom: 5 }} barGap={4}>
+                    {cfChart.length === 0 ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'text.disabled' }}>
+                        <Typography>No data in period</Typography>
+                      </Box>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={340}>
+                        <BarChart data={cfChart} margin={{ top: 10, right: 30, left: 10, bottom: 20 }} barGap={6} barCategoryGap="30%">
                           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fill: '#9e9e9e', fontSize: 11 }} />
-                          <YAxis tick={{ fill: '#9e9e9e', fontSize: 11 }} tickFormatter={yFmt} width={55} />
-                          <Tooltip {...TT} formatter={(v, name) => [`PKR ${fmt(v)}`, name]} />
-                          <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-                          <Bar name="Collected"    dataKey="collected" fill="#2e7d32" radius={[4,4,0,0]} maxBarSize={36} />
-                          <Bar name="Credit Given" dataKey="credit"    fill="#ef5350" radius={[4,4,0,0]} maxBarSize={36} />
+                          <XAxis dataKey="date" tick={{ fill: '#9e9e9e', fontSize: 12 }} tickLine={false} axisLine={{ stroke: '#e0e0e0' }}
+                            interval={cfChart.length > 20 ? Math.floor(cfChart.length / 10) : 0}
+                            angle={cfChart.length > 15 ? -35 : 0}
+                            textAnchor={cfChart.length > 15 ? 'end' : 'middle'}
+                            height={cfChart.length > 15 ? 50 : 30} />
+                          <YAxis tick={{ fill: '#9e9e9e', fontSize: 12 }} tickFormatter={yFmt} width={62} tickLine={false} axisLine={false} />
+                          <Tooltip {...TT} formatter={(v, name) => [`PKR ${fmt(v)}`, name]} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                          <Legend iconSize={12} wrapperStyle={{ fontSize: 13, paddingTop: 12 }} iconType="circle" />
+                          <Bar name="Collected"    dataKey="collected" fill="#2e7d32" radius={[5,5,0,0]} maxBarSize={52} />
+                          <Bar name="Credit Given" dataKey="credit"    fill="#ef5350" radius={[5,5,0,0]} maxBarSize={52} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
                   </Paper>
                 </Grid>
-                <Grid item xs={12} md={4}>
-                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2.5, height: '100%' }}>
-                    <SecTitle title="Payment Methods" icon={<PieIcon />} />
-                    {piePM.length === 0 ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 160, color: 'text.disabled' }}><Typography variant="body2">No data</Typography></Box> : (
-                      <ResponsiveContainer width="100%" height={160}>
-                        <PieChart>
-                          <Pie data={piePM} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={3} labelLine={false}>
-                            {piePM.map((e, i) => <Cell key={i} fill={e.color} />)}
-                          </Pie>
-                          <Tooltip {...TT} formatter={v => [`PKR ${fmt(v)}`, '']} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    )}
-                    <Divider sx={{ my: 1.5 }} />
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: .8 }}>
-                      {pmBreakdown.map((m, i) => (
-                        <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: .7 }}>
-                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: MC[m.method] || '#9e9e9e', flexShrink: 0 }} />
-                            <Typography variant="caption" color="text.secondary">{ML[m.method] || m.method}</Typography>
-                            <Typography variant="caption" sx={{ color: 'text.disabled' }}>({m.count})</Typography>
+              </Grid>
+
+              {/* Charts Row 2 — Payment Methods horizontal */}
+              <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
+                <Grid item xs={12}>
+                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3 }}>
+                    <SecTitle title="Payment Methods Breakdown" icon={<PieIcon />} />
+                    <Grid container spacing={3} alignItems="center">
+                      <Grid item xs={12} md={4}>
+                        {piePM.length === 0 ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 220, color: 'text.disabled' }}>
+                            <Typography variant="body2">No data</Typography>
                           </Box>
-                          <Box sx={{ textAlign: 'right' }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block' }}>PKR {fmt(m.total)}</Typography>
-                            {m.credit > 0 && <Typography variant="caption" sx={{ color: 'error.main', fontSize: '.65rem' }}>Due: PKR {fmt(m.credit)}</Typography>}
-                          </Box>
-                        </Box>
-                      ))}
-                    </Box>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={220}>
+                            <PieChart>
+                              <Pie data={piePM} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" paddingAngle={3} labelLine={false}>
+                                {piePM.map((e, i) => <Cell key={i} fill={e.color} />)}
+                              </Pie>
+                              <Tooltip {...TT} formatter={v => [`PKR ${fmt(v)}`, '']} />
+                              <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        )}
+                      </Grid>
+                      <Grid item xs={12} md={8}>
+                        <Grid container spacing={1.5}>
+                          {pmBreakdown.map((m, i) => {
+                            const pct = totalRevenue > 0 ? ((m.total / totalRevenue) * 100).toFixed(1) : '0.0'
+                            const c   = MC[m.method] || '#9e9e9e'
+                            return (
+                              <Grid item xs={12} sm={6} key={i}>
+                                <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', borderLeft: `4px solid ${c}` }}>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, color: c }}>{ML[m.method] || m.method}</Typography>
+                                    <Chip label={`${m.count} txn${m.count !== 1 ? 's' : ''}`} size="small" sx={{ fontSize: '.65rem', height: 18, bgcolor: `${c}15`, color: c, fontWeight: 700 }} />
+                                  </Box>
+                                  <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary', fontSize: '1rem' }}>PKR {fmt(m.total)}</Typography>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+                                    <Typography variant="caption" color="text.disabled">{pct}% of total</Typography>
+                                    {m.credit > 0 && <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>Due: PKR {fmt(m.credit)}</Typography>}
+                                  </Box>
+                                  <LinearProgress variant="determinate" value={Math.min(parseFloat(pct), 100)}
+                                    sx={{ mt: 1, height: 4, borderRadius: 2, bgcolor: 'grey.100', '& .MuiLinearProgress-bar': { bgcolor: c, borderRadius: 2 } }} />
+                                </Paper>
+                              </Grid>
+                            )
+                          })}
+                        </Grid>
+                      </Grid>
+                    </Grid>
                   </Paper>
                 </Grid>
               </Grid>
 
-              {/* Daily trend + Cashier */}
+              {/* Charts Row 3 — Daily Trend + Cashier full width */}
               <Grid container spacing={2.5} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={7}>
-                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2.5 }}>
+                <Grid item xs={12}>
+                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3 }}>
                     <SecTitle title="Daily Sales Trend" icon={<BarIcon />} />
-                    {salesByDate.length === 0 ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 260, color: 'text.disabled' }}><Typography>No data</Typography></Box> : (
-                      <ResponsiveContainer width="100%" height={270}>
-                        <AreaChart data={salesByDate} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                    {salesByDate.length === 0 ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, color: 'text.disabled' }}>
+                        <Typography>No data</Typography>
+                      </Box>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={320}>
+                        <AreaChart data={salesByDate} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
                           <defs>
                             <linearGradient id="gTotal" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%"  stopColor="#1976d2" stopOpacity={0.15} />
+                              <stop offset="5%"  stopColor="#1976d2" stopOpacity={0.12} />
                               <stop offset="95%" stopColor="#1976d2" stopOpacity={0} />
                             </linearGradient>
+                            <linearGradient id="gCollected" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%"  stopColor="#2e7d32" stopOpacity={0.10} />
+                              <stop offset="95%" stopColor="#2e7d32" stopOpacity={0} />
+                            </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                          <XAxis dataKey="date" tick={{ fill: '#9e9e9e', fontSize: 11 }} />
-                          <YAxis tick={{ fill: '#9e9e9e', fontSize: 11 }} tickFormatter={yFmt} width={55} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fill: '#9e9e9e', fontSize: 12 }} tickLine={false} axisLine={{ stroke: '#e0e0e0' }}
+                            interval={salesByDate.length > 20 ? Math.floor(salesByDate.length / 10) : 0}
+                            angle={salesByDate.length > 15 ? -35 : 0}
+                            textAnchor={salesByDate.length > 15 ? 'end' : 'middle'}
+                            height={salesByDate.length > 15 ? 50 : 30} />
+                          <YAxis tick={{ fill: '#9e9e9e', fontSize: 12 }} tickFormatter={yFmt} width={62} tickLine={false} axisLine={false} />
                           <Tooltip {...TT} formatter={(v, name) => [`PKR ${fmt(v)}`, name]} />
-                          <Legend iconSize={10} wrapperStyle={{ fontSize: 12 }} />
-                          <Area name="Total"     type="monotone" dataKey="total"     stroke="#1976d2" strokeWidth={2} fill="url(#gTotal)" dot={false} activeDot={{ r: 4 }} />
-                          <Line name="Collected" type="monotone" dataKey="collected" stroke="#2e7d32" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+                          <Legend iconSize={12} wrapperStyle={{ fontSize: 13, paddingTop: 12 }} iconType="circle" />
+                          <Area name="Total"     type="monotone" dataKey="total"     stroke="#1976d2" strokeWidth={2.5} fill="url(#gTotal)"     dot={false} activeDot={{ r: 5 }} />
+                          <Area name="Collected" type="monotone" dataKey="collected" stroke="#2e7d32" strokeWidth={2}   fill="url(#gCollected)" dot={false} activeDot={{ r: 5 }} strokeDasharray="5 3" />
                         </AreaChart>
                       </ResponsiveContainer>
                     )}
                   </Paper>
                 </Grid>
-                <Grid item xs={12} md={5}>
-                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2.5 }}>
+
+                <Grid item xs={12}>
+                  <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 3 }}>
                     <SecTitle title="Cashier Performance" icon={<Person />} />
-                    <TableContainer sx={{ maxHeight: 310 }}>
-                      <Table size="small" stickyHeader>
+                    <TableContainer>
+                      <Table>
                         <TableHead>
-                          <TableRow>
-                            {['Cashier','Invoiced','Collected','Outstanding','Txns'].map(h => (
-                              <TableCell key={h} align={h==='Cashier'?'left':'right'} sx={{ bgcolor:'primary.50', color:'primary.dark', fontWeight:700, fontSize:'.68rem', textTransform:'uppercase', letterSpacing:.5 }}>{h}</TableCell>
+                          <TableRow sx={{ bgcolor: 'grey.50' }}>
+                            {['Cashier', 'Invoiced', 'Collected', 'Outstanding', 'Txns', 'Collection %'].map(h => (
+                              <TableCell key={h} align={h === 'Cashier' ? 'left' : 'right'}
+                                sx={{ color: 'primary.dark', fontWeight: 700, fontSize: '.75rem', textTransform: 'uppercase', letterSpacing: .5, py: 1.5, borderBottom: '2px solid', borderColor: 'primary.100' }}>
+                                {h}
+                              </TableCell>
                             ))}
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {cashierList.length === 0
-                            ? <TableRow><TableCell colSpan={5} align="center" sx={{ py:4, color:'text.disabled' }}>No data</TableCell></TableRow>
-                            : cashierList.map((row, i) => (
+                          {cashierList.length === 0 ? (
+                            <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.disabled' }}>No data</TableCell></TableRow>
+                          ) : cashierList.map((row, i) => {
+                            const colRate = row.total > 0 ? (row.collected / row.total) * 100 : 0
+                            return (
                               <TableRow key={i} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                                <TableCell sx={{ fontSize:'.82rem' }}>
-                                  <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
-                                    <Box sx={{ width:26, height:26, borderRadius:'50%', bgcolor:'primary.100', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'.7rem', fontWeight:700, color:'primary.dark', flexShrink:0 }}>
-                                      {(row.cashier||'?').charAt(0).toUpperCase()}
+                                <TableCell sx={{ py: 1.8 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.85rem', fontWeight: 800, color: '#fff', flexShrink: 0 }}>
+                                      {(row.cashier || '?').charAt(0).toUpperCase()}
                                     </Box>
-                                    {row.cashier}
+                                    <Typography sx={{ fontWeight: 600, fontSize: '.9rem' }}>{row.cashier}</Typography>
                                   </Box>
                                 </TableCell>
-                                <TableCell align="right" sx={{ fontSize:'.78rem', fontWeight:700, color:'primary.main' }}>{fmt(row.total)}</TableCell>
-                                <TableCell align="right" sx={{ fontSize:'.78rem', color:'success.dark', fontWeight:600 }}>{fmt(row.collected)}</TableCell>
-                                <TableCell align="right" sx={{ fontSize:'.78rem', color:row.credit>0?'error.main':'text.disabled', fontWeight:row.credit>0?700:400 }}>{fmt(row.credit)}</TableCell>
-                                <TableCell align="right" sx={{ fontSize:'.78rem', color:'text.secondary' }}>{row.transactions}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main', fontSize: '.9rem' }}>PKR {fmt(row.total)}</TableCell>
+                                <TableCell align="right" sx={{ color: 'success.dark', fontWeight: 600, fontSize: '.9rem' }}>PKR {fmt(row.collected)}</TableCell>
+                                <TableCell align="right" sx={{ color: row.credit > 0 ? 'error.main' : 'text.disabled', fontWeight: row.credit > 0 ? 700 : 400, fontSize: '.9rem' }}>
+                                  {row.credit > 0 ? `PKR ${fmt(row.credit)}` : '—'}
+                                </TableCell>
+                                <TableCell align="right" sx={{ color: 'text.secondary', fontSize: '.9rem' }}>{row.transactions}</TableCell>
+                                <TableCell align="right">
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5 }}>
+                                    <LinearProgress variant="determinate" value={Math.min(colRate, 100)}
+                                      sx={{ width: 90, height: 7, borderRadius: 4, bgcolor: 'grey.200',
+                                        '& .MuiLinearProgress-bar': { bgcolor: colRate >= 80 ? '#2e7d32' : colRate >= 50 ? '#e65100' : '#c62828', borderRadius: 4 } }} />
+                                    <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 44, fontSize: '.82rem' }}>{colRate.toFixed(1)}%</Typography>
+                                  </Box>
+                                </TableCell>
                               </TableRow>
-                            ))}
+                            )
+                          })}
                         </TableBody>
                       </Table>
                     </TableContainer>
                   </Paper>
                 </Grid>
               </Grid>
-
               {/* Recent Transactions */}
               <Paper elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2.5, mb: 3 }}>
                 <SecTitle title="Recent Transactions" icon={<ShoppingCart />} />
