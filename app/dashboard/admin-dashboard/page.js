@@ -361,7 +361,7 @@ const AdminDashboardPage = () => {
           <Alert severity="warning" sx={{ mb: 3 }}
             action={<Button color="inherit" size="small" onClick={handleClearSimulation} startIcon={<ClearIcon />}>Clear</Button>}>
             <strong>Simulation Active:</strong> All API calls are scoped to <strong>{selectedScopeData?.name}</strong>.
-            You are acting as Admin within this {selectedScopeType === 'BRANCH' ? 'branch' : 'warehouse'}'s scope.
+            You are acting as Admin within this {selectedScopeType === 'BRANCH' ? 'branch' : 'warehouse'}&apos;s scope.
           </Alert>
         )}
 
