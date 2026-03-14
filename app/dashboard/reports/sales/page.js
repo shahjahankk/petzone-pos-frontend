@@ -771,23 +771,45 @@ export default function SalesReportPage() {
               </Grid>
             </Paper>
 
-            {/* ── Revenue vs Expenses — FULL WIDTH ─────────────────────── */}
+            {/* ── Revenue vs COGS vs Expenses vs Net Profit (Monthly) ─────── */}
             <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, mb:3, bgcolor:'#fff' }}>
-              <SectionTitle title="Revenue vs Expenses (Monthly)" icon={<TrendingUp/>}/>
+              <SectionTitle title="Monthly P&L — Revenue · COGS · Expenses · Net Profit" icon={<TrendingUp/>}/>
               {revByPeriod.length===0
                 ? <Box sx={{ display:'flex', alignItems:'center', justifyContent:'center', height:320, color:'text.disabled' }}><Typography>No monthly data yet</Typography></Box>
-                : <ResponsiveContainer width="100%" height={380}>
-                    <BarChart data={revByPeriod} margin={{ top:10, right:24, left:0, bottom:20 }} barGap={6} barCategoryGap="30%">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false}/>
-                      <XAxis dataKey="month" tick={{ fill:'#aaa', fontSize:13 }} tickLine={false} axisLine={{ stroke:'#ececec' }}/>
-                      <YAxis tick={{ fill:'#aaa', fontSize:13 }} tickFormatter={yFmt} width={68} tickLine={false} axisLine={false}/>
-                      <Tooltip {...TT} formatter={(v,name)=>[`PKR ${fmt(v)}`,name]} cursor={{ fill:'rgba(0,0,0,0.03)' }}/>
-                      <Legend iconSize={12} wrapperStyle={{ fontSize:14, paddingTop:14 }} iconType="circle"/>
-                      <Bar name="Revenue"  dataKey="revenue"  fill="#1976d2" radius={[6,6,0,0]} maxBarSize={48}/>
-                      <Bar name="Expenses" dataKey="expenses" fill="#ef5350" radius={[6,6,0,0]} maxBarSize={48}/>
-                      <Bar name="Profit"   dataKey="profit"   fill="#2e7d32" radius={[6,6,0,0]} maxBarSize={48}/>
-                    </BarChart>
-                  </ResponsiveContainer>}
+                : <>
+                    {/* Mini legend explaining the bars */}
+                    <Box sx={{ display:'flex', gap:3, mb:2, flexWrap:'wrap' }}>
+                      {[
+                        { color:'#1976d2', label:'Revenue',    desc:'Total invoiced' },
+                        { color:'#c62828', label:'COGS',       desc:'Cost of goods sold' },
+                        { color:'#ef5350', label:'Expenses',   desc:'Operating expenses' },
+                        { color:'#2e7d32', label:'Net Profit', desc:'Revenue − COGS − Expenses' },
+                      ].map(item => (
+                        <Box key={item.label} sx={{ display:'flex', alignItems:'center', gap:.8 }}>
+                          <Box sx={{ width:10, height:10, borderRadius:2, bgcolor:item.color, flexShrink:0 }}/>
+                          <Box>
+                            <Typography sx={{ fontSize:'.75rem', fontWeight:700, color:item.color, lineHeight:1.2 }}>{item.label}</Typography>
+                            <Typography sx={{ fontSize:'.62rem', color:'text.disabled', lineHeight:1.2 }}>{item.desc}</Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                    <ResponsiveContainer width="100%" height={380}>
+                      <BarChart data={revByPeriod} margin={{ top:10, right:24, left:0, bottom:20 }} barGap={4} barCategoryGap="28%">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false}/>
+                        <XAxis dataKey="month" tick={{ fill:'#aaa', fontSize:13 }} tickLine={false} axisLine={{ stroke:'#ececec' }}/>
+                        <YAxis tick={{ fill:'#aaa', fontSize:13 }} tickFormatter={yFmt} width={68} tickLine={false} axisLine={false}/>
+                        <Tooltip {...TT}
+                          formatter={(v, name) => [`PKR ${fmt(v)}`, name]}
+                          cursor={{ fill:'rgba(0,0,0,0.03)' }}/>
+                        <Legend iconSize={12} wrapperStyle={{ fontSize:13, paddingTop:14 }} iconType="circle"/>
+                        <Bar name="Revenue"    dataKey="revenue"  fill="#1976d2" radius={[5,5,0,0]} maxBarSize={40}/>
+                        <Bar name="COGS"       dataKey="cogs"     fill="#c62828" radius={[5,5,0,0]} maxBarSize={40}/>
+                        <Bar name="Expenses"   dataKey="expenses" fill="#ef5350" radius={[5,5,0,0]} maxBarSize={40}/>
+                        <Bar name="Net Profit" dataKey="profit"   fill="#2e7d32" radius={[5,5,0,0]} maxBarSize={40}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </>}
             </Paper>
 
             {/* ── Expense Breakdown — FULL WIDTH ───────────────────────────── */}
