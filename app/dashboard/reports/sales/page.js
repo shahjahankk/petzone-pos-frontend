@@ -407,12 +407,12 @@ export default function SalesReportPage() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <RouteGuard allowedRoles={['ADMIN','CASHIER','WAREHOUSE_KEEPER']}>
-      <Box sx={{ bgcolor:'#f7f8fa', minHeight:'100vh' }}>
+      <Box sx={{ bgcolor:'#f7f8fa', minHeight:'100vh', width:'100%' }}>
         <Toolbar/>
 
         {/* ── TAB 0: Sales Overview ─────────────────────────────────────── */}
         {activeTab===0 && (
-          <Box sx={{ px:{ xs:2, md:4 }, py:3 }}>
+          <Box sx={{ px:{ xs:2, md:4 }, py:3, width:'100%', boxSizing:'border-box' }}>
 
             {/* Cost price warning */}
             {costPriceWarning && (
@@ -425,19 +425,19 @@ export default function SalesReportPage() {
             )}
 
             {/* ── Row 1: Core 4 KPIs ─────────────────────────────────────── */}
-            <Grid container spacing={2.5} sx={{ mb:2.5 }}>
-              <Grid item xs={12} sm={6} lg={3}>
+            <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
+              <Grid item xs={12} sm={6} md={3}>
                 <KpiCard label="Total Invoiced" value={fmtPKR(totalRevenue)} sub={`${fmt(totalTransactions)} real sales`} accent="#1976d2" icon={<AttachMoney/>}/>
               </Grid>
-              <Grid item xs={12} sm={6} lg={3}>
+              <Grid item xs={12} sm={6} md={3}>
                 <KpiCard label="Cash Collected" value={fmtPKR(totalCashReceived)} sub={`${collectionRate.toFixed(1)}% of invoiced`} accent="#2e7d32" icon={<CheckCircle/>}
                   chip={{ label:`${fullyPaidCount} fully paid`, bg:'#e8f5e9', color:'#2e7d32' }}/>
               </Grid>
-              <Grid item xs={12} sm={6} lg={3}>
+              <Grid item xs={12} sm={6} md={3}>
                 <KpiCard label="Total Outstanding" value={fmtPKR(totalOutstanding)} sub={`${fullyCreditCount} credit · ${partialCount} partial`} accent="#c62828" icon={<Warning/>}
                   chip={{ label:`${fullyCreditCount+partialCount} unpaid`, bg:'#ffebee', color:'#c62828' }}/>
               </Grid>
-              <Grid item xs={12} sm={6} lg={3}>
+              <Grid item xs={12} sm={6} md={3}>
                 <KpiCard
                   label="Gross Profit (Rev − COGS)"
                   value={fmtPKR(grossProfit)}
@@ -452,19 +452,19 @@ export default function SalesReportPage() {
             </Grid>
 
             {/* ── Row 2: Payment method KPIs ─────────────────────────────── */}
-            <Grid container spacing={2.5} sx={{ mb:2.5 }}>
-              <Grid item xs={6} sm={3}><KpiCard label="Cash Sales"    value={fmtPKR(cashSalesAmt)}     sub="Fully collected"                          accent="#388e3c" icon={<AttachMoney/>}/></Grid>
-              <Grid item xs={6} sm={3}><KpiCard label="Card Sales"    value={fmtPKR(cardSalesAmt)}     sub="Fully collected"                          accent="#1565c0" icon={<CreditCard/>}/></Grid>
-              <Grid item xs={6} sm={3}><KpiCard label="Full Credit"   value={fmtPKR(fullyCreditTotal)} sub={`${fullyCreditCount} invoices · 0 collected`} accent="#c62828" icon={<AccountBalance/>}/></Grid>
-              <Grid item xs={6} sm={3}><KpiCard label="Partial Sales" value={fmtPKR(partialTotal)}     sub={partialCount>0?`Collected ${fmtPKR(partialCollected)} · Due ${fmtPKR(partialCredit)}`:`${partialCount} partial`} accent="#e65100" icon={<Receipt/>}/></Grid>
+            <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Cash Sales"    value={fmtPKR(cashSalesAmt)}     sub="Fully collected"                             accent="#388e3c" icon={<AttachMoney/>}/></Grid>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Card Sales"    value={fmtPKR(cardSalesAmt)}     sub="Fully collected"                             accent="#1565c0" icon={<CreditCard/>}/></Grid>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Full Credit"   value={fmtPKR(fullyCreditTotal)} sub={`${fullyCreditCount} invoices · 0 collected`} accent="#c62828" icon={<AccountBalance/>}/></Grid>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Partial Sales" value={fmtPKR(partialTotal)}     sub={partialCount>0?`Collected ${fmtPKR(partialCollected)} · Due ${fmtPKR(partialCredit)}`:`${partialCount} partial`} accent="#e65100" icon={<Receipt/>}/></Grid>
             </Grid>
 
             {/* ── Row 3: Recovery / misc KPIs ────────────────────────────── */}
-            <Grid container spacing={2.5} sx={{ mb:3.5 }}>
-              <Grid item xs={6} sm={3}><KpiCard label="Credit Recovered" value={fmtPKR(outstandingSettled)} sub={`${outstandingSettlementCount} settlement${outstandingSettlementCount!==1?'s':''}`} accent="#6a1b9a" icon={<SwapHoriz/>}/></Grid>
-              <Grid item xs={6} sm={3}><KpiCard label="Refunds Issued"   value={fmtPKR(refundTotal)}        sub={`${refundCount} refund${refundCount!==1?'s':''}`}                               accent="#b71c1c" icon={<TrendingDown/>}/></Grid>
-              <Grid item xs={6} sm={3}><KpiCard label="Discounts Given"  value={fmtPKR(discounts)}          sub="Total discount on sales"                                                        accent="#f57c00" icon={<Receipt/>}/></Grid>
-              <Grid item xs={6} sm={3}><KpiCard label="Avg Ticket"       value={fmtPKR(avgTicket)}           sub="Per real sale"                                                                 accent="#0288d1" icon={<ShoppingCart/>}/></Grid>
+            <Grid container spacing={2.5} sx={{ mb:3.5 }} columns={12}>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Credit Recovered" value={fmtPKR(outstandingSettled)} sub={`${outstandingSettlementCount} settlement${outstandingSettlementCount!==1?'s':''}`} accent="#6a1b9a" icon={<SwapHoriz/>}/></Grid>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Refunds Issued"   value={fmtPKR(refundTotal)}        sub={`${refundCount} refund${refundCount!==1?'s':''}`}                                   accent="#b71c1c" icon={<TrendingDown/>}/></Grid>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Discounts Given"  value={fmtPKR(discounts)}          sub="Total discount on sales"                                                            accent="#f57c00" icon={<Receipt/>}/></Grid>
+              <Grid item xs={6} sm={6} md={3}><KpiCard label="Avg Ticket"       value={fmtPKR(avgTicket)}           sub="Per real sale"                                                                     accent="#0288d1" icon={<ShoppingCart/>}/></Grid>
             </Grid>
 
             {/* ── Chart 1: Daily Collected vs Credit — FULL WIDTH ─────────── */}
@@ -771,58 +771,74 @@ export default function SalesReportPage() {
               </Grid>
             </Paper>
 
-            {/* Charts */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
-                <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, bgcolor:'#fff', height:'100%' }}>
-                  <SectionTitle title="Revenue vs Expenses (Monthly)" icon={<TrendingUp/>}/>
-                  {revByPeriod.length===0
-                    ? <Box sx={{ display:'flex', alignItems:'center', justifyContent:'center', height:280, color:'text.disabled' }}><Typography>No monthly data</Typography></Box>
-                    : <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={revByPeriod} margin={{ top:10, right:20, left:0, bottom:5 }} barGap={4}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false}/>
-                          <XAxis dataKey="month" tick={{ fill:'#aaa', fontSize:12 }} tickLine={false} axisLine={{ stroke:'#ececec' }}/>
-                          <YAxis tick={{ fill:'#aaa', fontSize:12 }} tickFormatter={yFmt} width={62} tickLine={false} axisLine={false}/>
-                          <Tooltip {...TT} formatter={(v,name)=>[`PKR ${fmt(v)}`,name]}/>
-                          <Legend iconSize={11} wrapperStyle={{ fontSize:13 }} iconType="circle"/>
-                          <Bar name="Revenue"  dataKey="revenue"  fill="#1976d2" radius={[5,5,0,0]} maxBarSize={32}/>
-                          <Bar name="Expenses" dataKey="expenses" fill="#ef5350" radius={[5,5,0,0]} maxBarSize={32}/>
-                          <Bar name="Profit"   dataKey="profit"   fill="#2e7d32" radius={[5,5,0,0]} maxBarSize={32}/>
-                        </BarChart>
-                      </ResponsiveContainer>}
-                </Paper>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, bgcolor:'#fff', height:'100%' }}>
-                  <SectionTitle title="Expense Breakdown" icon={<Receipt/>}/>
-                  {expBreakdown.length===0
-                    ? <Box sx={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:260, gap:1.5 }}>
-                        <Receipt sx={{ fontSize:44, color:'text.disabled' }}/>
-                        <Typography color="text.disabled">No expense vouchers in period</Typography>
-                        <Typography variant="caption" color="text.disabled" sx={{ textAlign:'center', maxWidth:220 }}>Add vouchers (rent, salaries) for accurate net profit</Typography>
-                      </Box>
-                    : <Box>
-                        {expBreakdown.slice(0,8).map((item,i)=>(
-                          <Box key={i} sx={{ py:1.4, borderBottom:i<expBreakdown.length-1?'1px solid #f5f5f5':'none' }}>
-                            <Box sx={{ display:'flex', justifyContent:'space-between', mb:.6 }}>
-                              <Typography sx={{ color:'text.secondary', fontSize:'.82rem' }}>{item.category}</Typography>
-                              <Typography sx={{ fontWeight:700, fontSize:'.82rem' }}>PKR {fmt(item.amount)}</Typography>
-                            </Box>
-                            <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
-                              <LinearProgress variant="determinate" value={item.percentage}
-                                sx={{ flex:1, height:5, borderRadius:3, bgcolor:'#ececec', '& .MuiLinearProgress-bar':{ bgcolor:item.color||'#1976d2', borderRadius:3 } }}/>
-                              <Typography variant="caption" sx={{ color:'text.disabled', minWidth:34 }}>{item.percentage}%</Typography>
-                            </Box>
+            {/* ── Revenue vs Expenses — FULL WIDTH ─────────────────────── */}
+            <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, mb:3, bgcolor:'#fff' }}>
+              <SectionTitle title="Revenue vs Expenses (Monthly)" icon={<TrendingUp/>}/>
+              {revByPeriod.length===0
+                ? <Box sx={{ display:'flex', alignItems:'center', justifyContent:'center', height:320, color:'text.disabled' }}><Typography>No monthly data yet</Typography></Box>
+                : <ResponsiveContainer width="100%" height={380}>
+                    <BarChart data={revByPeriod} margin={{ top:10, right:24, left:0, bottom:20 }} barGap={6} barCategoryGap="30%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false}/>
+                      <XAxis dataKey="month" tick={{ fill:'#aaa', fontSize:13 }} tickLine={false} axisLine={{ stroke:'#ececec' }}/>
+                      <YAxis tick={{ fill:'#aaa', fontSize:13 }} tickFormatter={yFmt} width={68} tickLine={false} axisLine={false}/>
+                      <Tooltip {...TT} formatter={(v,name)=>[`PKR ${fmt(v)}`,name]} cursor={{ fill:'rgba(0,0,0,0.03)' }}/>
+                      <Legend iconSize={12} wrapperStyle={{ fontSize:14, paddingTop:14 }} iconType="circle"/>
+                      <Bar name="Revenue"  dataKey="revenue"  fill="#1976d2" radius={[6,6,0,0]} maxBarSize={48}/>
+                      <Bar name="Expenses" dataKey="expenses" fill="#ef5350" radius={[6,6,0,0]} maxBarSize={48}/>
+                      <Bar name="Profit"   dataKey="profit"   fill="#2e7d32" radius={[6,6,0,0]} maxBarSize={48}/>
+                    </BarChart>
+                  </ResponsiveContainer>}
+            </Paper>
+
+            {/* ── Expense Breakdown — FULL WIDTH ───────────────────────────── */}
+            <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, bgcolor:'#fff' }}>
+              <SectionTitle title="Expense Breakdown by Category" icon={<Receipt/>}/>
+              {expBreakdown.length===0
+                ? <Box sx={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:200, gap:2 }}>
+                    <Receipt sx={{ fontSize:52, color:'text.disabled' }}/>
+                    <Typography color="text.disabled" sx={{ fontWeight:500 }}>No expense vouchers recorded in this period</Typography>
+                    <Typography variant="caption" color="text.disabled" sx={{ textAlign:'center', maxWidth:300 }}>
+                      Add expense vouchers (rent, salaries, utilities) to see accurate net profit
+                    </Typography>
+                  </Box>
+                : <Grid container spacing={3}>
+                    {/* Progress bars left */}
+                    <Grid item xs={12} md={6}>
+                      {expBreakdown.slice(0,8).map((item,i)=>(
+                        <Box key={i} sx={{ py:1.6, borderBottom:i<Math.min(expBreakdown.length,8)-1?'1px solid #f5f5f5':'none' }}>
+                          <Box sx={{ display:'flex', justifyContent:'space-between', mb:.8 }}>
+                            <Typography sx={{ color:'text.secondary', fontSize:'.88rem', fontWeight:500 }}>{item.category}</Typography>
+                            <Typography sx={{ fontWeight:700, fontSize:'.88rem' }}>PKR {fmt(item.amount)}</Typography>
                           </Box>
-                        ))}
-                        <Box sx={{ display:'flex', justifyContent:'space-between', pt:2, mt:1, borderTop:'2px solid #ef5350' }}>
-                          <Typography sx={{ fontWeight:700 }}>Total Expenses</Typography>
-                          <Typography sx={{ fontWeight:800, color:'error.main' }}>PKR {fmt(totalExpenses)}</Typography>
+                          <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+                            <LinearProgress variant="determinate" value={item.percentage}
+                              sx={{ flex:1, height:6, borderRadius:3, bgcolor:'#ececec', '& .MuiLinearProgress-bar':{ bgcolor:item.color||'#1976d2', borderRadius:3 } }}/>
+                            <Typography sx={{ color:'text.disabled', minWidth:38, fontSize:'.82rem', fontWeight:600 }}>{item.percentage}%</Typography>
+                          </Box>
                         </Box>
-                      </Box>}
-                </Paper>
-              </Grid>
-            </Grid>
+                      ))}
+                      <Box sx={{ display:'flex', justifyContent:'space-between', pt:2, mt:1, borderTop:'2px solid #ef5350' }}>
+                        <Typography sx={{ fontWeight:700, fontSize:'.95rem' }}>Total Expenses</Typography>
+                        <Typography sx={{ fontWeight:800, color:'error.main', fontSize:'.95rem' }}>PKR {fmt(totalExpenses)}</Typography>
+                      </Box>
+                    </Grid>
+                    {/* Donut chart right */}
+                    <Grid item xs={12} md={6}>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <PieChart>
+                          <Pie
+                            data={expBreakdown.slice(0,8).map(e=>({ name:e.category, value:e.amount, color:e.color||'#9e9e9e' }))}
+                            cx="50%" cy="50%" innerRadius={80} outerRadius={130}
+                            dataKey="value" paddingAngle={3} labelLine={false}>
+                            {expBreakdown.slice(0,8).map((e,i)=><Cell key={i} fill={e.color||'#9e9e9e'}/>)}
+                          </Pie>
+                          <Tooltip {...TT} formatter={v=>[`PKR ${fmt(v)}`,'']}/>
+                          <Legend iconSize={12} wrapperStyle={{ fontSize:13 }} iconType="circle"/>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Grid>
+                  </Grid>}
+            </Paper>
           </Box>
         )}
 
