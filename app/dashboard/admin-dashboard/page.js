@@ -39,10 +39,7 @@ import { fetchBranches } from '../../store/slices/branchesSlice'
 import { fetchWarehouses } from '../../store/slices/warehousesSlice'
 
 // ─── Module definitions ────────────────────────────────────────────────────────
-// Each module: { label, icon, color, path, scopeTypes, description }
-// scopeTypes: ['BRANCH'] | ['WAREHOUSE'] | ['BRANCH','WAREHOUSE'] | null (always shown)
 const MODULES = [
-  // ── POS & Billing ──────────────────────────────────────────────────────────
   {
     group: 'Sales & Billing',
     items: [
@@ -72,7 +69,6 @@ const MODULES = [
       },
     ],
   },
-  // ── Inventory & Stock ──────────────────────────────────────────────────────
   {
     group: 'Inventory & Stock',
     items: [
@@ -110,7 +106,6 @@ const MODULES = [
       },
     ],
   },
-  // ── People & Accounts ──────────────────────────────────────────────────────
   {
     group: 'People & Accounts',
     items: [
@@ -140,7 +135,6 @@ const MODULES = [
       },
     ],
   },
-  // ── Finance ────────────────────────────────────────────────────────────────
   {
     group: 'Finance',
     items: [
@@ -162,7 +156,6 @@ const MODULES = [
       },
     ],
   },
-  // ── Admin Only ─────────────────────────────────────────────────────────────
   {
     group: 'Admin Only',
     items: [
@@ -170,7 +163,7 @@ const MODULES = [
         label: 'Users',
         icon: <UsersIcon sx={{ fontSize: 36 }} />,
         color: '#37474f',
-        scopeTypes: null, // always visible
+        scopeTypes: null,
         description: 'Manage staff accounts & roles',
         path: '/dashboard/users',
       },
@@ -196,11 +189,16 @@ const MODULES = [
 
 // ─── Module Card ──────────────────────────────────────────────────────────────
 function ModuleCard({ item, scopeType, scopeId, scopeData, isSimulationActive, onNavigate }) {
-  const visible = !item.scopeTypes || item.scopeTypes.includes(scopeType)
-  if (!visible) return null
+  // scopeTypes: null = always show (Admin Only items), no simulation needed
+  // scopeTypes: [...] = only show if scopeType matches, needs simulation active
+  const isAdminOnly  = item.scopeTypes === null
+  const matchesScope = isAdminOnly || !scopeType || item.scopeTypes.includes(scopeType)
 
-  const needsScope = item.scopeTypes !== null
-  const disabled = needsScope && !isSimulationActive
+  // Hide items that don't match the selected scope type
+  if (!matchesScope) return null
+
+  // Admin-only items are always enabled; scoped items need simulation active
+  const disabled = !isAdminOnly && !isSimulationActive
 
   return (
     <Grid item xs={6} sm={4} md={3} lg={2}>
@@ -245,12 +243,12 @@ const AdminDashboardPage = () => {
   const dispatch = useDispatch()
   const router = useRouter()
 
-  const { data: branches, loading: branchesLoading }   = useSelector(s => s.branches)
+  const { data: branches,   loading: branchesLoading }   = useSelector(s => s.branches)
   const { data: warehouses, loading: warehousesLoading } = useSelector(s => s.warehouses)
 
-  const [selectedScope, setSelectedScope]       = useState('')
-  const [selectedScopeType, setSelectedScopeType] = useState('')
-  const [selectedScopeData, setSelectedScopeData] = useState(null)
+  const [selectedScope,      setSelectedScope]      = useState('')
+  const [selectedScopeType,  setSelectedScopeType]  = useState('')
+  const [selectedScopeData,  setSelectedScopeData]  = useState(null)
   const [isSimulationActive, setIsSimulationActive] = useState(false)
 
   useEffect(() => {
@@ -279,10 +277,12 @@ const AdminDashboardPage = () => {
   }, [branches, warehouses, selectedScope, selectedScopeType])
 
   const handleScopeChange = (type, id) => {
-    setSelectedScopeType(type); setSelectedScope(id); setIsSimulationActive(false)
+    setSelectedScopeType(type)
+    setSelectedScope(id)
+    setIsSimulationActive(false)
     const num = Number(id)
-    if (type === 'BRANCH')    setSelectedScopeData(branches.find(b => b.id === num))
-    if (type === 'WAREHOUSE') setSelectedScopeData(warehouses.find(w => w.id === num))
+    if (type === 'BRANCH')    setSelectedScopeData(branches.find(b => b.id === num) || null)
+    if (type === 'WAREHOUSE') setSelectedScopeData(warehouses.find(w => w.id === num) || null)
   }
 
   const handleActivateSimulation = () => {
@@ -295,10 +295,12 @@ const AdminDashboardPage = () => {
 
   const handleClearSimulation = () => {
     sessionStorage.removeItem('adminSimulation')
-    setSelectedScope(''); setSelectedScopeType(''); setSelectedScopeData(null); setIsSimulationActive(false)
+    setSelectedScope('')
+    setSelectedScopeType('')
+    setSelectedScopeData(null)
+    setIsSimulationActive(false)
   }
 
-  // ── Navigation handler ──────────────────────────────────────────────────────
   const handleNavigate = (item, scopeType, scopeId, scopeData) => {
     if (item.action === 'pos') {
       window.open(`/pos/terminal?role=cashier&scope=branch&id=${scopeId}`, '_blank')
@@ -309,7 +311,11 @@ const AdminDashboardPage = () => {
       return
     }
     if (item.path) {
-      // Append scope query params so the target page loads the right data
+      // Admin-only items navigate directly without scope params
+      if (!scopeType || !scopeId) {
+        router.push(item.path)
+        return
+      }
       const role  = scopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
       const scope = scopeType.toLowerCase()
       const sep   = item.path.includes('?') ? '&' : '?'
@@ -369,9 +375,12 @@ const AdminDashboardPage = () => {
               </Box>
               <FormControl fullWidth size="small">
                 <InputLabel>Select Branch</InputLabel>
-                <Select value={selectedScopeType === 'BRANCH' ? selectedScope : ''}
+                <Select
+                  value={selectedScopeType === 'BRANCH' ? selectedScope : ''}
                   onChange={e => handleScopeChange('BRANCH', e.target.value)}
-                  disabled={branchesLoading} label="Select Branch">
+                  disabled={branchesLoading}
+                  label="Select Branch"
+                >
                   {branches.map(b => (
                     <MenuItem key={b.id} value={b.id.toString()}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -398,9 +407,12 @@ const AdminDashboardPage = () => {
               </Box>
               <FormControl fullWidth size="small">
                 <InputLabel>Select Warehouse</InputLabel>
-                <Select value={selectedScopeType === 'WAREHOUSE' ? selectedScope : ''}
+                <Select
+                  value={selectedScopeType === 'WAREHOUSE' ? selectedScope : ''}
                   onChange={e => handleScopeChange('WAREHOUSE', e.target.value)}
-                  disabled={warehousesLoading} label="Select Warehouse">
+                  disabled={warehousesLoading}
+                  label="Select Warehouse"
+                >
                   {warehouses.map(w => (
                     <MenuItem key={w.id} value={w.id.toString()}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -437,8 +449,13 @@ const AdminDashboardPage = () => {
               </Box>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 {!isSimulationActive && (
-                  <Button variant="contained" color={selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'}
-                    startIcon={<SimulateIcon />} onClick={handleActivateSimulation} sx={{ borderRadius: 2 }}>
+                  <Button
+                    variant="contained"
+                    color={selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'}
+                    startIcon={<SimulateIcon />}
+                    onClick={handleActivateSimulation}
+                    sx={{ borderRadius: 2 }}
+                  >
                     Activate Simulation
                   </Button>
                 )}
@@ -462,11 +479,16 @@ const AdminDashboardPage = () => {
 
         {/* ── Module groups ────────────────────────────────────────────────── */}
         {MODULES.map((group, gi) => {
-          // Filter: show group if it has at least one visible item for current scope
-          const visibleItems = group.items.filter(item =>
-            !item.scopeTypes || !selectedScopeType || item.scopeTypes.includes(selectedScopeType)
-          )
-          if (visibleItems.length === 0 && selectedScopeType) return null
+          // ── FIX: compute which items are visible for the current scopeType ──
+          // Admin Only items (scopeTypes: null) always show regardless of scope.
+          // Scoped items only show if no scope selected yet OR scopeType matches.
+          const visibleItems = group.items.filter(item => {
+            if (item.scopeTypes === null) return true          // Admin Only — always visible
+            if (!selectedScopeType) return true                // No scope chosen yet — show all
+            return item.scopeTypes.includes(selectedScopeType) // Filter to matching scope
+          })
+
+          if (visibleItems.length === 0) return null
 
           return (
             <Box key={gi} sx={{ mb: 3.5 }}>
@@ -476,8 +498,9 @@ const AdminDashboardPage = () => {
                 </Typography>
                 <Box sx={{ flex: 1, height: '1px', bgcolor: '#f0f0f0' }} />
               </Box>
+              {/* ── FIX: render visibleItems, NOT group.items ── */}
               <Grid container spacing={2}>
-                {group.items.map((item, ii) => (
+                {visibleItems.map((item, ii) => (
                   <ModuleCard
                     key={ii}
                     item={item}
@@ -498,10 +521,10 @@ const AdminDashboardPage = () => {
           <Typography sx={{ fontWeight: 700, mb: 2 }}>How to Use</Typography>
           <Grid container spacing={2}>
             {[
-              { icon: <SecurityIcon color="primary" />,  step: '1', title: 'Select Scope',          desc: 'Choose a branch or warehouse from the dropdowns above' },
-              { icon: <SimulateIcon color="success" />,  step: '2', title: 'Activate Simulation',   desc: 'Click Activate to scope all API calls to the selected location' },
-              { icon: <PersonIcon color="primary" />,    step: '3', title: 'Work Normally',          desc: 'Access POS, billing, inventory, ledger, PO — everything scoped' },
-              { icon: <ClearIcon color="error" />,       step: '4', title: 'Clear When Done',        desc: 'Click Clear to stop simulation and return to normal admin mode' },
+              { icon: <SecurityIcon color="primary" />,  step: '1', title: 'Select Scope',        desc: 'Choose a branch or warehouse from the dropdowns above' },
+              { icon: <SimulateIcon color="success" />,  step: '2', title: 'Activate Simulation', desc: 'Click Activate to scope all API calls to the selected location' },
+              { icon: <PersonIcon color="primary" />,    step: '3', title: 'Work Normally',        desc: 'Access POS, billing, inventory, ledger, PO — everything scoped' },
+              { icon: <ClearIcon color="error" />,       step: '4', title: 'Clear When Done',      desc: 'Click Clear to stop simulation and return to normal admin mode' },
             ].map((s, i) => (
               <Grid item xs={12} sm={6} md={3} key={i}>
                 <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
