@@ -4,24 +4,9 @@ import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useRouter } from 'next/navigation'
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
-  Paper,
-  Avatar,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Button,
-  Chip,
+  Box, Typography, Card, CardContent, Grid, FormControl, InputLabel,
+  Select, MenuItem, Alert, Paper, Avatar, List, ListItem, ListItemIcon,
+  ListItemText, Button, Chip, Divider,
 } from '@mui/material'
 import {
   Store as StoreIcon,
@@ -31,38 +16,246 @@ import {
   Inventory as InventoryIcon,
   Assessment as ReportsIcon,
   AdminPanelSettings as AdminIcon,
-  Business as BusinessIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
   Security as SecurityIcon,
   Clear as ClearIcon,
   PlayArrow as SimulateIcon,
+  AccountBalance as LedgerIcon,
+  ShoppingCart as POOrderIcon,
+  PeopleAlt as RetailersIcon,
+  Business as CompaniesIcon,
+  LocalShipping as SuppliersIcon,
+  SwapHoriz as TransfersIcon,
+  BarChart as SalesReportIcon,
+  Category as CategoriesIcon,
+  MonetizationOn as VouchersIcon,
+  ManageAccounts as UsersIcon,
 } from '@mui/icons-material'
-
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import PermissionCheck from '../../../components/auth/PermissionCheck'
 import { fetchBranches } from '../../store/slices/branchesSlice'
 import { fetchWarehouses } from '../../store/slices/warehousesSlice'
 
+// ─── Module definitions ────────────────────────────────────────────────────────
+// Each module: { label, icon, color, path, scopeTypes, description }
+// scopeTypes: ['BRANCH'] | ['WAREHOUSE'] | ['BRANCH','WAREHOUSE'] | null (always shown)
+const MODULES = [
+  // ── POS & Billing ──────────────────────────────────────────────────────────
+  {
+    group: 'Sales & Billing',
+    items: [
+      {
+        label: 'POS Terminal',
+        icon: <POSIcon sx={{ fontSize: 36 }} />,
+        color: '#1976d2',
+        scopeTypes: ['BRANCH'],
+        description: 'Open branch cash register',
+        action: 'pos',
+      },
+      {
+        label: 'Warehouse Billing',
+        icon: <ReceiptIcon sx={{ fontSize: 36 }} />,
+        color: '#7b1fa2',
+        scopeTypes: ['WAREHOUSE'],
+        description: 'Create warehouse sales invoices',
+        action: 'warehouse_billing',
+      },
+      {
+        label: 'Sales Report',
+        icon: <SalesReportIcon sx={{ fontSize: 36 }} />,
+        color: '#0288d1',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Revenue, profit & Zakat',
+        path: '/dashboard/reports/sales',
+      },
+    ],
+  },
+  // ── Inventory & Stock ──────────────────────────────────────────────────────
+  {
+    group: 'Inventory & Stock',
+    items: [
+      {
+        label: 'Inventory',
+        icon: <InventoryIcon sx={{ fontSize: 36 }} />,
+        color: '#00897b',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'View & manage stock items',
+        path: '/dashboard/inventory',
+      },
+      {
+        label: 'Purchase Orders',
+        icon: <POOrderIcon sx={{ fontSize: 36 }} />,
+        color: '#e65100',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Create & complete POs',
+        path: '/dashboard/purchase-orders',
+      },
+      {
+        label: 'Transfers',
+        icon: <TransfersIcon sx={{ fontSize: 36 }} />,
+        color: '#5c6bc0',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Stock transfers between locations',
+        path: '/dashboard/transfers',
+      },
+      {
+        label: 'Categories',
+        icon: <CategoriesIcon sx={{ fontSize: 36 }} />,
+        color: '#558b2f',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Manage product categories',
+        path: '/dashboard/categories',
+      },
+    ],
+  },
+  // ── People & Accounts ──────────────────────────────────────────────────────
+  {
+    group: 'People & Accounts',
+    items: [
+      {
+        label: 'Retailers / Customers',
+        icon: <RetailersIcon sx={{ fontSize: 36 }} />,
+        color: '#2e7d32',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Manage customer accounts',
+        path: '/dashboard/retailers',
+      },
+      {
+        label: 'Customer Ledger',
+        icon: <LedgerIcon sx={{ fontSize: 36 }} />,
+        color: '#c62828',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Outstanding balances & history',
+        path: '/dashboard/ledger',
+      },
+      {
+        label: 'Suppliers / Companies',
+        icon: <SuppliersIcon sx={{ fontSize: 36 }} />,
+        color: '#6a1b9a',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Supplier & company records',
+        path: '/dashboard/companies',
+      },
+    ],
+  },
+  // ── Finance ────────────────────────────────────────────────────────────────
+  {
+    group: 'Finance',
+    items: [
+      {
+        label: 'Financial Vouchers',
+        icon: <VouchersIcon sx={{ fontSize: 36 }} />,
+        color: '#f57c00',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Expenses, income & vouchers',
+        path: '/dashboard/vouchers',
+      },
+      {
+        label: 'Reports',
+        icon: <ReportsIcon sx={{ fontSize: 36 }} />,
+        color: '#1565c0',
+        scopeTypes: ['BRANCH', 'WAREHOUSE'],
+        description: 'Full financial & inventory reports',
+        path: '/dashboard/reports',
+      },
+    ],
+  },
+  // ── Admin Only ─────────────────────────────────────────────────────────────
+  {
+    group: 'Admin Only',
+    items: [
+      {
+        label: 'Users',
+        icon: <UsersIcon sx={{ fontSize: 36 }} />,
+        color: '#37474f',
+        scopeTypes: null, // always visible
+        description: 'Manage staff accounts & roles',
+        path: '/dashboard/users',
+      },
+      {
+        label: 'Branches',
+        icon: <StoreIcon sx={{ fontSize: 36 }} />,
+        color: '#1976d2',
+        scopeTypes: null,
+        description: 'Branch configuration',
+        path: '/dashboard/branches',
+      },
+      {
+        label: 'Warehouses',
+        icon: <WarehouseIcon sx={{ fontSize: 36 }} />,
+        color: '#7b1fa2',
+        scopeTypes: null,
+        description: 'Warehouse configuration',
+        path: '/dashboard/warehouses',
+      },
+    ],
+  },
+]
+
+// ─── Module Card ──────────────────────────────────────────────────────────────
+function ModuleCard({ item, scopeType, scopeId, scopeData, isSimulationActive, onNavigate }) {
+  const visible = !item.scopeTypes || item.scopeTypes.includes(scopeType)
+  if (!visible) return null
+
+  const needsScope = item.scopeTypes !== null
+  const disabled = needsScope && !isSimulationActive
+
+  return (
+    <Grid item xs={6} sm={4} md={3} lg={2}>
+      <Card
+        elevation={0}
+        onClick={() => !disabled && onNavigate(item, scopeType, scopeId, scopeData)}
+        sx={{
+          border: '1px solid',
+          borderColor: disabled ? '#e0e0e0' : `${item.color}40`,
+          borderTop: `3px solid ${disabled ? '#e0e0e0' : item.color}`,
+          borderRadius: 2,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+          transition: 'all .18s',
+          height: '100%',
+          bgcolor: '#fff',
+          '&:hover': disabled ? {} : {
+            boxShadow: `0 6px 20px ${item.color}25`,
+            transform: 'translateY(-2px)',
+            borderColor: item.color,
+          },
+        }}
+      >
+        <CardContent sx={{ p: 2.5, textAlign: 'center', '&:last-child': { pb: 2.5 } }}>
+          <Box sx={{ color: disabled ? '#bbb' : item.color, mb: 1 }}>{item.icon}</Box>
+          <Typography sx={{ fontWeight: 700, fontSize: '.88rem', mb: .4 }}>{item.label}</Typography>
+          <Typography variant="caption" color="text.disabled" sx={{ lineHeight: 1.4, display: 'block' }}>
+            {item.description}
+          </Typography>
+          {disabled && (
+            <Chip label="Activate first" size="small"
+              sx={{ mt: 1, fontSize: '.6rem', height: 18, bgcolor: '#f5f5f5', color: 'text.disabled' }} />
+          )}
+        </CardContent>
+      </Card>
+    </Grid>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 const AdminDashboardPage = () => {
   const dispatch = useDispatch()
   const router = useRouter()
 
-  const { data: branches, loading: branchesLoading } = useSelector(state => state.branches)
-  const { data: warehouses, loading: warehousesLoading } = useSelector(state => state.warehouses)
+  const { data: branches, loading: branchesLoading }   = useSelector(s => s.branches)
+  const { data: warehouses, loading: warehousesLoading } = useSelector(s => s.warehouses)
 
-  const [selectedScope, setSelectedScope] = useState('')
+  const [selectedScope, setSelectedScope]       = useState('')
   const [selectedScopeType, setSelectedScopeType] = useState('')
   const [selectedScopeData, setSelectedScopeData] = useState(null)
   const [isSimulationActive, setIsSimulationActive] = useState(false)
 
-  // Load branches/warehouses on page load
   useEffect(() => {
     dispatch(fetchBranches())
     dispatch(fetchWarehouses())
-
-    // Restore simulation state from sessionStorage on page load
     try {
       const existing = sessionStorage.getItem('adminSimulation')
       if (existing) {
@@ -71,424 +264,260 @@ const AdminDashboardPage = () => {
         setSelectedScope(String(scopeId))
         setIsSimulationActive(true)
       }
-    } catch (e) {
-      sessionStorage.removeItem('adminSimulation')
-    }
+    } catch { sessionStorage.removeItem('adminSimulation') }
   }, [dispatch])
 
-  // Restore selectedScopeData after branches/warehouses load
   useEffect(() => {
     if (!selectedScope || !selectedScopeType) return
-
-    const numericId = Number(selectedScope)
+    const id = Number(selectedScope)
     if (selectedScopeType === 'BRANCH' && branches.length > 0) {
-      const branch = branches.find(b => b.id === numericId)
-      if (branch) setSelectedScopeData(branch)
+      const b = branches.find(b => b.id === id); if (b) setSelectedScopeData(b)
     }
     if (selectedScopeType === 'WAREHOUSE' && warehouses.length > 0) {
-      const warehouse = warehouses.find(w => w.id === numericId)
-      if (warehouse) setSelectedScopeData(warehouse)
+      const w = warehouses.find(w => w.id === id); if (w) setSelectedScopeData(w)
     }
   }, [branches, warehouses, selectedScope, selectedScopeType])
 
-  // Handle scope selection - saves to sessionStorage so axios sends headers
-  const handleScopeChange = (newScopeType, newScopeId) => {
-    setSelectedScopeType(newScopeType)
-    setSelectedScope(newScopeId)
-    setIsSimulationActive(false) // Reset until user clicks Activate
-
-    const numericId = Number(newScopeId)
-
-    if (newScopeType === 'BRANCH') {
-      const branch = branches.find(b => b.id === numericId)
-      setSelectedScopeData(branch)
-    }
-
-    if (newScopeType === 'WAREHOUSE') {
-      const warehouse = warehouses.find(w => w.id === numericId)
-      setSelectedScopeData(warehouse)
-    }
+  const handleScopeChange = (type, id) => {
+    setSelectedScopeType(type); setSelectedScope(id); setIsSimulationActive(false)
+    const num = Number(id)
+    if (type === 'BRANCH')    setSelectedScopeData(branches.find(b => b.id === num))
+    if (type === 'WAREHOUSE') setSelectedScopeData(warehouses.find(w => w.id === num))
   }
 
-  // Activate simulation - saves to sessionStorage so all API calls use this scope
   const handleActivateSimulation = () => {
     if (!selectedScope || !selectedScopeType) return
-
     try {
-      sessionStorage.setItem('adminSimulation', JSON.stringify({
-        scopeType: selectedScopeType,
-        scopeId: selectedScope
-      }))
+      sessionStorage.setItem('adminSimulation', JSON.stringify({ scopeType: selectedScopeType, scopeId: selectedScope }))
       setIsSimulationActive(true)
-    } catch (e) {
-      console.error('Failed to save simulation to sessionStorage', e)
-    }
+    } catch (e) { console.error(e) }
   }
 
-  // Clear simulation - removes from sessionStorage so API calls go back to normal
   const handleClearSimulation = () => {
     sessionStorage.removeItem('adminSimulation')
-    setSelectedScope('')
-    setSelectedScopeType('')
-    setSelectedScopeData(null)
-    setIsSimulationActive(false)
+    setSelectedScope(''); setSelectedScopeType(''); setSelectedScopeData(null); setIsSimulationActive(false)
   }
 
-  const handlePOSAccess = () => {
-    if (!selectedScope || selectedScopeType !== 'BRANCH') {
-      alert('Please select a branch first')
+  // ── Navigation handler ──────────────────────────────────────────────────────
+  const handleNavigate = (item, scopeType, scopeId, scopeData) => {
+    if (item.action === 'pos') {
+      window.open(`/pos/terminal?role=cashier&scope=branch&id=${scopeId}`, '_blank')
       return
     }
-    window.open(`/pos/terminal?role=cashier&scope=branch&id=${selectedScope}`, '_blank')
-  }
-
-  const handleWarehouseBillingAccess = () => {
-    if (!selectedScope || selectedScopeType !== 'WAREHOUSE') {
-      alert('Please select a warehouse first')
+    if (item.action === 'warehouse_billing') {
+      window.open(`/warehouse-billing?role=warehouse_keeper&scope=warehouse&id=${scopeId}`, '_blank')
       return
     }
-    window.open(`/warehouse-billing?role=warehouse_keeper&scope=warehouse&id=${selectedScope}`, '_blank')
-  }
-
-  const handleInventoryAccess = () => {
-    if (!selectedScope || !selectedScopeType) {
-      alert('Please select a branch or warehouse first')
-      return
+    if (item.path) {
+      // Append scope query params so the target page loads the right data
+      const role  = scopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
+      const scope = scopeType.toLowerCase()
+      const sep   = item.path.includes('?') ? '&' : '?'
+      router.push(`${item.path}${sep}role=${role}&scope=${scope}&id=${scopeId}`)
     }
-    const role = selectedScopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
-    const scope = selectedScopeType.toLowerCase()
-    router.push(`/dashboard/inventory?role=${role}&scope=${scope}&id=${selectedScope}`)
   }
 
-  const handleReportsAccess = () => {
-    if (!selectedScope || !selectedScopeType) {
-      alert('Please select a branch or warehouse first')
-      return
-    }
-    const role = selectedScopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
-    const scope = selectedScopeType.toLowerCase()
-    router.push(`/dashboard/reports?role=${role}&scope=${scope}&id=${selectedScope}`)
-  }
-
-  const getScopeIcon = (type) => {
-    return type === 'BRANCH' ? <StoreIcon /> : <WarehouseIcon />
-  }
-
-  const getScopeColor = (type) => {
-    return type === 'BRANCH' ? 'primary' : 'secondary'
-  }
-
-  const getScopeLabel = (type) => {
-    return type === 'BRANCH' ? 'Branch' : 'Warehouse'
-  }
+  const scopeColor = selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'
 
   return (
     <DashboardLayout>
       <RouteGuard allowedRoles={['ADMIN']} />
       <PermissionCheck permission="admin_dashboard" />
 
-      <Box sx={{ p: 3 }}>
-        {/* Header */}
-        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ p: { xs: 2, md: 3 } }}>
+
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <AdminIcon color="primary" />
-              Admin Dashboard
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Select a branch or warehouse to simulate working as that role.
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: .5 }}>
+              <AdminIcon color="primary" sx={{ fontSize: 32 }} />
+              <Typography variant="h4" sx={{ fontWeight: 800 }}>Admin Dashboard</Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Select a branch or warehouse then activate simulation to access its modules
             </Typography>
           </Box>
-
-          {/* Active simulation badge */}
           {isSimulationActive && (
             <Chip
               icon={<SimulateIcon />}
               label={`Simulating: ${selectedScopeData?.name || selectedScopeType}`}
-              color={selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'}
+              color={scopeColor}
               variant="filled"
               onDelete={handleClearSimulation}
               deleteIcon={<ClearIcon />}
-              sx={{ fontWeight: 'bold', fontSize: '0.9rem', p: 1 }}
+              sx={{ fontWeight: 700, fontSize: '.88rem', py: .5 }}
             />
           )}
         </Box>
 
-        {/* Active simulation warning banner */}
+        {/* ── Active simulation banner ────────────────────────────────────── */}
         {isSimulationActive && (
-          <Alert severity="warning" sx={{ mb: 3 }} action={
-            <Button color="inherit" size="small" onClick={handleClearSimulation} startIcon={<ClearIcon />}>
-              Clear
-            </Button>
-          }>
-            <strong>Simulation Active:</strong> All API calls are now scoped to <strong>{selectedScopeData?.name}</strong>. 
-                You are acting as admin but within this {getScopeLabel(selectedScopeType).toLowerCase()}&apos;s scope.          </Alert>
+          <Alert severity="warning" sx={{ mb: 3 }}
+            action={<Button color="inherit" size="small" onClick={handleClearSimulation} startIcon={<ClearIcon />}>Clear</Button>}>
+            <strong>Simulation Active:</strong> All API calls are scoped to <strong>{selectedScopeData?.name}</strong>.
+            You are acting as Admin within this {selectedScopeType === 'BRANCH' ? 'branch' : 'warehouse'}'s scope.
+          </Alert>
         )}
 
-        {/* Scope Selection */}
-        <Grid container spacing={3}>
-          {/* Branch Selection */}
+        {/* ── Scope selectors ─────────────────────────────────────────────── */}
+        <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <StoreIcon color="primary" />
-                  Branch Access
-                </Typography>
-
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Select Branch</InputLabel>
-                  <Select
-                    value={selectedScopeType === 'BRANCH' ? selectedScope : ''}
-                    onChange={(e) => handleScopeChange('BRANCH', e.target.value)}
-                    disabled={branchesLoading}
-                  >
-                    {branches.map((branch) => (
-                      <MenuItem key={branch.id} value={branch.id.toString()}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <StoreIcon fontSize="small" />
-                          {branch.name}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                {selectedScopeType === 'BRANCH' && selectedScopeData && (
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle2">
-                      Selected Branch: {selectedScopeData.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Location: {selectedScopeData.location}
-                    </Typography>
-                  </Paper>
-                )}
-              </CardContent>
-            </Card>
+            <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2, p: 2.5, bgcolor: '#fff' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <StoreIcon color="primary" />
+                <Typography sx={{ fontWeight: 700 }}>Branch Access</Typography>
+              </Box>
+              <FormControl fullWidth size="small">
+                <InputLabel>Select Branch</InputLabel>
+                <Select value={selectedScopeType === 'BRANCH' ? selectedScope : ''}
+                  onChange={e => handleScopeChange('BRANCH', e.target.value)}
+                  disabled={branchesLoading} label="Select Branch">
+                  {branches.map(b => (
+                    <MenuItem key={b.id} value={b.id.toString()}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <StoreIcon fontSize="small" color="primary" />{b.name}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {selectedScopeType === 'BRANCH' && selectedScopeData && (
+                <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#f0f7ff', borderRadius: 1.5 }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: '.88rem' }}>{selectedScopeData.name}</Typography>
+                  {selectedScopeData.location && <Typography variant="caption" color="text.secondary">{selectedScopeData.location}</Typography>}
+                </Box>
+              )}
+            </Paper>
           </Grid>
 
-          {/* Warehouse Selection */}
           <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <WarehouseIcon color="secondary" />
-                  Warehouse Access
-                </Typography>
-
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Select Warehouse</InputLabel>
-                  <Select
-                    value={selectedScopeType === 'WAREHOUSE' ? selectedScope : ''}
-                    onChange={(e) => handleScopeChange('WAREHOUSE', e.target.value)}
-                    disabled={warehousesLoading}
-                  >
-                    {warehouses.map((warehouse) => (
-                      <MenuItem key={warehouse.id} value={warehouse.id.toString()}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <WarehouseIcon fontSize="small" />
-                          {warehouse.name}
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                {selectedScopeType === 'WAREHOUSE' && selectedScopeData && (
-                  <Paper sx={{ p: 2 }}>
-                    <Typography variant="subtitle2">
-                      Selected Warehouse: {selectedScopeData.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Location: {selectedScopeData.location}
-                    </Typography>
-                  </Paper>
-                )}
-              </CardContent>
-            </Card>
+            <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2, p: 2.5, bgcolor: '#fff' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <WarehouseIcon color="secondary" />
+                <Typography sx={{ fontWeight: 700 }}>Warehouse Access</Typography>
+              </Box>
+              <FormControl fullWidth size="small">
+                <InputLabel>Select Warehouse</InputLabel>
+                <Select value={selectedScopeType === 'WAREHOUSE' ? selectedScope : ''}
+                  onChange={e => handleScopeChange('WAREHOUSE', e.target.value)}
+                  disabled={warehousesLoading} label="Select Warehouse">
+                  {warehouses.map(w => (
+                    <MenuItem key={w.id} value={w.id.toString()}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <WarehouseIcon fontSize="small" color="secondary" />{w.name}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {selectedScopeType === 'WAREHOUSE' && selectedScopeData && (
+                <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#f5f0ff', borderRadius: 1.5 }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: '.88rem' }}>{selectedScopeData.name}</Typography>
+                  {selectedScopeData.location && <Typography variant="caption" color="text.secondary">{selectedScopeData.location}</Typography>}
+                </Box>
+              )}
+            </Paper>
           </Grid>
         </Grid>
 
-        {/* Current Selection Status */}
+        {/* ── Simulation activate / status ────────────────────────────────── */}
         {selectedScope && selectedScopeType && (
-          <Card sx={{ mt: 3 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                <Avatar sx={{ bgcolor: getScopeColor(selectedScopeType) + '.main' }}>
-                  {getScopeIcon(selectedScopeType)}
-                </Avatar>
-
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="h6">
-                    {isSimulationActive ? '🟢 Simulation Active' : '⚪ Simulation Ready'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {selectedScopeData?.name} — {selectedScopeData?.location}
-                  </Typography>
-                </Box>
-
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  {!isSimulationActive && (
-                    <Button
-                      variant="contained"
-                      color={selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'}
-                      startIcon={<SimulateIcon />}
-                      onClick={handleActivateSimulation}
-                    >
-                      Activate Simulation
-                    </Button>
-                  )}
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    startIcon={<ClearIcon />}
-                    onClick={handleClearSimulation}
-                  >
-                    Clear
-                  </Button>
-                </Box>
+          <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2, p: 2.5, mb: 3, bgcolor: '#fff' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <Avatar sx={{ bgcolor: isSimulationActive ? (selectedScopeType === 'BRANCH' ? '#1976d2' : '#7b1fa2') : '#bdbdbd' }}>
+                {selectedScopeType === 'BRANCH' ? <StoreIcon /> : <WarehouseIcon />}
+              </Avatar>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontWeight: 700 }}>
+                  {isSimulationActive ? '🟢 Simulation Active' : '⚪ Ready to Simulate'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {selectedScopeData?.name}{selectedScopeData?.location ? ` — ${selectedScopeData.location}` : ''}
+                </Typography>
               </Box>
-
-              {!isSimulationActive ? (
-                <Alert severity="info">
-                  Click <strong>Activate Simulation</strong> to scope all API calls to <strong>{selectedScopeData?.name}</strong>. 
-                  Once active, any action you take (create retailer, make sale, etc.) will be saved under your admin account but scoped to this {getScopeLabel(selectedScopeType).toLowerCase()}&apos;s scope.
-                </Alert>
-              ) : (
-                <Alert severity="success">
-                  ✅ Simulation is active for <strong>{selectedScopeData?.name}</strong>. 
-                  All API calls are now scoped to this {getScopeLabel(selectedScopeType).toLowerCase()}. Records will be saved with your admin identity.
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {!isSimulationActive && (
+                  <Button variant="contained" color={selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'}
+                    startIcon={<SimulateIcon />} onClick={handleActivateSimulation} sx={{ borderRadius: 2 }}>
+                    Activate Simulation
+                  </Button>
+                )}
+                <Button variant="outlined" color="error" startIcon={<ClearIcon />}
+                  onClick={handleClearSimulation} sx={{ borderRadius: 2 }}>
+                  Clear
+                </Button>
+              </Box>
+            </Box>
+            <Box sx={{ mt: 1.5 }}>
+              {!isSimulationActive
+                ? <Alert severity="info" sx={{ borderRadius: 1.5 }}>
+                    Click <strong>Activate Simulation</strong> to scope all API calls to <strong>{selectedScopeData?.name}</strong>. Module cards will unlock once active.
+                  </Alert>
+                : <Alert severity="success" sx={{ borderRadius: 1.5 }}>
+                    ✅ Simulation active for <strong>{selectedScopeData?.name}</strong>. All modules are accessible. Records will be saved with your admin identity.
+                  </Alert>}
+            </Box>
+          </Paper>
         )}
 
-        {/* Functions */}
-        {selectedScope && selectedScopeType && (
-          <Card sx={{ mt: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Available Functions
-              </Typography>
+        {/* ── Module groups ────────────────────────────────────────────────── */}
+        {MODULES.map((group, gi) => {
+          // Filter: show group if it has at least one visible item for current scope
+          const visibleItems = group.items.filter(item =>
+            !item.scopeTypes || !selectedScopeType || item.scopeTypes.includes(selectedScopeType)
+          )
+          if (visibleItems.length === 0 && selectedScopeType) return null
 
+          return (
+            <Box key={gi} sx={{ mb: 3.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '.78rem', textTransform: 'uppercase', letterSpacing: 1.2, color: 'text.secondary' }}>
+                  {group.group}
+                </Typography>
+                <Box sx={{ flex: 1, height: '1px', bgcolor: '#f0f0f0' }} />
+              </Box>
               <Grid container spacing={2}>
-                {selectedScopeType === 'BRANCH' && (
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Card
-                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'primary.main' }}
-                      onClick={handlePOSAccess}
-                    >
-                      <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                        <POSIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-                        <Typography variant="h6">POS Terminal</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                )}
-
-                {selectedScopeType === 'WAREHOUSE' && (
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Card
-                      sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'secondary.main' }}
-                      onClick={handleWarehouseBillingAccess}
-                    >
-                      <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                        <ReceiptIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-                        <Typography variant="h6">Warehouse Billing</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                )}
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Card
-                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'info.main' }}
-                    onClick={handleInventoryAccess}
-                  >
-                    <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                      <InventoryIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
-                      <Typography variant="h6">Inventory</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={4}>
-                  <Card
-                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, border: 1, borderColor: 'warning.main' }}
-                    onClick={handleReportsAccess}
-                  >
-                    <CardContent sx={{ textAlign: 'center', p: 2 }}>
-                      <ReportsIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
-                      <Typography variant="h6">Reports</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
+                {group.items.map((item, ii) => (
+                  <ModuleCard
+                    key={ii}
+                    item={item}
+                    scopeType={selectedScopeType}
+                    scopeId={selectedScope}
+                    scopeData={selectedScopeData}
+                    isSimulationActive={isSimulationActive}
+                    onNavigate={handleNavigate}
+                  />
+                ))}
               </Grid>
-            </CardContent>
-          </Card>
-        )}
+            </Box>
+          )
+        })}
 
-        {/* Instructions */}
-        <Card sx={{ mt: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              How to Use Admin Dashboard
-            </Typography>
-            <List>
-              <ListItem>
-                <ListItemIcon>
-                  <SecurityIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="1. Select Scope"
-                  secondary="Choose a branch or warehouse from the dropdowns above"
-                />
-              </ListItem>
+        {/* ── How to use ───────────────────────────────────────────────────── */}
+        <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2, p: 3, bgcolor: '#fff', mt: 1 }}>
+          <Typography sx={{ fontWeight: 700, mb: 2 }}>How to Use</Typography>
+          <Grid container spacing={2}>
+            {[
+              { icon: <SecurityIcon color="primary" />,  step: '1', title: 'Select Scope',          desc: 'Choose a branch or warehouse from the dropdowns above' },
+              { icon: <SimulateIcon color="success" />,  step: '2', title: 'Activate Simulation',   desc: 'Click Activate to scope all API calls to the selected location' },
+              { icon: <PersonIcon color="primary" />,    step: '3', title: 'Work Normally',          desc: 'Access POS, billing, inventory, ledger, PO — everything scoped' },
+              { icon: <ClearIcon color="error" />,       step: '4', title: 'Clear When Done',        desc: 'Click Clear to stop simulation and return to normal admin mode' },
+            ].map((s, i) => (
+              <Grid item xs={12} sm={6} md={3} key={i}>
+                <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                  <Box sx={{ bgcolor: '#f5f5f5', borderRadius: '50%', p: 1, display: 'flex', flexShrink: 0 }}>
+                    {s.icon}
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontWeight: 700, fontSize: '.88rem' }}>{s.step}. {s.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">{s.desc}</Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Paper>
 
-              <ListItem>
-                <ListItemIcon>
-                  <SimulateIcon color="success" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="2. Activate Simulation"
-                  secondary="Click Activate Simulation to start scoping all API calls to the selected branch/warehouse"
-                />
-              </ListItem>
-
-              <ListItem>
-                <ListItemIcon>
-                  <PersonIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="3. Work Normally"
-                  secondary="Create retailers, make sales, manage inventory — all saved under your admin account"
-                />
-              </ListItem>
-
-              <ListItem>
-                <ListItemIcon>
-                  <ClearIcon color="error" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="4. Clear When Done"
-                  secondary="Click Clear to stop simulation and return to normal admin mode"
-                />
-              </ListItem>
-
-              <ListItem>
-                <ListItemIcon>
-                  <LocationIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText
-                  primary="Switch Anytime"
-                  secondary="Return here to switch to a different branch or warehouse"
-                />
-              </ListItem>
-            </List>
-          </CardContent>
-        </Card>
       </Box>
     </DashboardLayout>
   )
