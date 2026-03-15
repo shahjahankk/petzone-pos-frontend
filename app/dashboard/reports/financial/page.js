@@ -7,7 +7,7 @@ import {
   Box, Card, CardContent, Grid, Typography, Paper, Button,
   Alert, FormControl, InputLabel, Select, MenuItem, TextField,
   Chip, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, LinearProgress,
+  TableRow, LinearProgress, Container,
 } from '@mui/material'
 import { Refresh, FilterList, Download, AttachMoney, TrendingUp, Receipt, PieChart as PieIcon, ArrowUpward, ArrowDownward } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -81,7 +81,8 @@ export default function FinancialReportsPage() {
   return (
     <RouteGuard allowedRoles={['ADMIN']}>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Box sx={{ p: 3, bgcolor: 'background.default', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 3 }}>
+          <Container maxWidth="xl" sx={{ px: { xs: 2, md: 3 } }}>
 
           {/* Header */}
           <Box sx={{
@@ -192,10 +193,10 @@ export default function FinancialReportsPage() {
           {/* Revenue Trend + Expense Breakdown */}
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
             <Grid item xs={12} md={8}>
-              <Paper variant="outlined" sx={{ p: 2.5, height: 360, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, height: 380, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
                 <Typography fontWeight={600} sx={{ mb: 2 }}>Revenue vs Expenses</Typography>
                 <Box sx={{ flex: 1, minHeight: 0 }}>
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer width="100%" height={300}>
                     <LineChart data={revenueData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={divider} vertical={false} />
                       <XAxis dataKey="month" tick={{ fill: textMuted, fontSize: 11 }} />
@@ -210,7 +211,7 @@ export default function FinancialReportsPage() {
               </Paper>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Paper variant="outlined" sx={{ p: 2.5, height: 360, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, height: 380, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
                 <Typography fontWeight={600} sx={{ mb: 2 }}>Expense Breakdown</Typography>
                 {expenseBreakdown.length === 0 ? (
                   <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -245,10 +246,10 @@ export default function FinancialReportsPage() {
           {/* Cash Flow + Profitability */}
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
             <Grid item xs={12} md={7}>
-              <Paper variant="outlined" sx={{ p: 2.5, height: 340, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, height: 360, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
                 <Typography fontWeight={600} sx={{ mb: 2 }}>Cash Flow Analysis</Typography>
                 <Box sx={{ flex: 1, minHeight: 0 }}>
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer width="100%" height={295}>
                     <BarChart data={cashFlowData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={divider} vertical={false} />
                       <XAxis dataKey="month" tick={{ fill: textMuted, fontSize: 11 }} />
@@ -264,7 +265,7 @@ export default function FinancialReportsPage() {
               </Paper>
             </Grid>
             <Grid item xs={12} md={5}>
-              <Paper variant="outlined" sx={{ p: 2.5, height: 340, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, height: 360, display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
                 <Typography fontWeight={600} sx={{ mb: 2 }}>Profitability Metrics</Typography>
                 <Box sx={{ flex: 1, overflow: 'auto' }}>
                   {profitabilityMetrics.length === 0 ? (
@@ -366,6 +367,7 @@ export default function FinancialReportsPage() {
             </Grid>
           </Grid>
 
+          </Container>
         </Box>
       </LocalizationProvider>
     </RouteGuard>
