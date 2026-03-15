@@ -91,14 +91,14 @@ const companySchema = yup.object({
     .nullable()
     .transform((value) => value === '' ? null : value)
     .test('phone-length', 'Phone must not exceed 20 characters', function(value) {
-      if (!value) return true // Allow empty/null values
+      if (!value) return true
       return value.length <= 20
     }),
   email: yup.string()
     .nullable()
     .transform((value) => value === '' ? null : value)
     .test('email-format', 'Email must be a valid email address', function(value) {
-      if (!value) return true // Allow empty/null values
+      if (!value) return true
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
     }),
   address: yup.string()
@@ -127,79 +127,128 @@ const companySchema = yup.object({
 
 function CompaniesPage() {
   const dispatch = useDispatch()
-  const router = useRouter()
-  const { user } = useSelector((state) => state.auth)
+  const router   = useRouter()
+
+  // ── Auth: original Redux user ─────────────────────────────────────────────
+  const { user: originalUser } = useSelector((state) => state.auth)
   const { warehouseSettings, loading: warehouseLoading } = useSelector((state) => state.warehouses || { warehouseSettings: null, loading: false })
-  const { branchSettings, loading: branchLoading } = useSelector((state) => state.branches || { branchSettings: null, loading: false })
-  
-  // NEW: Granular permissions for companies
-  const canCreateCompany = user?.role === 'ADMIN' || 
+  const { branchSettings,    loading: branchLoading }    = useSelector((state) => state.branches   || { branchSettings: null,    loading: false })
+
+  // ── Admin simulation via URL params ──────────────────────────────────────
+  const [urlParams,   setUrlParams]   = useState({})
+  const [isAdminMode, setIsAdminMode] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const role  = params.get('role')
+      const scope = params.get('scope')
+      const id    = params.get('id')
+      if (role && scope && id && originalUser?.role === 'ADMIN') {
+        setUrlParams({ role, scope, id })
+        setIsAdminMode(true)
+      } else {
+        setUrlParams({})
+        setIsAdminMode(false)
+      }
+      setInitialized(true)
+    }
+  }, [originalUser])
+
+  // Effective user: if in admin simulation mode, override role/scope fields
+  const user = useMemo(() => {
+    if (!isAdminMode || !urlParams.role) return originalUser
+    return {
+      ...originalUser,
+      role:          urlParams.role.toUpperCase(),
+      branchId:      urlParams.scope === 'branch'    ? parseInt(urlParams.id) : null,
+      warehouseId:   urlParams.scope === 'warehouse' ? parseInt(urlParams.id) : null,
+      branchName:    urlParams.scope === 'branch'    ? `Branch ${urlParams.id}`    : null,
+      warehouseName: urlParams.scope === 'warehouse' ? `Warehouse ${urlParams.id}` : null,
+      isAdminMode:   true,
+      originalRole:  originalUser.role,
+      originalUser:  originalUser,
+    }
+  }, [isAdminMode, urlParams, originalUser])
+
+  // Scope info for display banner
+  const scopeInfo = useMemo(() => {
+    if (!isAdminMode || !urlParams.role) return null
+    return {
+      scopeType: urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE',
+      scopeId:   urlParams.id,
+      scopeName: urlParams.scope === 'branch'
+        ? `Branch ${urlParams.id}`
+        : `Warehouse ${urlParams.id}`,
+    }
+  }, [isAdminMode, urlParams])
+
+  // isActualAdmin — use originalUser so permissions always work during simulation
+  const isActualAdmin = originalUser?.role === 'ADMIN'
+
+  // ── Permissions — isActualAdmin always has full access ───────────────────
+  const canCreateCompany = isActualAdmin || user?.role === 'ADMIN' ||
     (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyCreate === true) ||
-    (user?.role === 'CASHIER' && branchSettings?.allowCompanyCreate === true)
+    (user?.role === 'CASHIER'          && branchSettings?.allowCompanyCreate    === true)
 
-  const canEditCompany = user?.role === 'ADMIN' || 
-    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyEdit === true) ||
-    (user?.role === 'CASHIER' && branchSettings?.allowCompanyEdit === true)
+  const canEditCompany = isActualAdmin || user?.role === 'ADMIN' ||
+    (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyEdit   === true) ||
+    (user?.role === 'CASHIER'          && branchSettings?.allowCompanyEdit      === true)
 
-  const canDeleteCompany = user?.role === 'ADMIN' || 
+  const canDeleteCompany = isActualAdmin || user?.role === 'ADMIN' ||
     (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyDelete === true) ||
-    (user?.role === 'CASHIER' && branchSettings?.allowCompanyDelete === true)
+    (user?.role === 'CASHIER'          && branchSettings?.allowCompanyDelete    === true)
 
-  // For backward compatibility (if old setting still exists)
-  const canManageCompaniesOld = user?.role === 'ADMIN' || 
+  // Backward compatibility (old setting)
+  const canManageCompaniesOld = isActualAdmin || user?.role === 'ADMIN' ||
     (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowWarehouseCompanyCRUD === true) ||
-    (user?.role === 'CASHIER' && branchSettings?.allowCashierCustomers === true)
+    (user?.role === 'CASHIER'          && branchSettings?.allowCashierCustomers        === true)
 
-  // Combined permissions - use new if available, fall back to old
-  const canCreate = canCreateCompany || canManageCompaniesOld
-  const canEdit = canEditCompany || canManageCompaniesOld
-  const canDelete = canDeleteCompany || canManageCompaniesOld
-  
-  // For showing action column (if any action is allowed)
+  const canCreate          = canCreateCompany || canManageCompaniesOld
+  const canEdit            = canEditCompany   || canManageCompaniesOld
+  const canDelete          = canDeleteCompany || canManageCompaniesOld
   const canManageCompanies = canCreate || canEdit || canDelete
-  
-  // Permission warning for non-admin users without sufficient permissions
-  const showPermissionWarning = (user?.role === 'WAREHOUSE_KEEPER' || user?.role === 'CASHIER') && 
-    !canCreate && !canEdit && !canDelete && 
+
+  const showPermissionWarning = (user?.role === 'WAREHOUSE_KEEPER' || user?.role === 'CASHIER') &&
+    !canCreate && !canEdit && !canDelete &&
     ((user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings && !warehouseLoading) ||
-     (user?.role === 'CASHIER' && branchSettings && !branchLoading))
-  
-  // Filter state
+     (user?.role === 'CASHIER'          && branchSettings    && !branchLoading))
+
+  // ── Filter state ──────────────────────────────────────────────────────────
   const [filters, setFilters] = useState({
-    search: '',
-    scopeType: 'all',
-    transactionType: 'all'
+    search:          '',
+    scopeType:       'all',
+    transactionType: 'all',
   })
 
-  // Dialog states
-  const [formDialogOpen, setFormDialogOpen] = useState(false)
+  // ── Dialog states ─────────────────────────────────────────────────────────
+  const [formDialogOpen,   setFormDialogOpen]   = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [editingCompany, setEditingCompany] = useState(null)
-  const [companyToDelete, setCompanyToDelete] = useState(null)
-  const [formData, setFormData] = useState({})
-  const [formErrors, setFormErrors] = useState({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editingCompany,   setEditingCompany]   = useState(null)
+  const [companyToDelete,  setCompanyToDelete]  = useState(null)
+  const [formData,         setFormData]         = useState({})
+  const [formErrors,       setFormErrors]       = useState({})
+  const [isSubmitting,     setIsSubmitting]     = useState(false)
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null)
 
-  const handleOpenExportMenu = (event) => {
-    setExportMenuAnchor(event.currentTarget)
-  }
-
-  const handleCloseExportMenu = () => {
-    setExportMenuAnchor(null)
-  }
+  const handleOpenExportMenu  = (event) => setExportMenuAnchor(event.currentTarget)
+  const handleCloseExportMenu = () => setExportMenuAnchor(null)
 
   const handleExport = async (format) => {
     try {
       handleCloseExportMenu()
+      // Build export params using effective user scope
       const params = {}
-
-      if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+      if (isAdminMode && urlParams.scope && urlParams.id) {
+        params.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
+        params.scopeId   = parseInt(urlParams.id)
+      } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
         params.scopeType = 'WAREHOUSE'
-        params.scopeId = user.warehouseId
+        params.scopeId   = user.warehouseId
       } else if (user?.role === 'CASHIER' && user?.branchId) {
         params.scopeType = 'BRANCH'
-        params.scopeId = user.branchId
+        params.scopeId   = user.branchId
       }
 
       const result = await dispatch(exportCompaniesReport({ format, params })).unwrap()
@@ -208,56 +257,56 @@ function CompaniesPage() {
         const printWindow = window.open('', '_blank')
         printWindow.document.write(result.data)
         printWindow.document.close()
-        setTimeout(() => {
-          printWindow.print()
-        }, 250)
+        setTimeout(() => { printWindow.print() }, 250)
         return
       }
 
-      const dataset = result?.data || result
-      const rows = dataset?.rows || []
+      const dataset     = result?.data || result
+      const rows        = dataset?.rows || []
       const summaryData = dataset?.summary || {}
 
       const normalizedRows = rows.map(row => ({
-        'Company Name': row.name || '',
-        'Code': row.code || '',
-        'Contact Person': row.contactPerson || '',
-        'Phone': row.phone || '',
-        'Email': row.email || '',
-        'Status': row.status || '',
-        'Transaction Type': row.transactionType || '',
-        'Scope': row.scopeType ? `${row.scopeType} - ${row.scopeId}` : '',
-        'Purchase Orders': Number(row.metrics?.purchaseOrderCount || 0),
-        'Total Purchase Amount': Number(row.metrics?.totalPurchaseAmount || 0),
-        'Products Purchased': Number(row.metrics?.totalQuantityOrdered || 0),
-        'Inventory Items': Number(row.metrics?.inventoryItemCount || 0),
-        'Last Purchase Date': row.metrics?.lastPurchaseDate ? new Date(row.metrics.lastPurchaseDate).toLocaleDateString() : ''
+        'Company Name':          row.name            || '',
+        'Code':                  row.code            || '',
+        'Contact Person':        row.contactPerson   || '',
+        'Phone':                 row.phone           || '',
+        'Email':                 row.email           || '',
+        'Status':                row.status          || '',
+        'Transaction Type':      row.transactionType || '',
+        'Scope':                 row.scopeType ? `${row.scopeType} - ${row.scopeId}` : '',
+        'Purchase Orders':       Number(row.metrics?.purchaseOrderCount    || 0),
+        'Total Purchase Amount': Number(row.metrics?.totalPurchaseAmount   || 0),
+        'Products Purchased':    Number(row.metrics?.totalQuantityOrdered  || 0),
+        'Inventory Items':       Number(row.metrics?.inventoryItemCount    || 0),
+        'Last Purchase Date':    row.metrics?.lastPurchaseDate
+          ? new Date(row.metrics.lastPurchaseDate).toLocaleDateString() : '',
       }))
 
-      const XLSX = await import('xlsx')
-      const workbook = XLSX.utils.book_new()
+      const XLSX      = await import('xlsx')
+      const workbook  = XLSX.utils.book_new()
       const worksheet = XLSX.utils.json_to_sheet(normalizedRows)
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Companies')
 
       const summarySheet = XLSX.utils.json_to_sheet([
-        { Metric: 'Total Companies', Value: summaryData.totalCompanies ?? normalizedRows.length },
-        { Metric: 'Total Purchase Orders', Value: summaryData.totalPurchaseOrders ?? 0 },
-        { Metric: 'Total Purchase Amount', Value: summaryData.totalPurchaseAmount ?? 0 },
-        { Metric: 'Total Products Purchased', Value: summaryData.totalProductsPurchased ?? 0 },
-        { Metric: 'Total Inventory Items', Value: summaryData.totalInventoryItems ?? 0 },
-        { Metric: 'Last Purchase Date', Value: summaryData.lastPurchaseDate ? new Date(summaryData.lastPurchaseDate).toLocaleDateString() : '—' }
+        { Metric: 'Total Companies',         Value: summaryData.totalCompanies        ?? normalizedRows.length },
+        { Metric: 'Total Purchase Orders',   Value: summaryData.totalPurchaseOrders   ?? 0 },
+        { Metric: 'Total Purchase Amount',   Value: summaryData.totalPurchaseAmount   ?? 0 },
+        { Metric: 'Total Products Purchased',Value: summaryData.totalProductsPurchased ?? 0 },
+        { Metric: 'Total Inventory Items',   Value: summaryData.totalInventoryItems   ?? 0 },
+        { Metric: 'Last Purchase Date',      Value: summaryData.lastPurchaseDate
+          ? new Date(summaryData.lastPurchaseDate).toLocaleDateString() : '—' },
       ])
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
       if (format === 'excel') {
         XLSX.writeFile(workbook, `company-summary-${Date.now()}.xlsx`)
       } else if (format === 'csv') {
-        const csv = XLSX.utils.sheet_to_csv(worksheet)
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const csv         = XLSX.utils.sheet_to_csv(worksheet)
+        const blob        = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
         const downloadUrl = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = downloadUrl
-        link.download = `company-summary-${Date.now()}.csv`
+        const link        = document.createElement('a')
+        link.href         = downloadUrl
+        link.download     = `company-summary-${Date.now()}.csv`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -269,152 +318,140 @@ function CompaniesPage() {
     }
   }
 
-  // Get companies data from Redux store
   const {
     data: companies,
     loading,
     error,
     summary: companySummary,
-    exportLoading
+    exportLoading,
   } = useSelector((state) => state.companies || { data: [], loading: false, error: null, summary: null, exportLoading: false })
 
-  // Load data on component mount
+  // ── Load data — guarded with initialized ──────────────────────────────────
   useEffect(() => {
-    const params = {}
+    if (!initialized) return
 
-    if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+    // Build fetch params using effective user (simulation-aware)
+    const params = {}
+    if (isAdminMode && urlParams.scope && urlParams.id) {
+      params.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
+      params.scopeId   = parseInt(urlParams.id)
+    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
       params.scopeType = 'WAREHOUSE'
-      params.scopeId = user.warehouseId
+      params.scopeId   = user.warehouseId
     } else if (user?.role === 'CASHIER' && user?.branchId) {
       params.scopeType = 'BRANCH'
-      params.scopeId = user.branchId
+      params.scopeId   = user.branchId
     }
 
     dispatch(fetchCompanies(params))
-    
+
     if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
       dispatch(fetchWarehouseSettings(user.warehouseId))
     }
-
     if (user?.role === 'CASHIER' && user?.branchId) {
       dispatch(fetchBranchSettings(user.branchId))
     }
-  }, [dispatch, user?.role, user?.warehouseId, user?.branchId])
+  }, [dispatch, initialized, user?.role, user?.warehouseId, user?.branchId, isAdminMode, urlParams])
 
-  // Filter companies based on current filters and user role
+  // ── Filter companies ──────────────────────────────────────────────────────
   const filteredCompanies = useMemo(() => {
-    if (!Array.isArray(companies)) {
-      return []
-    }
+    if (!Array.isArray(companies)) return []
 
     return companies.filter(company => {
-      const matchesSearch = !filters.search || 
+      const matchesSearch = !filters.search ||
         company.name?.toLowerCase().includes(filters.search.toLowerCase()) ||
         company.code?.toLowerCase().includes(filters.search.toLowerCase()) ||
         company.contactPerson?.toLowerCase().includes(filters.search.toLowerCase())
-      
-      const matchesScopeType = filters.scopeType === 'all' || company.scopeType === filters.scopeType
+
+      const matchesScopeType       = filters.scopeType       === 'all' || company.scopeType       === filters.scopeType
       const matchesTransactionType = filters.transactionType === 'all' || company.transactionType === filters.transactionType
-      
-      const matchesRoleScope = user?.role === 'ADMIN' || 
-        (user?.role === 'WAREHOUSE_KEEPER' && 
-         company.scopeType === 'WAREHOUSE' && 
-         String(company.scopeId) === String(user?.warehouseId)) ||
-        (user?.role === 'CASHIER' && 
-         company.scopeType === 'BRANCH' && 
-         String(company.scopeId) === String(user?.branchId))
-      
+
+      // Scope filter: admin (real or simulated) sees all; scoped roles see only their scope
+      const matchesRoleScope = isActualAdmin ||
+        (user?.role === 'WAREHOUSE_KEEPER' &&
+          company.scopeType === 'WAREHOUSE' &&
+          String(company.scopeId) === String(user?.warehouseId)) ||
+        (user?.role === 'CASHIER' &&
+          company.scopeType === 'BRANCH' &&
+          String(company.scopeId) === String(user?.branchId))
+
       return matchesSearch && matchesScopeType && matchesTransactionType && matchesRoleScope
     })
-  }, [companies, filters, user?.role, user?.warehouseId, user?.branchId])
+  }, [companies, filters, user?.role, user?.warehouseId, user?.branchId, isActualAdmin])
 
   const aggregateMetrics = useMemo(() => {
     if (filteredCompanies.length === 0 && companySummary) {
       return {
-        totalPurchaseOrders: companySummary.totalPurchaseOrders || 0,
-        totalPurchaseAmount: companySummary.totalPurchaseAmount || 0,
+        totalPurchaseOrders:    companySummary.totalPurchaseOrders    || 0,
+        totalPurchaseAmount:    companySummary.totalPurchaseAmount    || 0,
         totalProductsPurchased: companySummary.totalProductsPurchased || 0,
-        totalInventoryItems: companySummary.totalInventoryItems || 0,
-        lastPurchaseDate: companySummary.lastPurchaseDate || null
+        totalInventoryItems:    companySummary.totalInventoryItems    || 0,
+        lastPurchaseDate:       companySummary.lastPurchaseDate       || null,
       }
     }
-
     return filteredCompanies.reduce((acc, company) => {
       const metrics = company.metrics || {}
-      acc.totalPurchaseOrders += Number(metrics.purchaseOrderCount || 0)
-      acc.totalPurchaseAmount += Number(metrics.totalPurchaseAmount || 0)
+      acc.totalPurchaseOrders    += Number(metrics.purchaseOrderCount   || 0)
+      acc.totalPurchaseAmount    += Number(metrics.totalPurchaseAmount  || 0)
       acc.totalProductsPurchased += Number(metrics.totalQuantityOrdered || 0)
-      acc.totalInventoryItems += Number(metrics.inventoryItemCount || 0)
-
+      acc.totalInventoryItems    += Number(metrics.inventoryItemCount   || 0)
       if (!acc.lastPurchaseDate || (metrics.lastPurchaseDate && metrics.lastPurchaseDate > acc.lastPurchaseDate)) {
         acc.lastPurchaseDate = metrics.lastPurchaseDate
       }
-
       return acc
-    }, {
-      totalPurchaseOrders: 0,
-      totalPurchaseAmount: 0,
-      totalProductsPurchased: 0,
-      totalInventoryItems: 0,
-      lastPurchaseDate: null
-    })
+    }, { totalPurchaseOrders: 0, totalPurchaseAmount: 0, totalProductsPurchased: 0, totalInventoryItems: 0, lastPurchaseDate: null })
   }, [filteredCompanies, companySummary])
 
-  const formatNumber = (value) => Number(value || 0).toLocaleString()
+  const formatNumber   = (value) => Number(value || 0).toLocaleString()
   const formatCurrency = (value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }))
-  }
+  const handleFilterChange = (field, value) => setFilters(prev => ({ ...prev, [field]: value }))
 
-  // Get company statistics
   const getCompanyStats = (sourceCompanies) => {
-    if (!sourceCompanies || !Array.isArray(sourceCompanies)) {
+    if (!sourceCompanies || !Array.isArray(sourceCompanies))
       return { total: 0, active: 0, inactive: 0, suspended: 0, warehouse: 0, branch: 0 }
+    return {
+      total:     sourceCompanies.length,
+      active:    sourceCompanies.filter(c => c.status === 'active').length,
+      inactive:  sourceCompanies.filter(c => c.status === 'inactive').length,
+      suspended: sourceCompanies.filter(c => c.status === 'suspended').length,
+      warehouse: sourceCompanies.filter(c => c.scopeType === 'WAREHOUSE').length,
+      branch:    sourceCompanies.filter(c => c.scopeType === 'BRANCH').length,
     }
-    
-    const total = sourceCompanies.length
-    const active = sourceCompanies.filter(c => c.status === 'active').length
-    const inactive = sourceCompanies.filter(c => c.status === 'inactive').length
-    const suspended = sourceCompanies.filter(c => c.status === 'suspended').length
-    const warehouse = sourceCompanies.filter(c => c.scopeType === 'WAREHOUSE').length
-    const branch = sourceCompanies.filter(c => c.scopeType === 'BRANCH').length
-
-    return { total, active, inactive, suspended, warehouse, branch }
   }
 
   const stats = getCompanyStats(filteredCompanies)
 
-  // Get status chip color
   const getStatusColor = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'active': return 'success'
-      case 'inactive': return 'default'
+    switch (status?.toLowerCase()) {
+      case 'active':    return 'success'
+      case 'inactive':  return 'default'
       case 'suspended': return 'error'
-      default: return 'default'
+      default:          return 'default'
     }
   }
 
-  // Handle CRUD operations
+  // ── CRUD — form initial data uses effective user scope ────────────────────
+  const getInitialFormData = useCallback(() => ({
+    name:            '',
+    code:            '',
+    contactPerson:   '',
+    phone:           '',
+    email:           '',
+    address:         null,
+    status:          'active',
+    transactionType: 'CASH',
+    scopeType:
+      user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' :
+      user?.role === 'CASHIER'          ? 'BRANCH'    : 'BRANCH',
+    scopeId:
+      user?.role === 'WAREHOUSE_KEEPER' ? (user?.warehouseId ? String(user.warehouseId) : '') :
+      user?.role === 'CASHIER'          ? (user?.branchId    ? String(user.branchId)    : '') : '',
+  }), [user?.role, user?.warehouseId, user?.branchId])
+
   const handleCreate = () => {
     setEditingCompany(null)
-    setFormData({
-      name: '',
-      code: '',
-      contactPerson: '',
-      phone: '',
-      email: '',
-      address: null,
-      status: 'active',
-      transactionType: 'CASH',
-      scopeType: user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' : 
-                 user?.role === 'CASHIER' ? 'BRANCH' : 'BRANCH',
-      scopeId: user?.role === 'WAREHOUSE_KEEPER'
-        ? (user?.warehouseId ? String(user.warehouseId) : '')
-        : user?.role === 'CASHIER'
-        ? (user?.branchId ? String(user.branchId) : '')
-        : '',
-    })
+    setFormData(getInitialFormData())
     setFormErrors({})
     setFormDialogOpen(true)
   }
@@ -422,16 +459,16 @@ function CompaniesPage() {
   const handleEdit = (company) => {
     setEditingCompany(company)
     setFormData({
-      name: company.name || '',
-      code: company.code || '',
-      contactPerson: company.contactPerson || '',
-      phone: company.phone || '',
-      email: company.email || '',
-      address: company.address || null,
-      status: company.status || 'active',
+      name:            company.name            || '',
+      code:            company.code            || '',
+      contactPerson:   company.contactPerson   || '',
+      phone:           company.phone           || '',
+      email:           company.email           || '',
+      address:         company.address         || null,
+      status:          company.status          || 'active',
       transactionType: company.transactionType || 'CASH',
-      scopeType: company.scopeType || 'BRANCH',
-      scopeId: company.scopeId || '',
+      scopeType:       company.scopeType       || 'BRANCH',
+      scopeId:         company.scopeId         || '',
     })
     setFormErrors({})
     setFormDialogOpen(true)
@@ -443,60 +480,55 @@ function CompaniesPage() {
   }
 
   const handleFormSubmit = async () => {
-    // Prevent multiple submissions
     if (isSubmitting) return
-    
-  const normalizeOptional = (v) => {
-    if (v === null || v === undefined) return null
-    const str = String(v).trim()
-    return str === '' ? null : str
-  }
-    
+
+    const normalizeOptional = (v) => {
+      if (v === null || v === undefined) return null
+      const str = String(v).trim()
+      return str === '' ? null : str
+    }
+
     try {
       setIsSubmitting(true)
-      
-      // Validate form data
       await companySchema.validate(formData, { abortEarly: false })
       setFormErrors({})
 
-      // Prepare company data, removing empty optional fields
       const companyData = {
         ...formData,
-        email: normalizeOptional(formData.email),
-        phone: normalizeOptional(formData.phone),
-        code: normalizeOptional(formData.code),
-        contactPerson: normalizeOptional(formData.contactPerson),
-        status: normalizeOptional(formData.status),
+        email:           normalizeOptional(formData.email),
+        phone:           normalizeOptional(formData.phone),
+        code:            normalizeOptional(formData.code),
+        contactPerson:   normalizeOptional(formData.contactPerson),
+        status:          normalizeOptional(formData.status),
         transactionType: normalizeOptional(formData.transactionType),
-        scopeType: user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' : 
-                   user?.role === 'CASHIER' ? 'BRANCH' : 
-                   normalizeOptional(formData.scopeType),
-        scopeId: user?.role === 'WAREHOUSE_KEEPER'
-          ? (user?.warehouseId ? String(user.warehouseId) : '')
-          : user?.role === 'CASHIER'
-          ? (user?.branchId ? String(user.branchId) : '')
-          : (normalizeOptional(formData.scopeId) ? String(formData.scopeId) : null),
+        // Use effective user scope for scopeType/scopeId
+        scopeType:
+          user?.role === 'WAREHOUSE_KEEPER' ? 'WAREHOUSE' :
+          user?.role === 'CASHIER'          ? 'BRANCH'    :
+          normalizeOptional(formData.scopeType),
+        scopeId:
+          user?.role === 'WAREHOUSE_KEEPER' ? (user?.warehouseId ? String(user.warehouseId) : '') :
+          user?.role === 'CASHIER'          ? (user?.branchId    ? String(user.branchId)    : '') :
+          (normalizeOptional(formData.scopeId) ? String(formData.scopeId) : null),
       }
 
-      // Drop undefined/null optional fields to avoid sending empty strings/values
+      // Drop undefined/null/empty optional fields
       Object.keys(companyData).forEach((key) => {
         if (companyData[key] === undefined || companyData[key] === null || companyData[key] === '') {
           delete companyData[key]
         }
       })
-      
+
       console.log('🔧 Company data being sent:', companyData)
       console.log('🔧 User role:', user?.role, 'Warehouse ID:', user?.warehouseId, 'Branch ID:', user?.branchId)
 
       if (editingCompany) {
-        // Update existing company
         const result = await dispatch(updateCompany({ id: editingCompany.id, data: companyData }))
         if (updateCompany.fulfilled.match(result)) {
           setFormDialogOpen(false)
           dispatch(fetchCompanies())
         }
       } else {
-        // Create new company
         const result = await dispatch(createCompany(companyData))
         if (createCompany.fulfilled.match(result)) {
           setFormDialogOpen(false)
@@ -505,11 +537,8 @@ function CompaniesPage() {
       }
     } catch (error) {
       if (error.inner) {
-        // Validation errors
         const errors = {}
-        error.inner.forEach(err => {
-          errors[err.path] = err.message
-        })
+        error.inner.forEach(err => { errors[err.path] = err.message })
         setFormErrors(errors)
       } else {
         console.error('Error saving company:', error)
@@ -547,20 +576,38 @@ function CompaniesPage() {
   }
 
   const handleRefresh = () => {
+    if (!initialized) return
     const params = {}
-    if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+    if (isAdminMode && urlParams.scope && urlParams.id) {
+      params.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
+      params.scopeId   = parseInt(urlParams.id)
+    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
       params.scopeType = 'WAREHOUSE'
-      params.scopeId = user.warehouseId
+      params.scopeId   = user.warehouseId
     } else if (user?.role === 'CASHIER' && user?.branchId) {
       params.scopeType = 'BRANCH'
-      params.scopeId = user.branchId
+      params.scopeId   = user.branchId
     }
     dispatch(fetchCompanies(params))
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
       <DashboardLayout>
+
+        {/* Admin simulation banner */}
+        {isAdminMode && scopeInfo && (
+          <Box sx={{
+            bgcolor: 'warning.light', color: 'warning.contrastText',
+            p: 1, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main',
+          }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+              🔧 ADMIN MODE: Operating as {scopeInfo.scopeType === 'BRANCH' ? 'Cashier' : 'Warehouse Keeper'} for {scopeInfo.scopeName}
+            </Typography>
+          </Box>
+        )}
+
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Box>
@@ -573,50 +620,27 @@ function CompaniesPage() {
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="outlined"
-                startIcon={<Refresh />}
-                onClick={handleRefresh}
-                disabled={loading}
-              >
+              <Button variant="outlined" startIcon={<Refresh />} onClick={handleRefresh} disabled={loading}>
                 Refresh
               </Button>
-              <Button
-                variant="outlined"
-                startIcon={<DownloadIcon />}
-                onClick={handleOpenExportMenu}
-                disabled={exportLoading}
-              >
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleOpenExportMenu} disabled={exportLoading}>
                 {exportLoading ? 'Exporting…' : 'Export'}
               </Button>
               {canCreate && (
-                <Button
-                  variant="contained"
-                  startIcon={<Add />}
-                  onClick={handleCreate}
-                >
+                <Button variant="contained" startIcon={<Add />} onClick={handleCreate}>
                   Add Company
                 </Button>
               )}
             </Box>
           </Box>
-          <Menu
-            anchorEl={exportMenuAnchor}
-            open={Boolean(exportMenuAnchor)}
-            onClose={handleCloseExportMenu}
-          >
-            <MenuItem onClick={() => handleExport('pdf')}>
-              PDF
-            </MenuItem>
-            <MenuItem onClick={() => handleExport('excel')}>
-              Excel
-            </MenuItem>
-            <MenuItem onClick={() => handleExport('csv')}>
-              CSV
-            </MenuItem>
+
+          <Menu anchorEl={exportMenuAnchor} open={Boolean(exportMenuAnchor)} onClose={handleCloseExportMenu}>
+            <MenuItem onClick={() => handleExport('pdf')}>PDF</MenuItem>
+            <MenuItem onClick={() => handleExport('excel')}>Excel</MenuItem>
+            <MenuItem onClick={() => handleExport('csv')}>CSV</MenuItem>
           </Menu>
 
-          {/* Permission Warning for users with limited access */}
+          {/* Permission Warning */}
           {showPermissionWarning && (
             <Alert severity="warning" sx={{ mb: 3 }}>
               <AlertTitle>Limited Access</AlertTitle>
@@ -624,191 +648,133 @@ function CompaniesPage() {
             </Alert>
           )}
 
-          {/* Role-specific information */}
+          {/* Role-specific info banners */}
           {user?.role === 'WAREHOUSE_KEEPER' && (
-            <Alert 
-              severity={canManageCompanies ? 'info' : 'warning'} 
-              sx={{ mb: 3 }}
-            >
+            <Alert severity={canManageCompanies ? 'info' : 'warning'} sx={{ mb: 3 }}>
               <Typography variant="body2">
-                <strong>Warehouse Keeper Access:</strong> {
-                  canManageCompanies 
-                    ? `You can view and manage companies for your warehouse (ID: ${user?.warehouseId}).`
-                  : 'Company management is currently disabled for your warehouse. Contact your administrator to enable this feature.'
-                }
+                <strong>Warehouse Keeper Access:</strong>{' '}
+                {canManageCompanies
+                  ? `You can view and manage companies for your warehouse (ID: ${user?.warehouseId}).`
+                  : 'Company management is currently disabled for your warehouse. Contact your administrator to enable this feature.'}
               </Typography>
             </Alert>
           )}
 
           {user?.role === 'CASHIER' && (
-            <Alert 
-              severity={canManageCompanies ? 'info' : 'info'} 
-              sx={{ mb: 3 }}
-            >
+            <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body2">
-                <strong>Cashier Access:</strong> {
-                  canManageCompanies 
-                    ? `You can view and manage companies for your branch (ID: ${user?.branchId}).`
-                  : `You can view companies assigned to your branch (ID: ${user?.branchId}). Contact your administrator if you need to manage companies.`
-                }
+                <strong>Cashier Access:</strong>{' '}
+                {canManageCompanies
+                  ? `You can view and manage companies for your branch (ID: ${user?.branchId}).`
+                  : `You can view companies assigned to your branch (ID: ${user?.branchId}). Contact your administrator if you need to manage companies.`}
               </Typography>
             </Alert>
           )}
 
-          {/* Stats Cards - Updated with Suspended stat */}
+          {/* Stats Cards */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={6} md={2.4}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Total Companies
-                      </Typography>
-                      <Typography variant="h4">
-                        {stats.total}
-                      </Typography>
-                    </Box>
-                    <Store sx={{ fontSize: 40, color: 'primary.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Total Companies</Typography>
+                    <Typography variant="h4">{stats.total}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <Store sx={{ fontSize: 40, color: 'primary.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Active
-                      </Typography>
-                      <Typography variant="h4" color="success.main">
-                        {stats.active}
-                      </Typography>
-                    </Box>
-                    <CheckCircle sx={{ fontSize: 40, color: 'success.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Active</Typography>
+                    <Typography variant="h4" color="success.main">{stats.active}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <CheckCircle sx={{ fontSize: 40, color: 'success.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Inactive
-                      </Typography>
-                      <Typography variant="h4" color="textSecondary">
-                        {stats.inactive}
-                      </Typography>
-                    </Box>
-                    <Block sx={{ fontSize: 40, color: 'text.secondary' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Inactive</Typography>
+                    <Typography variant="h4" color="textSecondary">{stats.inactive}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <Block sx={{ fontSize: 40, color: 'text.secondary' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Suspended
-                      </Typography>
-                      <Typography variant="h4" color="error.main">
-                        {stats.suspended}
-                      </Typography>
-                    </Box>
-                    <Warning sx={{ fontSize: 40, color: 'error.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Suspended</Typography>
+                    <Typography variant="h4" color="error.main">{stats.suspended}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <Warning sx={{ fontSize: 40, color: 'error.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Warehouse
-                      </Typography>
-                      <Typography variant="h4" color="info.main">
-                        {stats.warehouse}
-                      </Typography>
-                    </Box>
-                    <BusinessCenter sx={{ fontSize: 40, color: 'info.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Warehouse</Typography>
+                    <Typography variant="h4" color="info.main">{stats.warehouse}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <BusinessCenter sx={{ fontSize: 40, color: 'info.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Total Purchase Amount
-                      </Typography>
-                      <Typography variant="h4">
-                        {formatCurrency(aggregateMetrics.totalPurchaseAmount)}
-                      </Typography>
-                    </Box>
-                    <Paid sx={{ fontSize: 40, color: 'primary.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Total Purchase Amount</Typography>
+                    <Typography variant="h4">{formatCurrency(aggregateMetrics.totalPurchaseAmount)}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <Paid sx={{ fontSize: 40, color: 'primary.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Products Purchased
-                      </Typography>
-                      <Typography variant="h4" color="secondary.main">
-                        {formatNumber(aggregateMetrics.totalProductsPurchased)}
-                      </Typography>
-                    </Box>
-                    <ShoppingCart sx={{ fontSize: 40, color: 'secondary.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Products Purchased</Typography>
+                    <Typography variant="h4" color="secondary.main">{formatNumber(aggregateMetrics.totalProductsPurchased)}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <ShoppingCart sx={{ fontSize: 40, color: 'secondary.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Inventory Items Linked
-                      </Typography>
-                      <Typography variant="h4" color="info.main">
-                        {formatNumber(aggregateMetrics.totalInventoryItems)}
-                      </Typography>
-                    </Box>
-                    <InventoryIcon sx={{ fontSize: 40, color: 'info.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Inventory Items Linked</Typography>
+                    <Typography variant="h4" color="info.main">{formatNumber(aggregateMetrics.totalInventoryItems)}</Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <InventoryIcon sx={{ fontSize: 40, color: 'info.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography color="textSecondary" gutterBottom variant="h6">
-                        Last Purchase Date
-                      </Typography>
-                      <Typography variant="h5">
-                        {aggregateMetrics.lastPurchaseDate ? new Date(aggregateMetrics.lastPurchaseDate).toLocaleDateString() : '—'}
-                      </Typography>
-                    </Box>
-                    <Today sx={{ fontSize: 40, color: 'warning.main' }} />
+              <Card><CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography color="textSecondary" gutterBottom variant="h6">Last Purchase Date</Typography>
+                    <Typography variant="h5">
+                      {aggregateMetrics.lastPurchaseDate
+                        ? new Date(aggregateMetrics.lastPurchaseDate).toLocaleDateString()
+                        : '—'}
+                    </Typography>
                   </Box>
-                </CardContent>
-              </Card>
+                  <Today sx={{ fontSize: 40, color: 'warning.main' }} />
+                </Box>
+              </CardContent></Card>
             </Grid>
           </Grid>
 
@@ -816,40 +782,22 @@ function CompaniesPage() {
           <Paper sx={{ p: 2, mb: 3 }}>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
               <TextField
-                label="Search Companies"
-                value={filters.search}
+                label="Search Companies" value={filters.search} size="small" sx={{ minWidth: 250 }}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
-                size="small"
-                sx={{ minWidth: 250 }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  )
-                }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><Search /></InputAdornment> }}
               />
-              
-              {user?.role === 'ADMIN' && (
+
+              {/* Scope type filter — show for admin (real or simulated global view, not in simulation) */}
+              {isActualAdmin && !isAdminMode && (
                 <FormControl size="small" sx={{ minWidth: 150 }}>
                   <InputLabel>Scope Type</InputLabel>
-                  <Select
-                    value={filters.scopeType}
-                    onChange={(e) => handleFilterChange('scopeType', e.target.value)}
-                    label="Scope Type"
-                  >
+                  <Select value={filters.scopeType} onChange={(e) => handleFilterChange('scopeType', e.target.value)} label="Scope Type">
                     <MenuItem value="all">All Scopes</MenuItem>
                     <MenuItem value="BRANCH">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Business />
-                        Branch Companies
-                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><Business />Branch Companies</Box>
                     </MenuItem>
                     <MenuItem value="WAREHOUSE">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <BusinessCenter />
-                        Warehouse Companies
-                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><BusinessCenter />Warehouse Companies</Box>
                     </MenuItem>
                   </Select>
                 </FormControl>
@@ -857,11 +805,7 @@ function CompaniesPage() {
 
               <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel>Transaction Type</InputLabel>
-                <Select
-                  value={filters.transactionType}
-                  onChange={(e) => handleFilterChange('transactionType', e.target.value)}
-                  label="Transaction Type"
-                >
+                <Select value={filters.transactionType} onChange={(e) => handleFilterChange('transactionType', e.target.value)} label="Transaction Type">
                   <MenuItem value="all">All Types</MenuItem>
                   <MenuItem value="CASH">Cash</MenuItem>
                   <MenuItem value="CREDIT">Credit</MenuItem>
@@ -870,50 +814,32 @@ function CompaniesPage() {
                 </Select>
               </FormControl>
 
-              {/* Active Filters Display */}
               {(filters.scopeType !== 'all' || filters.transactionType !== 'all') && (
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <Typography variant="body2" color="textSecondary">
-                    Active filters:
-                  </Typography>
-                  {user?.role === 'ADMIN' && filters.scopeType !== 'all' && (
-                    <Chip
-                      label={`Scope: ${filters.scopeType}`}
-                      size="small"
-                      onDelete={() => handleFilterChange('scopeType', 'all')}
-                    />
+                  <Typography variant="body2" color="textSecondary">Active filters:</Typography>
+                  {isActualAdmin && !isAdminMode && filters.scopeType !== 'all' && (
+                    <Chip label={`Scope: ${filters.scopeType}`} size="small" onDelete={() => handleFilterChange('scopeType', 'all')} />
                   )}
                   {filters.transactionType !== 'all' && (
-                    <Chip
-                      label={`Type: ${filters.transactionType}`}
-                      size="small"
-                      onDelete={() => handleFilterChange('transactionType', 'all')}
-                    />
+                    <Chip label={`Type: ${filters.transactionType}`} size="small" onDelete={() => handleFilterChange('transactionType', 'all')} />
                   )}
                 </Box>
               )}
             </Box>
           </Paper>
 
-          {/* Error Alert */}
           {error && (
             <Alert severity="error" sx={{ mb: 3 }}>
-              <AlertTitle>Error</AlertTitle>
-              {error}
+              <AlertTitle>Error</AlertTitle>{error}
             </Alert>
           )}
 
           {/* Companies Table */}
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Companies List
-              </Typography>
-              
+              <Typography variant="h6" gutterBottom>Companies List</Typography>
               {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                  <CircularProgress />
-                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}><CircularProgress /></Box>
               ) : (
                 <TableContainer component={Paper} variant="outlined">
                   <Table>
@@ -939,7 +865,9 @@ function CompaniesPage() {
                         <TableRow>
                           <TableCell colSpan={canManageCompanies ? 14 : 13} align="center" sx={{ py: 4 }}>
                             <Typography variant="body2" color="textSecondary">
-                              {companies?.length === 0 ? 'No companies found. Click "Add Company" to create your first company.' : 'No companies match your current filters.'}
+                              {companies?.length === 0
+                                ? 'No companies found. Click "Add Company" to create your first company.'
+                                : 'No companies match your current filters.'}
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -963,23 +891,17 @@ function CompaniesPage() {
                             </TableCell>
                             <TableCell>
                               <Box>
-                                <Typography variant="body2" fontWeight="bold">
-                                  {company.contactPerson}
-                                </Typography>
+                                <Typography variant="body2" fontWeight="bold">{company.contactPerson}</Typography>
                                 {company.email && (
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                     <Email fontSize="small" color="action" />
-                                    <Typography variant="caption">
-                                      {company.email}
-                                    </Typography>
+                                    <Typography variant="caption">{company.email}</Typography>
                                   </Box>
                                 )}
                                 {company.phone && (
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     <Phone fontSize="small" color="action" />
-                                    <Typography variant="caption">
-                                      {company.phone}
-                                    </Typography>
+                                    <Typography variant="caption">{company.phone}</Typography>
                                   </Box>
                                 )}
                               </Box>
@@ -993,22 +915,18 @@ function CompaniesPage() {
                               </Box>
                             </TableCell>
                             <TableCell>
-                              <Chip 
-                                label={company.status || 'unknown'} 
-                                color={getStatusColor(company.status)}
-                                size="small"
-                              />
+                              <Chip label={company.status || 'unknown'} color={getStatusColor(company.status)} size="small" />
                             </TableCell>
                             <TableCell>
-                              <Chip 
-                                label={company.transactionType || 'CASH'} 
+                              <Chip
+                                label={company.transactionType || 'CASH'}
                                 color={company.transactionType === 'CASH' ? 'success' : 'warning'}
                                 size="small"
                               />
                             </TableCell>
                             <TableCell>
-                              <Chip 
-                                label={company.scopeType || 'Unknown'} 
+                              <Chip
+                                label={company.scopeType || 'Unknown'}
                                 color={company.scopeType === 'WAREHOUSE' ? 'info' : 'secondary'}
                                 size="small"
                               />
@@ -1018,54 +936,39 @@ function CompaniesPage() {
                                 {company.createdByUsername || company.created_by_username || '—'}
                               </Typography>
                               <Typography variant="caption" color="textSecondary">
-                                {company.createdAt || company.created_at ? new Date(company.createdAt || company.created_at).toLocaleDateString() : ''}
+                                {(company.createdAt || company.created_at)
+                                  ? new Date(company.createdAt || company.created_at).toLocaleDateString()
+                                  : ''}
                               </Typography>
                             </TableCell>
+                            <TableCell>{formatNumber(company.metrics?.purchaseOrderCount    || 0)}</TableCell>
+                            <TableCell>{formatCurrency(company.metrics?.totalPurchaseAmount  || 0)}</TableCell>
+                            <TableCell>{formatNumber(company.metrics?.totalQuantityOrdered   || 0)}</TableCell>
+                            <TableCell>{formatNumber(company.metrics?.inventoryItemCount     || 0)}</TableCell>
                             <TableCell>
-                              {formatNumber(company.metrics?.purchaseOrderCount || 0)}
-                            </TableCell>
-                            <TableCell>
-                              {formatCurrency(company.metrics?.totalPurchaseAmount || 0)}
-                            </TableCell>
-                            <TableCell>
-                              {formatNumber(company.metrics?.totalQuantityOrdered || 0)}
-                            </TableCell>
-                            <TableCell>
-                              {formatNumber(company.metrics?.inventoryItemCount || 0)}
-                            </TableCell>
-                            <TableCell>
-                              {company.metrics?.lastPurchaseDate ? new Date(company.metrics.lastPurchaseDate).toLocaleDateString() : '—'}
+                              {company.metrics?.lastPurchaseDate
+                                ? new Date(company.metrics.lastPurchaseDate).toLocaleDateString()
+                                : '—'}
                             </TableCell>
                             {canManageCompanies && (
                               <TableCell align="center">
                                 <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                                   <Tooltip title="View Details">
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => router.push(`/dashboard/companies/${company.id}`)}
-                                      color="primary"
-                                    >
+                                    <IconButton size="small" color="primary"
+                                      onClick={() => router.push(`/dashboard/companies/${company.id}`)}>
                                       <ViewIcon fontSize="small" />
                                     </IconButton>
                                   </Tooltip>
                                   {canEdit && (
                                     <Tooltip title="Edit">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleEdit(company)}
-                                        color="primary"
-                                      >
+                                      <IconButton size="small" color="primary" onClick={() => handleEdit(company)}>
                                         <Edit fontSize="small" />
                                       </IconButton>
                                     </Tooltip>
                                   )}
                                   {canDelete && (
                                     <Tooltip title="Delete">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => handleDelete(company)}
-                                        color="error"
-                                      >
+                                      <IconButton size="small" color="error" onClick={() => handleDelete(company)}>
                                         <Delete fontSize="small" />
                                       </IconButton>
                                     </Tooltip>
@@ -1083,73 +986,51 @@ function CompaniesPage() {
             </CardContent>
           </Card>
 
-          {/* Form Dialog */}
+          {/* ── Form Dialog ─────────────────────────────────────────────────── */}
           <Dialog open={formDialogOpen} onClose={handleFormClose} maxWidth="md" fullWidth>
-            <DialogTitle>
-              {editingCompany ? 'Edit Company' : 'Add New Company'}
-            </DialogTitle>
+            <DialogTitle>{editingCompany ? 'Edit Company' : 'Add New Company'}</DialogTitle>
             <DialogContent>
               <Grid container spacing={2} sx={{ mt: 1 }}>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Company Name"
+                  <TextField fullWidth label="Company Name" required
                     value={formData.name || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    error={!!formErrors.name}
-                    helperText={formErrors.name}
-                    required
+                    error={!!formErrors.name} helperText={formErrors.name}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Company Code"
+                  <TextField fullWidth label="Company Code"
                     value={formData.code || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
-                    error={!!formErrors.code}
-                    helperText={formErrors.code}
+                    error={!!formErrors.code} helperText={formErrors.code}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Contact Person"
+                  <TextField fullWidth label="Contact Person"
                     value={formData.contactPerson || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, contactPerson: e.target.value }))}
-                    error={!!formErrors.contactPerson}
-                    helperText={formErrors.contactPerson}
+                    error={!!formErrors.contactPerson} helperText={formErrors.contactPerson}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Phone"
+                  <TextField fullWidth label="Phone"
                     value={formData.phone || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                    error={!!formErrors.phone}
-                    helperText={formErrors.phone}
+                    error={!!formErrors.phone} helperText={formErrors.phone}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Email"
-                    type="email"
+                  <TextField fullWidth label="Email" type="email"
                     value={formData.email || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    error={!!formErrors.email}
-                    helperText={formErrors.email}
+                    error={!!formErrors.email} helperText={formErrors.email}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
                     <InputLabel>Transaction Type</InputLabel>
-                    <Select
-                      value={formData.transactionType || 'CASH'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, transactionType: e.target.value }))}
-                      label="Transaction Type"
-                    >
+                    <Select value={formData.transactionType || 'CASH'} label="Transaction Type"
+                      onChange={(e) => setFormData(prev => ({ ...prev, transactionType: e.target.value }))}>
                       <MenuItem value="CASH">Cash</MenuItem>
                       <MenuItem value="CREDIT">Credit</MenuItem>
                       <MenuItem value="CARD">Card</MenuItem>
@@ -1158,50 +1039,38 @@ function CompaniesPage() {
                   </FormControl>
                 </Grid>
                 <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Address"
-                    multiline
-                    rows={2}
+                  <TextField fullWidth label="Address" multiline rows={2}
                     value={formData.address || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                    error={!!formErrors.address}
-                    helperText={formErrors.address}
+                    error={!!formErrors.address} helperText={formErrors.address}
                   />
                 </Grid>
-                {user?.role === 'ADMIN' ? (
+
+                {/* Scope assignment — admin (non-simulated) can set manually; others see auto-assigned */}
+                {isActualAdmin && !isAdminMode ? (
                   <>
                     <Grid item xs={12} sm={6}>
                       <FormControl fullWidth>
                         <InputLabel>Scope Type</InputLabel>
-                        <Select
-                          value={formData.scopeType || 'BRANCH'}
-                          onChange={(e) => setFormData(prev => ({ ...prev, scopeType: e.target.value }))}
-                          label="Scope Type"
-                        >
+                        <Select value={formData.scopeType || 'BRANCH'} label="Scope Type"
+                          onChange={(e) => setFormData(prev => ({ ...prev, scopeType: e.target.value }))}>
                           <MenuItem value="BRANCH">Branch</MenuItem>
                           <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        label="Scope Name"
+                      <TextField fullWidth label="Scope Name" required
                         value={formData.scopeId || ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, scopeId: e.target.value }))}
-                        error={!!formErrors.scopeId}
-                        helperText={formErrors.scopeId}
-                        required
+                        error={!!formErrors.scopeId} helperText={formErrors.scopeId}
                       />
                     </Grid>
                   </>
                 ) : user?.role === 'WAREHOUSE_KEEPER' ? (
                   <Grid item xs={12}>
                     <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                        Scope Assignment
-                      </Typography>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>Scope Assignment</Typography>
                       <Typography variant="body1" fontWeight="medium">
                         Warehouse: {user?.warehouseName || 'Your Warehouse'} (ID: {user?.warehouseId})
                       </Typography>
@@ -1213,9 +1082,7 @@ function CompaniesPage() {
                 ) : user?.role === 'CASHIER' ? (
                   <Grid item xs={12}>
                     <Box sx={{ p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                        Scope Assignment
-                      </Typography>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>Scope Assignment</Typography>
                       <Typography variant="body1" fontWeight="medium">
                         Branch: {user?.branchName || 'Your Branch'} (ID: {user?.branchId})
                       </Typography>
@@ -1225,14 +1092,12 @@ function CompaniesPage() {
                     </Box>
                   </Grid>
                 ) : null}
+
                 <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
                     <InputLabel>Status</InputLabel>
-                    <Select
-                      value={formData.status || 'active'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                      label="Status"
-                    >
+                    <Select value={formData.status || 'active'} label="Status"
+                      onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}>
                       <MenuItem value="active">Active</MenuItem>
                       <MenuItem value="inactive">Inactive</MenuItem>
                       <MenuItem value="suspended">Suspended</MenuItem>
@@ -1249,7 +1114,7 @@ function CompaniesPage() {
             </DialogActions>
           </Dialog>
 
-          {/* Delete Confirmation Dialog */}
+          {/* ── Delete Confirmation Dialog ──────────────────────────────────── */}
           <Dialog open={deleteDialogOpen} onClose={handleDeleteClose}>
             <DialogTitle>Delete Company</DialogTitle>
             <DialogContent>
@@ -1264,6 +1129,7 @@ function CompaniesPage() {
               </Button>
             </DialogActions>
           </Dialog>
+
         </Box>
       </DashboardLayout>
     </RouteGuard>

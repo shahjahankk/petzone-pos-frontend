@@ -155,7 +155,7 @@ const MODULES = [
         color: '#f57c00',
         scopeTypes: ['BRANCH', 'WAREHOUSE'],
         description: 'Expenses, income & vouchers',
-        path: '/dashboard/vouchers',
+        path: '/dashboard/financial-vouchers',
       },
       {
         label: 'Reports',
