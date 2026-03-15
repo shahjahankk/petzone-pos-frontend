@@ -123,8 +123,8 @@ const MODULES = [
         label: 'Retailers / Customers',
         icon: <RetailersIcon sx={{ fontSize: 36 }} />,
         color: '#2e7d32',
-        scopeTypes: ['BRANCH', 'WAREHOUSE'],
-        description: 'Manage customer accounts',
+        scopeTypes: ['WAREHOUSE'],
+        description: 'Manage retailer accounts',
         path: '/dashboard/retailers',
       },
       {

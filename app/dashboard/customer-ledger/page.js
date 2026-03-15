@@ -157,8 +157,10 @@ function CustomerLedgerPage() {
       offset:     (customersPage - 1) * 20,
       _t:         Date.now(),
     }
-    // Scope params: admin simulation takes priority, then regular role
+    // Scope params: admin simulation takes priority, then regular role.
+    // These params are forwarded to the backend so it filters by location.
     if (isAdminMode && urlParams.scope && urlParams.id) {
+      // Admin simulating a branch/warehouse — scope to that specific location ONLY
       params.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
       params.scopeId   = urlParams.id
     } else if (user?.role === 'CASHIER' && user?.branchId) {
@@ -168,6 +170,10 @@ function CustomerLedgerPage() {
       params.scopeType = 'WAREHOUSE'
       params.scopeId   = String(user.warehouseId)
     }
+    // Pass all params including scopeType/scopeId to the Redux thunk.
+    // IMPORTANT: The customerLedgerSlice thunk MUST forward scopeType/scopeId as
+    // query params to the backend (e.g. GET /customer-ledger/customers?scopeType=BRANCH&scopeId=1).
+    // If your slice strips these params, add them to the API call in the slice itself.
     dispatch(fetchAllCustomersWithSummaries(params))
   }, [dispatch, customersPage, searchTerm, hasBalanceFilter, user, isAdminMode, urlParams])
 

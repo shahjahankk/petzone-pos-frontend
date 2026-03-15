@@ -81,6 +81,31 @@ function AllLedgerContent() {
     return parseFloat(t.paid_amount || t.payment_amount || 0) || 0
   }
 
+  // ── Sort transactions ascending by date then invoice number ───────────────
+  // This ensures the ledger reads chronologically: first invoice at top,
+  // latest invoice at bottom — like a proper account statement.
+  const sortTransactionsAsc = (transactions) => {
+    if (!transactions || transactions.length === 0) return []
+    return [...transactions].sort((a, b) => {
+      // Primary sort: transaction date ascending (oldest first)
+      const dateA = new Date(a.transaction_date || a.created_at || 0).getTime()
+      const dateB = new Date(b.transaction_date || b.created_at || 0).getTime()
+      if (dateA !== dateB) return dateA - dateB
+
+      // Secondary sort: invoice number ascending (e.g. PZ-000007 before PZ-000011)
+      const invoiceA = a.invoice_no || ''
+      const invoiceB = b.invoice_no || ''
+
+      // Extract numeric part from invoice for proper numeric sort
+      const numA = parseInt(invoiceA.replace(/\D/g, '') || '0', 10)
+      const numB = parseInt(invoiceB.replace(/\D/g, '') || '0', 10)
+      if (numA !== numB) return numA - numB
+
+      // Fallback: transaction_id ascending
+      return (a.transaction_id || 0) - (b.transaction_id || 0)
+    })
+  }
+
   const groups = currentCustomerLedger?.groupedLedgers || []
   const totalRecords = currentCustomerLedger?.pagination?.total || 0
   const uniqueCount = currentCustomerLedger?.customer?.unique_customers ?? groups.length
@@ -159,10 +184,10 @@ function AllLedgerContent() {
         {!loading && groups.length > 0 && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {[
-              { label: 'Total Customers', value: uniqueCount, color: '#3b82f6' },
-              { label: 'Total Amount', value: formatCurrency(grandTotals.totalAmount), color: '#1e293b' },
-              { label: 'Total Paid', value: formatCurrency(grandTotals.totalPaid), color: '#22c55e' },
-              { label: 'Outstanding Balance', value: formatCurrency(grandTotals.outstandingBalance), color: '#ef4444' },
+              { label: 'Total Customers',    value: uniqueCount,                                  color: '#3b82f6' },
+              { label: 'Total Amount',       value: formatCurrency(grandTotals.totalAmount),      color: '#1e293b' },
+              { label: 'Total Paid',         value: formatCurrency(grandTotals.totalPaid),        color: '#22c55e' },
+              { label: 'Outstanding Balance',value: formatCurrency(grandTotals.outstandingBalance), color: '#ef4444' },
             ].map((card) => (
               <Grid item xs={12} sm={6} md={3} key={card.label}>
                 <Paper sx={{ p: 2.5, borderRadius: 2, borderLeft: `4px solid ${card.color}` }} elevation={0} variant="outlined">
@@ -185,13 +210,16 @@ function AllLedgerContent() {
         {/* Customer Groups */}
         {!loading && groups.map((group, gIdx) => {
           const gs = group.summary || {}
-          const transactions = group.transactions || []
+
+          // ── Sort transactions ascending so first invoice shows at top ──────
+          const transactions = sortTransactionsAsc(group.transactions || [])
 
           const custTotals = transactions.reduce((acc, t) => ({
             amount: acc.amount + parseFloat(t.amount || t.subtotal || 0),
-            paid: acc.paid + getPaid(t),
+            paid:   acc.paid   + getPaid(t),
           }), { amount: 0, paid: 0 })
 
+          // Running balance after last transaction (last row after ascending sort)
           const lastBalance = transactions.length > 0
             ? parseFloat(transactions[transactions.length - 1]?.running_balance || transactions[transactions.length - 1]?.balance || 0)
             : 0
@@ -217,25 +245,30 @@ function AllLedgerContent() {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {['Date', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance'].map(h => (
+                      {/* Added # serial column */}
+                      {['#', 'Date', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance'].map(h => (
                         <TableCell key={h} sx={H}>{h}</TableCell>
                       ))}
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {transactions.map((t, tIdx) => {
-                      const amount = parseFloat(t.amount || t.subtotal || 0)
-                      const oldBal = parseFloat(t.old_balance || 0)
+                      const amount   = parseFloat(t.amount || t.subtotal || 0)
+                      const oldBal   = parseFloat(t.old_balance || 0)
                       const totalAmt = parseFloat(t.total_amount || 0)
-                      const paid = getPaid(t)
-                      const balance = parseFloat(t.running_balance || t.balance || 0)
+                      const paid     = getPaid(t)
+                      const balance  = parseFloat(t.running_balance || t.balance || 0)
                       const isReturn = t.transaction_type === 'RETURN'
-                      const txType = getTxType(t)
-                      const status = getStatus(t)
+                      const txType   = getTxType(t)
+                      const status   = getStatus(t)
 
                       return (
                         <TableRow key={t.transaction_id || tIdx}
                           sx={{ '&:hover': { backgroundColor: '#f8fafc' }, backgroundColor: isReturn ? 'rgba(239,68,68,0.04)' : 'inherit' }}>
+                          {/* Serial number — 1-based, ascending */}
+                          <TableCell sx={{ ...C, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {tIdx + 1}
+                          </TableCell>
                           <TableCell sx={{ ...C, whiteSpace: 'nowrap' }}>{formatDate(t.transaction_date)}</TableCell>
                           <TableCell sx={{ ...C, fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {isReturn && <span style={{ color: '#ef4444', marginRight: 4 }}>↩</span>}
@@ -266,6 +299,7 @@ function AllLedgerContent() {
 
                     {/* Per-customer total row */}
                     <TableRow sx={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1' }}>
+                      <TableCell sx={{ ...C, fontWeight: 700, color: '#1e293b', fontSize: '0.8rem' }} />
                       <TableCell colSpan={3} sx={{ ...C, fontWeight: 700, color: '#1e293b', fontSize: '0.8rem' }}>
                         {group.customer?.name || 'Total'}
                       </TableCell>
@@ -302,8 +336,8 @@ function AllLedgerContent() {
               <Table size="small">
                 <TableBody>
                   <TableRow sx={{ backgroundColor: '#f8fafc' }}>
-                    {/* col 1-3 */}
-                    <TableCell colSpan={3} sx={{ ...C, fontWeight: 700, color: '#475569' }}>
+                    {/* # + col 1-3 */}
+                    <TableCell colSpan={4} sx={{ ...C, fontWeight: 700, color: '#475569' }}>
                       {grandTotals.totalTransactions} Transactions across {uniqueCount} Customers
                     </TableCell>
                     {/* Amount */}
