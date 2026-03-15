@@ -238,48 +238,62 @@ export default function InventoryReportsPage() {
             ))}
           </Grid>
 
-          {/* Charts */}
-          <Grid container spacing={2.5} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={8}>
-              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: 380, display: "flex", flexDirection: "column" }}>
-                <Typography fontWeight={600} sx={{ mb: 2 }}>Inventory Movement</Typography>
-                <Box sx={{ flex: 1 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={movementData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={divider} />
-                      <XAxis dataKey="date" tick={{ fill: textMuted, fontSize: 11 }} />
-                      <YAxis tick={{ fill: textMuted, fontSize: 11 }} />
-                      <Tooltip {...tooltipStyle} />
-                      <Legend iconSize={10} wrapperStyle={{ color: textMuted, fontSize: 12 }} />
-                      <Line name="Received" type="monotone" dataKey="received" stroke="#14b8a6" strokeWidth={2} dot={false} />
-                      <Line name="Sold"     type="monotone" dataKey="sold"     stroke="#06b6d4" strokeWidth={2} dot={false} />
-                      <Line name="Returned" type="monotone" dataKey="returned" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
+          {/* ── Inventory Movement — FULL WIDTH ──────────────────────────── */}
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 3 }}>
+            <Typography fontWeight={600} sx={{ mb: 2 }}>Inventory Movement</Typography>
+            {movementData.length === 0
+              ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'text.disabled' }}>
+                  <Typography>No movement data for selected period</Typography>
                 </Box>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: 380, display: "flex", flexDirection: "column" }}>
-                <Typography fontWeight={600} sx={{ mb: 2 }}>By Category</Typography>
-                {categoryData.length === 0 ? (
-                  <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Typography color="text.disabled">No category data</Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ flex: 1 }}><ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={categoryData} cx="50%" cy="50%" outerRadius={90} dataKey="value" labelLine={false}
-                        label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}>
-                        {categoryData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip {...tooltipStyle} />
-                    </PieChart>
-                  </ResponsiveContainer></Box>
-                )}
-              </Paper>
-            </Grid>
-          </Grid>
+              : <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={movementData} margin={{ top: 5, right: 24, left: 0, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={divider} vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: textMuted, fontSize: 12 }} tickLine={false} axisLine={{ stroke: divider }} />
+                    <YAxis tick={{ fill: textMuted, fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <Tooltip {...tooltipStyle} />
+                    <Legend iconSize={11} wrapperStyle={{ color: textMuted, fontSize: 13 }} iconType="circle" />
+                    <Line name="Received" type="monotone" dataKey="received" stroke="#14b8a6" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                    <Line name="Sold"     type="monotone" dataKey="sold"     stroke="#06b6d4" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                    <Line name="Returned" type="monotone" dataKey="returned" stroke="#f59e0b" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+            }
+          </Paper>
+
+          {/* ── By Category — FULL WIDTH with donut + legend side by side ─── */}
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, mb: 3 }}>
+            <Typography fontWeight={600} sx={{ mb: 2 }}>Inventory by Category</Typography>
+            {categoryData.length === 0
+              ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 260, color: 'text.disabled' }}>
+                  <Typography>No category data</Typography>
+                </Box>
+              : <Grid container spacing={3} alignItems="center">
+                  <Grid item xs={12} md={5}>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <PieChart>
+                        <Pie data={categoryData} cx="50%" cy="50%" outerRadius={110} dataKey="value" labelLine={false}
+                          label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}>
+                          {categoryData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                        </Pie>
+                        <Tooltip {...tooltipStyle} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </Grid>
+                  <Grid item xs={12} md={7}>
+                    {categoryData.map((cat, i) => (
+                      <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.8, borderBottom: i < categoryData.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: cat.color, flexShrink: 0 }} />
+                        <Typography sx={{ flex: 1, fontSize: '.88rem', fontWeight: 500 }}>{cat.name}</Typography>
+                        <Typography sx={{ fontWeight: 700, fontSize: '.88rem' }}>{cat.value} items</Typography>
+                        <Typography sx={{ color: 'text.disabled', fontSize: '.78rem', minWidth: 48 }}>
+                          {categoryData.length > 0 ? `${((cat.value / categoryData.reduce((s, c) => s + c.value, 0)) * 100).toFixed(1)}%` : ''}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Grid>
+                </Grid>
+            }
+          </Paper>
 
           {/* Tables */}
           <Grid container spacing={2.5}>

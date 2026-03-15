@@ -305,62 +305,75 @@ export default function FinancialReportsPage() {
               }
             </Paper>
 
-            {/* ── Cash Flow + Expense Breakdown ────────────────────────────── */}
-            <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={7}>
-                <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, bgcolor: '#fff' }}>
-                  <SectionTitle title="Cash Flow Analysis" icon={<Assessment />} />
-                  {cashFlowData.length === 0
-                    ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, color: 'text.disabled' }}>
-                        <Typography>No cash flow data</Typography>
-                      </Box>
-                    : <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={cashFlowData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} barGap={4} barCategoryGap="35%">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="month" tick={{ fill: '#aaa', fontSize: 12 }} tickLine={false} axisLine={{ stroke: '#ececec' }} />
-                          <YAxis tick={{ fill: '#aaa', fontSize: 12 }} tickFormatter={yFmt} width={60} tickLine={false} axisLine={false} />
-                          <Tooltip {...TT} formatter={(v, name) => [`PKR ${fmt(v)}`, name]} />
-                          <Legend iconSize={11} wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconType="circle" />
-                          <Bar name="Operating" dataKey="operating" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                          <Bar name="Investing" dataKey="investing" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                          <Bar name="Financing" dataKey="financing" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                        </BarChart>
+            {/* ── Cash Flow Analysis — FULL WIDTH ─────────────────────────── */}
+            <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, mb: 3, bgcolor: '#fff' }}>
+              <SectionTitle title="Cash Flow Analysis" icon={<Assessment />} />
+              {cashFlowData.length === 0
+                ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, color: 'text.disabled' }}>
+                    <Typography>No cash flow data</Typography>
+                  </Box>
+                : <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={cashFlowData} margin={{ top: 10, right: 24, left: 0, bottom: 20 }} barGap={4} barCategoryGap="35%">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fill: '#aaa', fontSize: 13 }} tickLine={false} axisLine={{ stroke: '#ececec' }} />
+                      <YAxis tick={{ fill: '#aaa', fontSize: 13 }} tickFormatter={yFmt} width={68} tickLine={false} axisLine={false} />
+                      <Tooltip {...TT} formatter={(v, name) => [`PKR ${fmt(v)}`, name]} />
+                      <Legend iconSize={12} wrapperStyle={{ fontSize: 13, paddingTop: 14 }} iconType="circle" />
+                      <Bar name="Operating" dataKey="operating" fill="#10b981" radius={[5, 5, 0, 0]} maxBarSize={48} />
+                      <Bar name="Investing" dataKey="investing" fill="#6366f1" radius={[5, 5, 0, 0]} maxBarSize={48} />
+                      <Bar name="Financing" dataKey="financing" fill="#f59e0b" radius={[5, 5, 0, 0]} maxBarSize={48} />
+                    </BarChart>
+                  </ResponsiveContainer>
+              }
+            </Paper>
+
+            {/* ── Expense Breakdown — FULL WIDTH ───────────────────────────── */}
+            <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, mb: 3, bgcolor: '#fff' }}>
+              <SectionTitle title="Expense Breakdown by Category" icon={<Receipt />} />
+              {expenseBreakdown.length === 0
+                ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'text.disabled' }}>
+                    <Typography>No expense data</Typography>
+                  </Box>
+                : <Grid container spacing={4} alignItems="center">
+                    <Grid item xs={12} md={5}>
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie data={expenseBreakdown} cx="50%" cy="50%" innerRadius={70} outerRadius={110}
+                            dataKey="amount" paddingAngle={3} labelLine={false}>
+                            {expenseBreakdown.map((e, i) => <Cell key={i} fill={e.color || PIE_COLORS[i % PIE_COLORS.length]} />)}
+                          </Pie>
+                          <Tooltip {...TT} formatter={v => [`PKR ${fmt(v)}`, '']} />
+                          <Legend iconSize={12} wrapperStyle={{ fontSize: 13 }} iconType="circle" />
+                        </PieChart>
                       </ResponsiveContainer>
-                  }
-                </Paper>
-              </Grid>
-              <Grid item xs={12} md={5}>
-                <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, bgcolor: '#fff' }}>
-                  <SectionTitle title="Expense Breakdown" icon={<Receipt />} />
-                  {expenseBreakdown.length === 0
-                    ? <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, color: 'text.disabled' }}>
-                        <Typography>No expense data</Typography>
-                      </Box>
-                    : <>
-                        <ResponsiveContainer width="100%" height={200}>
-                          <PieChart>
-                            <Pie data={expenseBreakdown} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
-                              dataKey="amount" paddingAngle={2} labelLine={false}>
-                              {expenseBreakdown.map((e, i) => <Cell key={i} fill={e.color || PIE_COLORS[i % PIE_COLORS.length]} />)}
-                            </Pie>
-                            <Tooltip {...TT} formatter={v => [`PKR ${fmt(v)}`, '']} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <Box sx={{ mt: 1 }}>
-                          {expenseBreakdown.map((e, i) => (
-                            <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.8 }}>
-                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: e.color || PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
-                              <Typography variant="caption" color="text.secondary" sx={{ flex: 1, fontWeight: 500 }}>{e.category}</Typography>
-                              <Typography variant="caption" fontWeight={700}>PKR {fmt(e.amount)}</Typography>
-                              <Typography variant="caption" color="text.disabled" sx={{ minWidth: 36 }}>{e.percentage}%</Typography>
+                    </Grid>
+                    <Grid item xs={12} md={7}>
+                      {expenseBreakdown.map((e, i) => (
+                        <Box key={i} sx={{ py: 1.2, borderBottom: i < expenseBreakdown.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.6 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: e.color || PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                              <Typography sx={{ fontSize: '.88rem', fontWeight: 500 }}>{e.category}</Typography>
                             </Box>
-                          ))}
+                            <Box sx={{ display: 'flex', gap: 2 }}>
+                              <Typography sx={{ fontWeight: 700, fontSize: '.88rem' }}>PKR {fmt(e.amount)}</Typography>
+                              <Typography sx={{ color: 'text.disabled', fontSize: '.82rem', minWidth: 40 }}>{e.percentage}%</Typography>
+                            </Box>
+                          </Box>
+                          <Box sx={{ ml: 2.5 }}>
+                            <LinearProgress variant="determinate" value={e.percentage}
+                              sx={{ height: 5, borderRadius: 3, bgcolor: '#ececec', '& .MuiLinearProgress-bar': { bgcolor: e.color || PIE_COLORS[i % PIE_COLORS.length], borderRadius: 3 } }} />
+                          </Box>
                         </Box>
-                      </>
-                  }
-                </Paper>
-              </Grid>
-            </Grid>
+                      ))}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 2, mt: 1, borderTop: '2px solid #ef5350' }}>
+                        <Typography sx={{ fontWeight: 700 }}>Total Expenses</Typography>
+                        <Typography sx={{ fontWeight: 800, color: 'error.main' }}>PKR {fmt(totalExpenses)}</Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+              }
+            </Paper>
 
             {/* ── Profitability Metrics — FULL WIDTH ───────────────────────── */}
             {profitabilityMetrics.length > 0 && (
@@ -387,11 +400,9 @@ export default function FinancialReportsPage() {
               </Paper>
             )}
 
-            {/* ── Financial Ratios + Top Revenue Sources ────────────────────── */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, bgcolor: '#fff' }}>
-                  <SectionTitle title="Financial Ratios" icon={<Assessment />} />
+            {/* ── Financial Ratios — FULL WIDTH ────────────────────────────── */}
+            <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, mb: 3, bgcolor: '#fff' }}>
+              <SectionTitle title="Financial Ratios" icon={<Assessment />} />
                   <TableContainer>
                     <Table size="small">
                       <TableHead>
@@ -419,11 +430,11 @@ export default function FinancialReportsPage() {
                       </TableBody>
                     </Table>
                   </TableContainer>
-                </Paper>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, bgcolor: '#fff' }}>
-                  <SectionTitle title="Top Revenue Sources" icon={<AttachMoney />} />
+            </Paper>
+
+            {/* ── Top Revenue Sources — FULL WIDTH ─────────────────────────── */}
+            <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3.5, mb: 3, bgcolor: '#fff' }}>
+              <SectionTitle title="Top Revenue Sources" icon={<AttachMoney />} />
                   <TableContainer>
                     <Table size="small">
                       <TableHead>
@@ -458,9 +469,7 @@ export default function FinancialReportsPage() {
                       </TableBody>
                     </Table>
                   </TableContainer>
-                </Paper>
-              </Grid>
-            </Grid>
+            </Paper>
 
             {/* ── Zakat Banner ─────────────────────────────────────────────── */}
             {netProfit > 0 && (
