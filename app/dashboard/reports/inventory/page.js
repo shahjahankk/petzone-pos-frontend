@@ -7,7 +7,7 @@ import {
   Box, Card, CardContent, Grid, Typography, Paper, Button,
   Alert, FormControl, InputLabel, Select, MenuItem, TextField,
   Chip, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, Menu,
+  TableRow, Menu
 } from '@mui/material'
 import { Refresh, FilterList, Download, Inventory, Warning, TrendingUp, Assessment } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -28,7 +28,9 @@ export default function InventoryReportsPage() {
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
 
-  const { inventoryReports, isLoading, error } = useSelector((s) => s.reports)
+  const { inventoryReports: rawInventoryReports, isLoading, error } = useSelector((s) => s.reports)
+  // Handle both payload shapes: direct data or nested under .data
+  const inventoryReports = rawInventoryReports?.data || rawInventoryReports
   const [exportAnchor, setExportAnchor] = useState(null)
   const [filters, setFilters] = useState({
     warehouse: 'all', category: 'all', status: 'all',
@@ -94,7 +96,7 @@ export default function InventoryReportsPage() {
   return (
     <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER']}>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Box sx={{ p: 3, bgcolor: 'background.default', minHeight: '100vh' }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', p: 3, width: '100%' }}>
 
           {/* Header */}
           <Box sx={{
@@ -206,31 +208,33 @@ export default function InventoryReportsPage() {
           {/* Charts */}
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
             <Grid item xs={12} md={8}>
-              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: 380, display: "flex", flexDirection: "column" }}>
                 <Typography fontWeight={600} sx={{ mb: 2 }}>Inventory Movement</Typography>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={movementData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={divider} />
-                    <XAxis dataKey="date" tick={{ fill: textMuted, fontSize: 11 }} />
-                    <YAxis tick={{ fill: textMuted, fontSize: 11 }} />
-                    <Tooltip {...tooltipStyle} />
-                    <Legend iconSize={10} wrapperStyle={{ color: textMuted, fontSize: 12 }} />
-                    <Line name="Received" type="monotone" dataKey="received" stroke="#14b8a6" strokeWidth={2} dot={false} />
-                    <Line name="Sold"     type="monotone" dataKey="sold"     stroke="#06b6d4" strokeWidth={2} dot={false} />
-                    <Line name="Returned" type="monotone" dataKey="returned" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <Box sx={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={movementData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={divider} />
+                      <XAxis dataKey="date" tick={{ fill: textMuted, fontSize: 11 }} />
+                      <YAxis tick={{ fill: textMuted, fontSize: 11 }} />
+                      <Tooltip {...tooltipStyle} />
+                      <Legend iconSize={10} wrapperStyle={{ color: textMuted, fontSize: 12 }} />
+                      <Line name="Received" type="monotone" dataKey="received" stroke="#14b8a6" strokeWidth={2} dot={false} />
+                      <Line name="Sold"     type="monotone" dataKey="sold"     stroke="#06b6d4" strokeWidth={2} dot={false} />
+                      <Line name="Returned" type="monotone" dataKey="returned" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
               </Paper>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2, height: 380, display: "flex", flexDirection: "column" }}>
                 <Typography fontWeight={600} sx={{ mb: 2 }}>By Category</Typography>
                 {categoryData.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280 }}>
+                  <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Typography color="text.disabled">No category data</Typography>
                   </Box>
                 ) : (
-                  <ResponsiveContainer width="100%" height={280}>
+                  <Box sx={{ flex: 1 }}><ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={categoryData} cx="50%" cy="50%" outerRadius={90} dataKey="value" labelLine={false}
                         label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}>
@@ -238,7 +242,7 @@ export default function InventoryReportsPage() {
                       </Pie>
                       <Tooltip {...tooltipStyle} />
                     </PieChart>
-                  </ResponsiveContainer>
+                  </ResponsiveContainer></Box>
                 )}
               </Paper>
             </Grid>

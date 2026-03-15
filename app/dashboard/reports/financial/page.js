@@ -7,7 +7,7 @@ import {
   Box, Card, CardContent, Grid, Typography, Paper, Button,
   Alert, FormControl, InputLabel, Select, MenuItem, TextField,
   Chip, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, LinearProgress, Container,
+  TableRow, LinearProgress
 } from '@mui/material'
 import { Refresh, FilterList, Download, AttachMoney, TrendingUp, Receipt, PieChart as PieIcon, ArrowUpward, ArrowDownward } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -27,7 +27,9 @@ export default function FinancialReportsPage() {
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
 
-  const { financialReports, isLoading, error } = useSelector((s) => s.reports)
+  const { financialReports: rawFinancialReports, isLoading, error } = useSelector((s) => s.reports)
+  // Handle both payload shapes: direct data or nested under .data
+  const financialReports = rawFinancialReports?.data || rawFinancialReports
   const [filters, setFilters] = useState({
     period: 'monthly', year: new Date().getFullYear(), quarter: 'Q1',
     dateFrom: new Date(Date.now() - 365 * 86400000),
@@ -81,8 +83,7 @@ export default function FinancialReportsPage() {
   return (
     <RouteGuard allowedRoles={['ADMIN']}>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 3 }}>
-          <Container maxWidth="xl" sx={{ px: { xs: 2, md: 3 } }}>
+        <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', p: 3, width: '100%' }}>
 
           {/* Header */}
           <Box sx={{
@@ -367,7 +368,6 @@ export default function FinancialReportsPage() {
             </Grid>
           </Grid>
 
-          </Container>
         </Box>
       </LocalizationProvider>
     </RouteGuard>

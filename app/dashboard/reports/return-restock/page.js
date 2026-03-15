@@ -6,7 +6,7 @@ import {
   Box, Paper, Typography, Grid, TextField, FormControl,
   InputLabel, Select, MenuItem, Button, Alert, Chip,
   Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, CircularProgress, IconButton, Tooltip, Container,
+  TableRow, CircularProgress, IconButton, Tooltip,
   Card, CardContent, Collapse,
 } from '@mui/material'
 import { useSelector } from 'react-redux'
@@ -241,12 +241,27 @@ export default function ReturnRestockReportPage() {
       const qs = params.toString() ? `?${params}` : ''
 
       let grouped = []
+      let usedFallback = false
+
+      // ── Try dedicated /returns/restock endpoint first ──────────────────
       try {
-        const res = await api.get(`/returns/restock${qs}`)
-        grouped   = buildFromRestockEndpoint(res.data?.data || [])
-        setSource('dedicated')
+        const res  = await api.get(`/returns/restock${qs}`)
+        const data = res.data?.data || []
+        if (data.length > 0) {
+          // Dedicated endpoint has data — use it
+          grouped = buildFromRestockEndpoint(data)
+          setSource('dedicated')
+        } else {
+          // Dedicated endpoint returned empty — fall through to /sales/returns
+          usedFallback = true
+        }
       } catch {
-        // Fallback to /sales/returns
+        // Dedicated endpoint failed (404 or error) — fall through to /sales/returns
+        usedFallback = true
+      }
+
+      // ── Fallback: /sales/returns ──────────────────────────────────────
+      if (usedFallback) {
         const sQs = new URLSearchParams()
         if (filters.scopeType !== 'ALL') sQs.append('scopeType', filters.scopeType)
         if (filters.scopeId)             sQs.append('scopeId',   filters.scopeId)
@@ -254,14 +269,17 @@ export default function ReturnRestockReportPage() {
         let raw = fallbackRes.data?.data || fallbackRes.data || []
         if (!Array.isArray(raw)) raw = []
 
-        // Client-side filtering
+        // Client-side filtering on fallback data
         if (filters.search) {
           const q = filters.search.toLowerCase()
           raw = raw.filter(r =>
-            r.invoice_no?.toLowerCase().includes(q) ||
-            r.return_no?.toLowerCase().includes(q)  ||
+            r.invoice_no?.toLowerCase().includes(q)    ||
+            r.return_no?.toLowerCase().includes(q)     ||
             r.customer_name?.toLowerCase().includes(q) ||
-            (r.items || []).some(i => i.name?.toLowerCase().includes(q) || i.sku?.toLowerCase().includes(q))
+            (r.items || []).some(i =>
+              i.name?.toLowerCase().includes(q) ||
+              i.sku?.toLowerCase().includes(q)
+            )
           )
         }
         if (filters.from) raw = raw.filter(r => (r.created_at || '') >= filters.from)
@@ -299,8 +317,7 @@ export default function ReturnRestockReportPage() {
 
   return (
     <RouteGuard allowedRoles={['ADMIN']}>
-      <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: 3 }}>
-        <Container maxWidth="xl" sx={{ px: { xs: 2, md: 3 } }}>
+      <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', p: 3, width: '100%' }}>
 
           {/* Header */}
           <Box sx={{
@@ -462,7 +479,6 @@ export default function ReturnRestockReportPage() {
             </Typography>
           )}
 
-        </Container>
       </Box>
     </RouteGuard>
   )
