@@ -195,37 +195,74 @@ export default function ReturnRestockReportPage() {
   }
 
   // ── Transform /sales/returns fallback data ─────────────────────────────────
-  const buildFromSalesReturns = (raw) =>
-    raw.map(ret => {
-      const items = (ret.items || []).map(item => {
-        const returnedQty  = Number(item.quantity || 0)
-        const restockedQty = Number(item.restocked_quantity ?? item.restocked_qty ?? 0)
-        return {
-          sku:          item.sku        || '',
-          itemName:     item.name       || item.productName || item.itemName || item.item_name || '',
-          category:     item.category   || '',
-          unitPrice:    Number(item.unit_price || item.price || item.unitPrice || 0),
-          returnedQty,
-          restockedQty,
-        }
-      })
+  // The /sales/returns endpoint returns return headers only — no items array.
+  // We enrich each return by fetching its original sale from /sales/:id
+  // to get the line items (name, sku, qty, price).
+  const buildFromSalesReturns = async (raw) => {
+    const enriched = await Promise.all(raw.map(async (ret) => {
+      let items = []
+
+      // Try to fetch original sale items for this return
+      // GET /sales/returns/:id returns the return with its items array
+      // (same endpoint used by ReturnsPage handleViewDetails)
+      try {
+        const retRes  = await api.get(`/sales/returns/${ret.id}`)
+        const retData = retRes.data?.data || retRes.data || {}
+        const retItems = retData.items || []
+
+        items = retItems.map(item => {
+          const returnedQty  = Number(item.quantity          || 0)
+          // remaining_quantity tracks how much is still pending restock
+          const remainingQty = Number(item.remaining_quantity ?? item.remainingQuantity ?? returnedQty)
+          // restocked = total returned - remaining
+          const restockedQty = Math.max(0, returnedQty - remainingQty)
+          return {
+            sku:          item.sku           || '',
+            itemName:     item.name          || item.productName || item.itemName || item.item_name || '',
+            category:     item.category      || '',
+            unitPrice:    Number(item.unit_price || item.unitPrice || item.price || 0),
+            returnedQty,
+            restockedQty,
+          }
+        })
+      } catch {
+        // Return details fetch failed — show return row without items
+        items = []
+      }
+
       const totalReturnedQty  = items.reduce((s, i) => s + i.returnedQty,  0)
       const totalRestockedQty = items.reduce((s, i) => s + i.restockedQty, 0)
       const totalNotRestocked = Math.max(0, totalReturnedQty - totalRestockedQty)
       const totalValue        = items.reduce((s, i) => s + i.returnedQty * i.unitPrice, 0)
+        || Number(ret.total_refund || ret.totalRefund || 0)
+
+      // Derive status from return record itself (more reliable than item calc)
+      const retStatus = (ret.status || '').toUpperCase()
+      const status = retStatus === 'COMPLETED' ? 'COMPLETED'
+                   : retStatus === 'PENDING'   ? 'PENDING'
+                   : totalRestockedQty === 0   ? 'PENDING'
+                   : totalNotRestocked > 0     ? 'PARTIAL'
+                   : 'COMPLETED'
+
       return {
         id:               ret.id,
-        date:             ret.created_at || ret.return_date,
-        invoiceNo:        ret.invoice_no || ret.original_invoice_no || '—',
-        returnNo:         ret.return_no  || `RET-${ret.id}`,
-        scopeType:        ret.scope_type || '',
-        scopeName:        ret.branch_name || ret.warehouse_name || ret.scope_name || ret.scope_id || '',
+        date:             ret.created_at    || ret.return_date,
+        invoiceNo:        ret.invoice_no    || ret.original_invoice_no || '—',
+        returnNo:         ret.return_no     || `RET-${ret.id}`,
+        scopeType:        ret.scope_type    || (ret.warehouse_name ? 'WAREHOUSE' : ret.branch_name ? 'BRANCH' : ''),
+        scopeName:        ret.warehouse_name || ret.branch_name || ret.scope_name || ret.scope_id || '',
         customer:         ret.customer_name || ret.customer_phone || '',
-        performedBy:      ret.username || ret.processed_by_username || '',
-        items, totalReturnedQty, totalRestockedQty, totalNotRestocked, totalValue,
-        status: totalRestockedQty === 0 ? 'PENDING' : totalNotRestocked > 0 ? 'PARTIAL' : 'COMPLETED',
+        performedBy:      ret.username      || ret.processed_by_username || ret.processed_by_name || '',
+        items,
+        totalReturnedQty,
+        totalRestockedQty,
+        totalNotRestocked,
+        totalValue,
+        status,
       }
-    })
+    }))
+    return enriched
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -285,7 +322,7 @@ export default function ReturnRestockReportPage() {
         if (filters.from) raw = raw.filter(r => (r.created_at || '') >= filters.from)
         if (filters.to)   raw = raw.filter(r => (r.created_at || '') <= filters.to + 'T23:59:59')
 
-        grouped = buildFromSalesReturns(raw)
+        grouped = await buildFromSalesReturns(raw)
         if (filters.status !== 'ALL') grouped = grouped.filter(r => r.status === filters.status)
         setSource('fallback')
       }

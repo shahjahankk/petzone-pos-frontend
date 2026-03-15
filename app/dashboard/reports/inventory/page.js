@@ -19,6 +19,7 @@ import {
 } from 'recharts'
 import { fetchInventoryReports } from '../../../store/slices/reportsSlice'
 import RouteGuard from '../../../../components/auth/RouteGuard'
+import api from '../../../../utils/axios'
 
 const PIE_COLORS = ['#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444']
 const accent = '#14b8a6'
@@ -28,9 +29,13 @@ export default function InventoryReportsPage() {
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
 
-  const { inventoryReports: rawInventoryReports, isLoading, error } = useSelector((s) => s.reports)
-  // Handle both payload shapes: direct data or nested under .data
-  const inventoryReports = rawInventoryReports?.data || rawInventoryReports
+  // fetchInventoryReports hits /stock-reports (transaction rows, not summary)
+  // /reports/inventory returns the summary data we need — call it directly
+  const { isLoading: reduxLoading } = useSelector((s) => s.reports)
+  const [statistics, setStatistics] = useState({})
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState(null)
+  const isLoading = reduxLoading || loading
   const [exportAnchor, setExportAnchor] = useState(null)
   const [filters, setFilters] = useState({
     warehouse: 'all', category: 'all', status: 'all',
@@ -38,7 +43,31 @@ export default function InventoryReportsPage() {
     dateTo: new Date(),
   })
 
-  useEffect(() => { dispatch(fetchInventoryReports(filters)) }, [dispatch, filters])
+  useEffect(() => {
+    const loadInventory = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const params = new URLSearchParams()
+        if (filters.warehouse && filters.warehouse !== 'all') params.append('warehouse', filters.warehouse)
+        if (filters.category  && filters.category  !== 'all') params.append('category',  filters.category)
+        if (filters.status    && filters.status    !== 'all') params.append('status',    filters.status)
+        const startDate = filters.dateFrom instanceof Date ? filters.dateFrom.toISOString().split('T')[0] : filters.dateFrom
+        const endDate   = filters.dateTo   instanceof Date ? filters.dateTo.toISOString().split('T')[0]   : filters.dateTo
+        if (startDate) params.append('startDate', startDate)
+        if (endDate)   params.append('endDate',   endDate)
+
+        // /reports/inventory returns: { summary, lowStockItems, topSellingItems, movementData }
+        const res = await api.get(`/reports/inventory?${params.toString()}`)
+        setStatistics(res.data?.data || {})
+      } catch (err) {
+        setError(err?.response?.data?.message || 'Failed to load inventory data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadInventory()
+  }, [filters])
 
   const textMuted  = theme.palette.text.secondary
   const divider    = theme.palette.divider
@@ -56,14 +85,18 @@ export default function InventoryReportsPage() {
     labelStyle: { color: textPrimary },
   }
 
-  const movementData = Array.isArray(inventoryReports?.movementData) ? inventoryReports.movementData : []
-  const categoryData = inventoryReports?.summary?.categoryCounts
-    ? Object.entries(inventoryReports.summary.categoryCounts).map(([name, value], i) => ({
+  // /reports/inventory response shape:
+  // { summary: { totalItems, totalValue, stockStatusCounts, categoryCounts, turnoverRate },
+  //   lowStockItems: [], topSellingItems: [], movementData: [] }
+  const summary         = statistics?.summary         || {}
+  const movementData    = Array.isArray(statistics?.movementData)    ? statistics.movementData    : []
+  const categoryData    = summary?.categoryCounts
+    ? Object.entries(summary.categoryCounts).map(([name, value], i) => ({
         name, value, color: PIE_COLORS[i % PIE_COLORS.length],
       }))
     : []
-  const lowStockItems    = Array.isArray(inventoryReports?.lowStockItems)    ? inventoryReports.lowStockItems    : []
-  const topSellingItems  = Array.isArray(inventoryReports?.topSellingItems)  ? inventoryReports.topSellingItems  : []
+  const lowStockItems   = Array.isArray(statistics?.lowStockItems)   ? statistics.lowStockItems   : []
+  const topSellingItems = Array.isArray(statistics?.topSellingItems)  ? statistics.topSellingItems : []
 
   const handleExportCSV = () => {
     const rows = [
@@ -81,7 +114,7 @@ export default function InventoryReportsPage() {
     const w = window.open('', '_blank')
     w.document.write(`<html><head><title>Inventory Report</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f0f0f0}</style></head><body>
       <h1>Inventory Report — ${new Date().toLocaleDateString()}</h1>
-      <p>Total Items: ${inventoryReports?.summary?.totalItems || 0} | Low Stock: ${inventoryReports?.summary?.stockStatusCounts?.['Low Stock'] || 0}</p>
+      <p>Total Items: ${summary?.totalItems || 0} | Low Stock: ${summary?.stockStatusCounts?.['Low Stock'] || lowStockItems?.length || 0}</p>
       <h3>Low Stock Items</h3>
       <table><tr><th>Item</th><th>Current</th><th>Min</th><th>Status</th></tr>
       ${lowStockItems.map(r => `<tr><td>${r.name || r.itemName}</td><td>${r.current_stock || r.currentStock || 0}</td><td>${r.min_stock_level || r.minStockLevel || 0}</td><td>${r.stockStatus || 'Low'}</td></tr>`).join('')}
@@ -182,10 +215,10 @@ export default function InventoryReportsPage() {
           {/* Summary Cards */}
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
             {[
-              { label: 'Total Items',    value: (inventoryReports?.summary?.totalItems || 0).toLocaleString(),   accent: '#14b8a6', icon: <Inventory /> },
-              { label: 'Total Value',    value: (inventoryReports?.summary?.totalValue || 0).toLocaleString(),   accent: '#06b6d4', icon: <TrendingUp /> },
-              { label: 'Low Stock',      value: inventoryReports?.summary?.stockStatusCounts?.['Low Stock'] || 0, accent: '#f59e0b', icon: <Warning /> },
-              { label: 'Turnover Rate',  value: `${inventoryReports?.summary?.turnoverRate || '0'}x`,             accent: '#8b5cf6', icon: <Assessment /> },
+              { label: 'Total Items',    value: (summary?.totalItems || 0).toLocaleString(),   accent: '#14b8a6', icon: <Inventory /> },
+              { label: 'Total Value',    value: (summary?.totalValue || 0).toLocaleString(),   accent: '#06b6d4', icon: <TrendingUp /> },
+              { label: 'Low Stock',      value: summary?.stockStatusCounts?.['Low Stock'] || lowStockItems?.length || 0, accent: '#f59e0b', icon: <Warning /> },
+              { label: 'Turnover Rate',  value: `${summary?.turnoverRate || '0'}x`,             accent: '#8b5cf6', icon: <Assessment /> },
             ].map((c) => (
               <Grid item xs={12} sm={6} md={3} key={c.label}>
                 <Card variant="outlined" sx={{ borderLeft: `4px solid ${c.accent}`, borderRadius: 2, transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
