@@ -39,6 +39,7 @@ import buildPrintData from '../../../utils/buildPrintData'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ReadOnlyInvoiceView
+// Uses buildPrintData so the printed bill is IDENTICAL to warehouse billing
 // ─────────────────────────────────────────────────────────────────────────────
 const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehouses = [] }) => {
   const [showPrintDialog, setShowPrintDialog] = useState(false)
@@ -47,12 +48,27 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
     if (!sale) return {}
     const scopeType = sale.scope_type || sale.scopeType || ''
     const scopeId   = sale.scope_id   || sale.scopeId
+
     if (scopeType === 'WAREHOUSE') {
-      const wh = warehouses.find(w => w.name === scopeId || w.id === scopeId || w.id === Number(scopeId))
-      if (wh) return { name: wh.name, address: wh.location || wh.address || '', phone: wh.phone || wh.managerPhone || '', email: wh.email || '', logoUrl: wh.logoUrl || '/petzonelogo.png' }
+      const wh = warehouses.find(w =>
+        w.name === scopeId || w.id === scopeId || w.id === Number(scopeId)
+      )
+      if (wh) return {
+        name:    wh.name,
+        address: wh.location || wh.address || '',
+        phone:   wh.phone    || wh.managerPhone || '',
+        email:   wh.email    || '',
+        logoUrl: wh.logoUrl  || '/petzonelogo.png',
+      }
     } else {
       const br = branches.find(b => b.id === scopeId || b.id === Number(scopeId))
-      if (br) return { name: br.name, address: br.location || br.address || '', phone: br.phone || br.managerPhone || '', email: br.email || '', logoUrl: br.logoUrl || '/petzonelogo.png' }
+      if (br) return {
+        name:    br.name,
+        address: br.location || br.address || '',
+        phone:   br.phone    || br.managerPhone || '',
+        email:   br.email    || '',
+        logoUrl: br.logoUrl  || '/petzonelogo.png',
+      }
     }
     return {}
   }, [sale, branches, warehouses])
@@ -64,7 +80,7 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
 
   if (!sale) return null
 
-  const pd             = printData || {}
+  const pd = printData || {}
   const items          = pd.items          || []
   const subtotal       = pd.subtotal       || 0
   const tax            = pd.tax            || 0
@@ -75,7 +91,10 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
   const creditAmount   = pd.creditAmount   || 0
   const remainingBalance = pd.remainingBalance || 0
 
-  const methodColors = { CASH: 'success', CARD: 'primary', BANK_TRANSFER: 'info', MOBILE_PAYMENT: 'secondary', CHEQUE: 'warning', FULLY_CREDIT: 'error' }
+  const methodColors = {
+    CASH: 'success', CARD: 'primary', BANK_TRANSFER: 'info',
+    MOBILE_PAYMENT: 'secondary', CHEQUE: 'warning', FULLY_CREDIT: 'error',
+  }
 
   return (
     <>
@@ -84,14 +103,22 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">Sale Invoice — {sale.invoice_no || sale.id}</Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button variant="outlined" startIcon={<PrintIcon />} onClick={() => setShowPrintDialog(true)} size="small" disabled={!printData}>
+              <Button
+                variant="outlined"
+                startIcon={<PrintIcon />}
+                onClick={() => setShowPrintDialog(true)}
+                size="small"
+                disabled={!printData}
+              >
                 Print / Item Sheet
               </Button>
               <Button onClick={onClose} size="small">Close</Button>
             </Box>
           </Box>
         </DialogTitle>
+
         <DialogContent>
+          {/* Header info */}
           <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50' }}>
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
@@ -104,16 +131,26 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
               </Grid>
               <Grid item xs={12} md={4}>
                 <Typography variant="subtitle2" color="text.secondary">Payment Status</Typography>
-                <Chip label={pd.paymentStatus || 'N/A'} color={pd.paymentStatus === 'COMPLETED' ? 'success' : pd.paymentStatus === 'PENDING' ? 'error' : 'default'} size="small" />
+                <Chip
+                  label={pd.paymentStatus || 'N/A'}
+                  color={pd.paymentStatus === 'COMPLETED' ? 'success' : pd.paymentStatus === 'PENDING' ? 'error' : 'default'}
+                  size="small"
+                />
               </Grid>
               <Grid item xs={12} md={4}>
                 <Typography variant="subtitle2" color="text.secondary">Customer</Typography>
                 <Typography variant="body1">{pd.customerName}</Typography>
-                {pd.customerPhone && <Typography variant="caption" color="text.secondary">{pd.customerPhone}</Typography>}
+                {pd.customerPhone && (
+                  <Typography variant="caption" color="text.secondary">{pd.customerPhone}</Typography>
+                )}
               </Grid>
               <Grid item xs={12} md={4}>
                 <Typography variant="subtitle2" color="text.secondary">Payment Method</Typography>
-                <Chip label={(pd.paymentMethod || 'N/A').replace(/_/g, ' ')} color={methodColors[pd.paymentMethod] || 'default'} size="small" />
+                <Chip
+                  label={(pd.paymentMethod || 'N/A').replace(/_/g, ' ')}
+                  color={methodColors[pd.paymentMethod] || 'default'}
+                  size="small"
+                />
               </Grid>
               <Grid item xs={12} md={4}>
                 <Typography variant="subtitle2" color="text.secondary">
@@ -123,15 +160,22 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
               </Grid>
               {(pd.warehouseName || pd.branchName) && (
                 <Grid item xs={12} md={4}>
-                  <Typography variant="subtitle2" color="text.secondary">{pd.warehouseName ? 'Warehouse' : 'Branch'}</Typography>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    {pd.warehouseName ? 'Warehouse' : 'Branch'}
+                  </Typography>
                   <Typography variant="body1">{pd.warehouseName || pd.branchName}</Typography>
-                  {pd.companyAddress && <Typography variant="caption" color="text.secondary" display="block">{pd.companyAddress}</Typography>}
-                  {pd.companyPhone   && <Typography variant="caption" color="text.secondary" display="block">📞 {pd.companyPhone}</Typography>}
+                  {pd.companyAddress && (
+                    <Typography variant="caption" color="text.secondary" display="block">{pd.companyAddress}</Typography>
+                  )}
+                  {pd.companyPhone && (
+                    <Typography variant="caption" color="text.secondary" display="block">📞 {pd.companyPhone}</Typography>
+                  )}
                 </Grid>
               )}
             </Grid>
           </Paper>
 
+          {/* Items Table */}
           <TableContainer component={Paper} sx={{ mb: 2 }}>
             <Table size="small">
               <TableHead>
@@ -162,6 +206,7 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
             </Table>
           </TableContainer>
 
+          {/* Totals */}
           <Paper sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Box sx={{ width: 260 }}>
@@ -224,7 +269,13 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
       </Dialog>
 
       {showPrintDialog && printData && (
-        <PrintDialog open={showPrintDialog} onClose={() => setShowPrintDialog(false)} printData={printData} title="Print Sales Receipt" defaultLayout="color" />
+        <PrintDialog
+          open={showPrintDialog}
+          onClose={() => setShowPrintDialog(false)}
+          printData={printData}
+          title="Print Sales Receipt"
+          defaultLayout="color"
+        />
       )}
     </>
   )
@@ -237,7 +288,9 @@ const resolveCustomerName = (sale) => {
   if (sale.customerInfo?.name) return sale.customerInfo.name
   if (sale.customer_info) {
     try {
-      const ci = typeof sale.customer_info === 'string' ? JSON.parse(sale.customer_info) : sale.customer_info
+      const ci = typeof sale.customer_info === 'string'
+        ? JSON.parse(sale.customer_info)
+        : sale.customer_info
       return ci.name || 'Walk-in Customer'
     } catch (e) { return 'Walk-in Customer' }
   }
@@ -248,7 +301,9 @@ const resolvePaymentMethod = (sale) => {
   let pm = sale.paymentMethod || sale.payment_method
   if (!pm && sale.customer_info) {
     try {
-      const ci = typeof sale.customer_info === 'string' ? JSON.parse(sale.customer_info) : sale.customer_info
+      const ci = typeof sale.customer_info === 'string'
+        ? JSON.parse(sale.customer_info)
+        : sale.customer_info
       pm = ci.paymentMethod
     } catch (e) {}
   }
@@ -261,7 +316,9 @@ const resolveSalesperson = (sale) => {
   if (sp) return sp.name || (sp.id ? `Salesperson ${sp.id}` : null)
   if (sale.customer_info) {
     try {
-      const ci = typeof sale.customer_info === 'string' ? JSON.parse(sale.customer_info) : sale.customer_info
+      const ci = typeof sale.customer_info === 'string'
+        ? JSON.parse(sale.customer_info)
+        : sale.customer_info
       if (ci.salesperson) return ci.salesperson.name || (ci.salesperson.id ? `Salesperson ${ci.salesperson.id}` : null)
     } catch (e) {}
   }
@@ -276,9 +333,10 @@ const SalesManagement = () => {
   const { user: originalUser } = useSelector((state) => state.auth)
 
   // ── Admin simulation via URL params ──────────────────────────────────────
-  const [urlParams,   setUrlParams]   = useState({})
-  const [isAdminMode, setIsAdminMode] = useState(false)
-  const [initialized, setInitialized] = useState(false) // wait for URL params before first fetch
+  // FIX 1: Added initialized flag so fetch waits for URL params to be read
+  const [urlParams,    setUrlParams]    = useState({})
+  const [isAdminMode,  setIsAdminMode]  = useState(false)
+  const [initialized,  setInitialized]  = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -293,7 +351,7 @@ const SalesManagement = () => {
         setUrlParams({})
         setIsAdminMode(false)
       }
-      setInitialized(true) // ← mark ready after URL params are read
+      setInitialized(true) // mark ready after URL params are read
     }
   }, [originalUser])
 
@@ -324,28 +382,30 @@ const SalesManagement = () => {
   const user      = useMemo(() => getEffectiveUser(originalUser), [getEffectiveUser, originalUser])
   const scopeInfo = useMemo(() => getScopeInfo(), [getScopeInfo])
 
-  // baseScopeParams: the scope to use for all API calls
+  // FIX 2: isActualAdmin — use originalUser so permissions work correctly during simulation
+  const isActualAdmin = originalUser?.role === 'ADMIN'
+
   const baseScopeParams = useMemo(() => {
     if (!user) return {}
     if (scopeInfo?.scopeType && scopeInfo?.scopeId) {
       const parsedId = Number(scopeInfo.scopeId)
       return { scopeType: scopeInfo.scopeType, scopeId: Number.isNaN(parsedId) ? scopeInfo.scopeId : parsedId }
     }
-    if (user.role === 'CASHIER'          && user.branchId)    return { scopeType: 'BRANCH',    scopeId: Number(user.branchId) }
+    if (user.role === 'CASHIER' && user.branchId) return { scopeType: 'BRANCH', scopeId: Number(user.branchId) }
     if (user.role === 'WAREHOUSE_KEEPER' && user.warehouseId) return { scopeType: 'WAREHOUSE', scopeId: Number(user.warehouseId) }
     return {}
   }, [user, scopeInfo])
 
   // Redux state
-  const { branchSettings, data: branches }     = useSelector((state) => state.branches)
-  const { data: warehouses, warehouseSettings } = useSelector((state) => state.warehouses)
-  const { data: retailers }                     = useSelector((state) => state.retailers)
+  const { branchSettings, data: branches }           = useSelector((state) => state.branches)
+  const { data: warehouses, warehouseSettings }       = useSelector((state) => state.warehouses)
+  const { data: retailers }                           = useSelector((state) => state.retailers)
   const {
     data: sales = [], loading: salesLoading, error: salesError,
     returns: salesReturns = [], pagination: salesPagination = {}, summary: salesSummary = {}
   } = useSelector((state) => state.sales || {})
 
-  // Filter / sort state
+  // Filter/sort state
   const [filters, setFilters] = useState({
     scopeType: 'all', scopeId: 'all', companyId: 'all', retailerId: 'all', startDate: '', endDate: ''
   })
@@ -361,7 +421,7 @@ const SalesManagement = () => {
   const [page,                setPage]                = useState(1)
   const [rowsPerPage,         setRowsPerPage]         = useState(25)
 
-  // Dialog / drawer state
+  // Drawer / dialog state
   const [filterDrawerOpen,    setFilterDrawerOpen]    = useState(false)
   const [filteredSales,       setFilteredSales]       = useState([])
   const [exportAnchorEl,      setExportAnchorEl]      = useState(null)
@@ -374,16 +434,22 @@ const SalesManagement = () => {
   const [openDeleteDialog,    setOpenDeleteDialog]    = useState(false)
   const [entityToDelete,      setEntityToDelete]      = useState(null)
 
-  // Permissions — admin (real or simulated) always has full access
-  const isActualAdmin = originalUser?.role === 'ADMIN'
-  const canEdit = isActualAdmin || user?.role === 'ADMIN' ||
-    (user?.role === 'CASHIER'          && Boolean(branchSettings?.allowCashierSalesEdit)) ||
-    (user?.role === 'WAREHOUSE_KEEPER' && Boolean(warehouseSettings?.allowWarehouseSalesEdit))
-  const canDelete = isActualAdmin || user?.role === 'ADMIN' ||
-    (user?.role === 'CASHIER'          && Boolean(branchSettings?.allowCashierSalesDelete)) ||
-    (user?.role === 'WAREHOUSE_KEEPER' && Boolean(warehouseSettings?.allowWarehouseSalesDelete))
+  // FIX 3: Permissions — use isActualAdmin so admin always has full access even during simulation
+  const canView = true
+  const canEdit = (() => {
+    if (isActualAdmin || user?.role === 'ADMIN') return true
+    if (user?.role === 'CASHIER') return Boolean(branchSettings?.allowCashierSalesEdit)
+    if (user?.role === 'WAREHOUSE_KEEPER') return Boolean(warehouseSettings?.allowWarehouseSalesEdit)
+    return false
+  })()
+  const canDelete = (() => {
+    if (isActualAdmin || user?.role === 'ADMIN') return true
+    if (user?.role === 'CASHIER') return Boolean(branchSettings?.allowCashierSalesDelete)
+    if (user?.role === 'WAREHOUSE_KEEPER') return Boolean(warehouseSettings?.allowWarehouseSalesDelete)
+    return false
+  })()
 
-  // ── Data fetching ─────────────────────────────────────────────────────────
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const handleManualRefresh = useCallback(() => {
     const params = { ...baseScopeParams, page, limit: rowsPerPage, _t: Date.now() }
     if (isActualAdmin && !isAdminMode && scopeSearch) params.scopeSearch = scopeSearch
@@ -399,19 +465,20 @@ const SalesManagement = () => {
   }, [dispatch, baseScopeParams, page, rowsPerPage, isActualAdmin, isAdminMode, scopeSearch])
 
   const { isPolling, lastUpdate, refreshData } = useSalesPolling({
-    enabled: false, interval: 60000, onDataUpdate: handleDataUpdate
+    enabled: false,
+    interval: 60000,
+    onDataUpdate: handleDataUpdate
   })
 
-  // ── FIX: guard main fetch with initialized so it waits for URL params ─────
+  // FIX 4: Guard with initialized + fix scope logic for simulation mode
   useEffect(() => {
-    if (!initialized) return
+    if (!initialized) return // wait for URL params to be read first
 
     const timeoutId = setTimeout(() => {
       const salesParams = { ...baseScopeParams }
 
-      // ── Admin (unscoped) — apply extra filters ──────────────────────────
-      // Only apply extra scope filters when the admin is NOT in simulation mode.
-      // When in simulation mode, baseScopeParams already carries the right scope.
+      // Only apply extra scope/company filters when admin is NOT in simulation mode.
+      // When in simulation mode, baseScopeParams already has the correct scope.
       if (isActualAdmin && !isAdminMode) {
         if (filters.scopeType !== 'all') {
           salesParams.scopeType = filters.scopeType
@@ -421,8 +488,7 @@ const SalesManagement = () => {
           } else {
             delete salesParams.scopeId
           }
-        } else {
-          // No scope filter and no simulation — show all (admin global view)
+        } else if (!scopeInfo) {
           delete salesParams.scopeType
           delete salesParams.scopeId
         }
@@ -442,9 +508,9 @@ const SalesManagement = () => {
 
       dispatch(fetchSales(salesParams))
       dispatch(fetchSalesReturns(salesParams))
-    }, 300)
+    }, 500)
 
-    // Side-effect dispatches — fetch settings / retailers based on effective user
+    // Only fetch branches/warehouses for unscoped admin (global view)
     if (isActualAdmin && !isAdminMode) {
       dispatch(fetchBranches())
       dispatch(fetchWarehouses())
@@ -459,13 +525,9 @@ const SalesManagement = () => {
     if (user) dispatch(fetchInventory({ ...baseScopeParams }))
 
     return () => clearTimeout(timeoutId)
-  }, [
-    initialized, dispatch, user, filters, startDate, endDate,
-    baseScopeParams, scopeInfo, page, rowsPerPage, scopeSearch,
-    isActualAdmin, isAdminMode,
-  ])
+  }, [dispatch, user, filters, startDate, endDate, baseScopeParams, scopeInfo, page, rowsPerPage, scopeSearch, initialized, isActualAdmin, isAdminMode])
 
-  // ── Filter helpers ────────────────────────────────────────────────────────
+  // ── Filter helpers ─────────────────────────────────────────────────────────
   const handleFilterChange = (field, value) => {
     setFilters(prev => {
       const next = { ...prev, [field]: value }
@@ -490,8 +552,8 @@ const SalesManagement = () => {
     if (searchTerm) active.push(`Search: "${searchTerm}"`)
     if (scopeSearch && isActualAdmin && !isAdminMode) active.push(`Scope: "${scopeSearch}"`)
     if (paymentMethodFilter !== 'all') active.push(`Payment: ${paymentMethodFilter}`)
-    if (statusFilter        !== 'all') active.push(`Status: ${statusFilter}`)
-    if (scopeTypeFilter     !== 'all') active.push(`Scope: ${scopeTypeFilter}`)
+    if (statusFilter !== 'all') active.push(`Status: ${statusFilter}`)
+    if (scopeTypeFilter !== 'all') active.push(`Scope: ${scopeTypeFilter}`)
     return active
   }
 
@@ -499,52 +561,74 @@ const SalesManagement = () => {
     let filtered = (sales || []).filter(sale => {
       if (searchTerm) {
         const lower = searchTerm.toLowerCase()
-        if (!sale.invoice_no?.toLowerCase().includes(lower) && !resolveCustomerName(sale).toLowerCase().includes(lower)) return false
+        const invoiceMatch  = sale.invoice_no?.toLowerCase().includes(lower)
+        const customerMatch = resolveCustomerName(sale).toLowerCase().includes(lower)
+        if (!invoiceMatch && !customerMatch) return false
       }
+
       if (paymentMethodFilter !== 'all') {
-        const pm = sale.paymentMethod || sale.payment_method
-        const ps = sale.paymentStatus || sale.payment_status
+        const pm          = sale.paymentMethod || sale.payment_method
+        const ps          = sale.paymentStatus || sale.payment_status
+        const creditAmt   = sale.creditAmount  || 0
         if (paymentMethodFilter === 'partial_payment') {
-          if (ps !== 'PARTIAL' && (sale.creditAmount || 0) <= 0) return false
+          if (ps !== 'PARTIAL' && creditAmt <= 0) return false
         } else {
           if (pm?.toLowerCase() !== paymentMethodFilter.toLowerCase()) return false
         }
       }
-      if (statusFilter    !== 'all' && sale.status?.toLowerCase() !== statusFilter.toLowerCase()) return false
-      if (scopeTypeFilter !== 'all' && (sale.scope_type || sale.scopeType) !== scopeTypeFilter) return false
+
+      if (statusFilter !== 'all') {
+        if (sale.status?.toLowerCase() !== statusFilter.toLowerCase()) return false
+      }
+
+      if (scopeTypeFilter !== 'all') {
+        if ((sale.scope_type || sale.scopeType) !== scopeTypeFilter) return false
+      }
+
       if (startDate || endDate) {
         const saleDate = new Date(sale.created_at || sale.createdAt || 0)
         if (isNaN(saleDate.getTime())) return false
-        if (startDate) { const s = new Date(startDate); s.setHours(0,0,0,0); const d = new Date(saleDate); d.setHours(0,0,0,0); if (d < s) return false }
-        if (endDate)   { const e = new Date(endDate);   e.setHours(23,59,59,999); const d = new Date(saleDate); d.setHours(23,59,59,999); if (d > e) return false }
+        if (startDate) {
+          const s = new Date(startDate); s.setHours(0, 0, 0, 0)
+          const d = new Date(saleDate);  d.setHours(0, 0, 0, 0)
+          if (d < s) return false
+        }
+        if (endDate) {
+          const e = new Date(endDate);  e.setHours(23, 59, 59, 999)
+          const d = new Date(saleDate); d.setHours(23, 59, 59, 999)
+          if (d > e) return false
+        }
       }
+
       return true
     })
 
     filtered.sort((a, b) => {
       let aVal, bVal
       switch (sortBy) {
-        case 'total':        aVal = parseFloat(a.total || 0); bVal = parseFloat(b.total || 0); break
-        case 'invoice_no':   aVal = a.invoice_no || '';       bVal = b.invoice_no || '';       break
-        case 'customerName': aVal = resolveCustomerName(a);   bVal = resolveCustomerName(b);   break
-        default:             aVal = new Date(a.created_at || 0); bVal = new Date(b.created_at || 0); break
+        case 'total':        aVal = parseFloat(a.total || 0);     bVal = parseFloat(b.total || 0);     break
+        case 'invoice_no':   aVal = a.invoice_no || '';           bVal = b.invoice_no || '';           break
+        case 'customerName': aVal = resolveCustomerName(a);       bVal = resolveCustomerName(b);       break
+        case 'created_at':
+        default:             aVal = new Date(a.created_at || 0);  bVal = new Date(b.created_at || 0);  break
       }
       return sortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1)
     })
+
     return filtered
   }
 
   const allFilteredSales = getFilteredAndSortedSales()
-  const totalItems     = salesPagination?.total ?? allFilteredSales.length
-  const totalPages     = Math.max(1, Math.ceil(totalItems / rowsPerPage))
-  const startIndex     = (page - 1) * rowsPerPage
-  const endIndex       = startIndex + rowsPerPage
+  const totalItems  = salesPagination?.total ?? allFilteredSales.length
+  const totalPages  = Math.max(1, Math.ceil(totalItems / rowsPerPage))
+  const startIndex  = (page - 1) * rowsPerPage
+  const endIndex    = startIndex + rowsPerPage
   const paginatedSales = allFilteredSales
 
-  const handlePageChange        = (event, newPage) => setPage(newPage)
+  const handlePageChange       = (event, newPage) => setPage(newPage)
   const handleRowsPerPageChange = (event) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(1) }
 
-  // ── Sale actions ──────────────────────────────────────────────────────────
+  // ── Sale actions ───────────────────────────────────────────────────────────
   const fetchSaleForEdit = async (saleId) => {
     try {
       const result = await dispatch(getSale(saleId))
@@ -555,7 +639,9 @@ const SalesManagement = () => {
         return saleData
       }
       return null
-    } catch { return null }
+    } catch (error) {
+      return null
+    }
   }
 
   const handleDeleteSale = async () => {
@@ -576,20 +662,30 @@ const SalesManagement = () => {
   const handleEditInvoice = async (sale) => {
     try {
       const response = await api.get(`/sales/${sale.id}`)
-      if (response.data.success) { setEditingSale(response.data.data); setShowEditableInvoice(true) }
-      else alert('Failed to load sale details')
-    } catch { alert('Failed to load sale details') }
+      if (response.data.success) {
+        setEditingSale(response.data.data)
+        setShowEditableInvoice(true)
+      } else {
+        alert('Failed to load sale details')
+      }
+    } catch (error) {
+      alert('Failed to load sale details')
+    }
   }
 
-  const handleCloseEditableInvoice = () => { setShowEditableInvoice(false); setEditingSale(null) }
-  const handleSaveEditableInvoice  = () => {
+  const handleCloseEditableInvoice = () => {
+    setShowEditableInvoice(false)
+    setEditingSale(null)
+  }
+
+  const handleSaveEditableInvoice = () => {
     dispatch(fetchSales({ ...baseScopeParams, page, limit: rowsPerPage }))
     dispatch(fetchInventory(baseScopeParams))
     setShowEditableInvoice(false)
     setEditingSale(null)
   }
 
-  // ── Export helpers ────────────────────────────────────────────────────────
+  // ── Export ─────────────────────────────────────────────────────────────────
   const handleExportClick = (event) => setExportAnchorEl(event.currentTarget)
   const handleExportClose = () => setExportAnchorEl(null)
 
@@ -599,10 +695,10 @@ const SalesManagement = () => {
       if (!sale?.items || !Array.isArray(sale.items)) return
       sale.items.forEach((item) => {
         const name     = item?.itemName || item?.name || item?.productName || 'Unknown Item'
-        const sku      = item?.sku || 'N/A'
+        const sku      = item?.sku      || 'N/A'
         const quantity = Number(item?.quantity) || 0
         const total    = Number(item?.total ?? (item?.unitPrice || 0) * quantity) || 0
-        const key      = `${name}|||${sku}`
+        const key = `${name}|||${sku}`
         if (!map.has(key)) map.set(key, { name, sku, totalQuantity: 0, totalSales: 0 })
         const entry = map.get(key)
         entry.totalQuantity += quantity
@@ -613,16 +709,21 @@ const SalesManagement = () => {
   }
 
   const safeDate = (d) => d ? d.toLocaleDateString() : 'N/A'
-  const getSalespersonCell = (sale, hasWarehouse) => hasWarehouse ? [resolveSalesperson(sale) || 'N/A'] : []
+
+  const getSalespersonCell = (sale, hasWarehouse) => {
+    if (!hasWarehouse) return []
+    return [resolveSalesperson(sale) || 'N/A']
+  }
 
   const generateCSV = (salesData) => {
+    const totalRevenue  = salesData.reduce((s, x) => s + parseFloat(x.total          || 0), 0)
     const totalSubtotal = salesData.reduce((s, x) => s + parseFloat(x.subtotal       || 0), 0)
     const totalTax      = salesData.reduce((s, x) => s + parseFloat(x.tax            || 0), 0)
     const totalDiscount = salesData.reduce((s, x) => s + parseFloat(x.discount       || 0), 0)
-    const totalRevenue  = salesData.reduce((s, x) => s + parseFloat(x.total          || 0), 0)
     const totalPayment  = salesData.reduce((s, x) => s + parseFloat(x.payment_amount || 0), 0)
     const itemSummary   = buildItemSummary(salesData)
     const hasWarehouse  = salesData.some(s => (s.scope_type || s.scopeType) === 'WAREHOUSE')
+
     const summary = [
       ['Sales Report Summary'],
       ['Report Date Range', `${safeDate(startDate)} - ${safeDate(endDate)}`],
@@ -631,130 +732,261 @@ const SalesManagement = () => {
       ['Total Tax', totalTax.toFixed(2)],
       ['Total Discount', totalDiscount.toFixed(2)],
       ['Total Revenue', totalRevenue.toFixed(2)],
-      ['Total Payments Received', totalPayment.toFixed(2)], ['']
+      ['Total Payments Received', totalPayment.toFixed(2)],
+      ['']
     ]
+
     if (itemSummary.length > 0) {
       summary.push(['Product Summary'], ['Product', 'SKU', 'Total Quantity', 'Total Sales'])
       itemSummary.forEach(i => summary.push([i.name, i.sku, i.totalQuantity, i.totalSales.toFixed(2)]))
       summary.push([''])
     }
+
     const headers = hasWarehouse
       ? ['ID', 'Date', 'Time', 'Invoice #', 'Customer', 'Salesperson', 'Subtotal', 'Tax', 'Discount', 'Total', 'Payment', 'Credit', 'Balance', 'Payment Method', 'Payment Type', 'Payment Status', 'Returns', 'Notes', 'Created By']
-      : ['ID', 'Date', 'Time', 'Invoice #', 'Customer',                'Subtotal', 'Tax', 'Discount', 'Total', 'Payment', 'Credit', 'Balance', 'Payment Method', 'Payment Type', 'Payment Status', 'Returns', 'Notes', 'Created By']
+      : ['ID', 'Date', 'Time', 'Invoice #', 'Customer', 'Subtotal', 'Tax', 'Discount', 'Total', 'Payment', 'Credit', 'Balance', 'Payment Method', 'Payment Type', 'Payment Status', 'Returns', 'Notes', 'Created By']
+
     const rows = salesData.map(sale => {
       const returns = salesReturns?.filter(r => r.sale_id === sale.id) || []
       const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
       const d = new Date(sale.created_at)
       return [
-        sale.id, d.toLocaleDateString(),
+        sale.id,
+        d.toLocaleDateString(),
         d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-        sale.invoice_no || 'N/A', resolveCustomerName(sale),
+        sale.invoice_no || 'N/A',
+        resolveCustomerName(sale),
         ...getSalespersonCell(sale, hasWarehouse),
-        parseFloat(sale.subtotal        || 0).toFixed(2), parseFloat(sale.tax             || 0).toFixed(2),
-        parseFloat(sale.discount        || 0).toFixed(2), parseFloat(sale.total           || 0).toFixed(2),
-        parseFloat(sale.payment_amount  || 0).toFixed(2), parseFloat(sale.credit_amount   || sale.creditAmount   || 0).toFixed(2),
-        parseFloat(sale.running_balance || sale.runningBalance || 0).toFixed(2),
+        parseFloat(sale.subtotal       || 0).toFixed(2),
+        parseFloat(sale.tax            || 0).toFixed(2),
+        parseFloat(sale.discount       || 0).toFixed(2),
+        parseFloat(sale.total          || 0).toFixed(2),
+        parseFloat(sale.payment_amount || 0).toFixed(2),
+        parseFloat(sale.credit_amount  || sale.creditAmount  || 0).toFixed(2),
+        parseFloat(sale.running_balance|| sale.runningBalance|| 0).toFixed(2),
         sale.paymentMethod || sale.payment_method || 'N/A',
         sale.paymentType   || sale.payment_type   || 'N/A',
         sale.paymentStatus || sale.payment_status || 'N/A',
-        totalReturnedQty, sale.notes || 'No Notes',
+        totalReturnedQty,
+        sale.notes || 'No Notes',
         sale.created_by || sale.username || sale.user_name || 'Unknown'
       ]
     })
-    return [...summary, headers, ...rows].map(row => Array.isArray(row) ? row.join(',') : `${row}`).join('\n')
+
+    return [...summary, headers, ...rows]
+      .map(row => Array.isArray(row) ? row.join(',') : `${row}`)
+      .join('\n')
   }
 
   const generateExcel = async (salesData) => {
     try {
-      const XLSX = await import('xlsx')
+      const XLSX        = await import('xlsx')
       const hasWarehouse = salesData.some(s => (s.scope_type || s.scopeType) === 'WAREHOUSE')
+
       const excelData = salesData.map(sale => {
         const returns = salesReturns?.filter(r => r.sale_id === sale.id) || []
         const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
         const d = new Date(sale.created_at)
         return {
-          'ID': sale.id, 'Date': d.toLocaleDateString(),
-          'Time': d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-          'Invoice #': sale.invoice_no || 'N/A', 'Customer': resolveCustomerName(sale),
+          'ID':             sale.id,
+          'Date':           d.toLocaleDateString(),
+          'Time':           d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+          'Invoice #':      sale.invoice_no || 'N/A',
+          'Customer':       resolveCustomerName(sale),
           ...(hasWarehouse ? { 'Salesperson': resolveSalesperson(sale) || 'N/A' } : {}),
-          'Subtotal': parseFloat(sale.subtotal        || 0).toFixed(2),
-          'Tax':      parseFloat(sale.tax             || 0).toFixed(2),
-          'Discount': parseFloat(sale.discount        || 0).toFixed(2),
-          'Total':    parseFloat(sale.total           || 0).toFixed(2),
-          'Payment':  parseFloat(sale.payment_amount  || 0).toFixed(2),
-          'Credit':   parseFloat(sale.credit_amount   || sale.creditAmount   || 0).toFixed(2),
-          'Balance':  parseFloat(sale.running_balance || sale.runningBalance || 0).toFixed(2),
+          'Subtotal':       parseFloat(sale.subtotal        || 0).toFixed(2),
+          'Tax':            parseFloat(sale.tax             || 0).toFixed(2),
+          'Discount':       parseFloat(sale.discount        || 0).toFixed(2),
+          'Total':          parseFloat(sale.total           || 0).toFixed(2),
+          'Payment':        parseFloat(sale.payment_amount  || 0).toFixed(2),
+          'Credit':         parseFloat(sale.credit_amount   || sale.creditAmount   || 0).toFixed(2),
+          'Balance':        parseFloat(sale.running_balance || sale.runningBalance || 0).toFixed(2),
           'Payment Method': sale.paymentMethod || sale.payment_method || 'N/A',
           'Payment Type':   sale.paymentType   || sale.payment_type   || 'N/A',
           'Payment Status': sale.paymentStatus || sale.payment_status || 'N/A',
-          'Returns': totalReturnedQty, 'Notes': sale.notes || 'No Notes',
-          'Created By': sale.created_by || sale.username || sale.user_name || 'Unknown'
+          'Returns':        totalReturnedQty,
+          'Notes':          sale.notes || 'No Notes',
+          'Created By':     sale.created_by || sale.username || sale.user_name || 'Unknown'
         }
       })
+
       const itemSummary = buildItemSummary(salesData)
-      const workbook = XLSX.utils.book_new()
+      const workbook    = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(excelData), 'Sales Data')
+
       const summarySheet = itemSummary.length > 0
         ? itemSummary.map(i => ({ 'Product': i.name, 'SKU': i.sku === 'N/A' ? '' : i.sku, 'Total Quantity': i.totalQuantity, 'Total Sales': i.totalSales.toFixed(2) }))
-        : [{ 'Product': 'No item data', 'SKU': '', 'Total Quantity': 0, 'Total Sales': '0.00' }]
+        : [{ 'Product': 'No item data for selected filters', 'SKU': '', 'Total Quantity': 0, 'Total Sales': '0.00' }]
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summarySheet), 'Item Summary')
+
       return XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
-    } catch { return generateCSV(salesData) }
+    } catch (error) {
+      return generateCSV(salesData)
+    }
   }
 
   const generatePDF = (salesData) => {
     const itemSummary  = buildItemSummary(salesData)
     const hasWarehouse = salesData.some(s => (s.scope_type || s.scopeType) === 'WAREHOUSE')
-    const itemSummaryHtml = itemSummary.length > 0 ? `<div class="summary"><h3>Item Summary</h3><table class="item-summary-table"><thead><tr><th>Product</th><th>SKU</th><th>Total Quantity</th><th>Total Sales</th></tr></thead><tbody>${itemSummary.map(i => `<tr><td>${i.name}</td><td>${i.sku}</td><td>${i.totalQuantity}</td><td>${i.totalSales.toFixed(2)}</td></tr>`).join('')}</tbody></table></div>` : ''
-    return `<!DOCTYPE html><html><head><title>Sales Report</title><style>body{font-family:Arial,sans-serif;margin:20px}.header{text-align:center;margin-bottom:30px;border-bottom:2px solid #333;padding-bottom:20px}.summary{background:#f5f5f5;padding:15px;margin-bottom:20px;border-radius:5px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background-color:#f2f2f2;font-weight:bold}.item-summary-table th{background-color:#e9f5ff}.status-completed{color:#28a745}.status-pending{color:#ffc107}.status-cancelled{color:#dc3545}</style></head><body><div class="header"><h1>Sales Report</h1><p>Generated on: ${new Date().toLocaleDateString()}</p><p>Date Range: ${safeDate(startDate)} to ${safeDate(endDate)}</p><p>Total Records: ${salesData.length}</p></div><div class="summary"><h3>Summary Statistics</h3><p><strong>Total Transactions:</strong> ${salesData.length}</p><p><strong>Total Revenue:</strong> ${salesData.reduce((s, x) => s + parseFloat(x.total || 0), 0).toFixed(2)}</p></div>${itemSummaryHtml}<table><thead><tr><th>Date</th><th>Time</th><th>Invoice #</th><th>Customer</th>${hasWarehouse ? '<th>Salesperson</th>' : ''}<th>Total</th><th>Payment Method</th><th>Payment Status</th><th>Created By</th></tr></thead><tbody>${salesData.map(sale => { const d = new Date(sale.created_at); const returns = salesReturns?.filter(r => r.sale_id === sale.id) || []; return `<tr><td>${d.toLocaleDateString()}</td><td>${d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true})}</td><td>${sale.invoice_no||'N/A'}</td><td>${resolveCustomerName(sale)}</td>${hasWarehouse?`<td>${resolveSalesperson(sale)||'N/A'}</td>`:''}<td>${parseFloat(sale.total||0).toFixed(2)}</td><td>${sale.paymentMethod||sale.payment_method||'N/A'}</td><td class="status-${(sale.paymentStatus||sale.payment_status)?.toLowerCase()||'unknown'}">${sale.paymentStatus||sale.payment_status||'N/A'}</td><td>${sale.created_by||sale.username||sale.user_name||'Unknown'}</td></tr>` }).join('')}</tbody></table></body></html>`
+
+    const itemSummaryHtml = itemSummary.length > 0 ? `
+      <div class="summary">
+        <h3>Item Summary</h3>
+        <table class="item-summary-table">
+          <thead><tr><th>Product</th><th>SKU</th><th>Total Quantity</th><th>Total Sales</th></tr></thead>
+          <tbody>
+            ${itemSummary.map(i => `<tr><td>${i.name}</td><td>${i.sku}</td><td>${i.totalQuantity}</td><td>${i.totalSales.toFixed(2)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Sales Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+            .summary { background: #f5f5f5; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            .item-summary-table th { background-color: #e9f5ff; }
+            .status-completed { color: #28a745; }
+            .status-pending   { color: #ffc107; }
+            .status-cancelled { color: #dc3545; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Sales Report</h1>
+            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+            <p>Date Range: ${safeDate(startDate)} to ${safeDate(endDate)}</p>
+            <p>Total Records: ${salesData.length}</p>
+          </div>
+          <div class="summary">
+            <h3>Summary Statistics</h3>
+            <p><strong>Total Transactions:</strong> ${salesData.length}</p>
+            <p><strong>Total Subtotal:</strong>  ${salesData.reduce((s, x) => s + parseFloat(x.subtotal       || 0), 0).toFixed(2)}</p>
+            <p><strong>Total Tax:</strong>        ${salesData.reduce((s, x) => s + parseFloat(x.tax            || 0), 0).toFixed(2)}</p>
+            <p><strong>Total Discount:</strong>   ${salesData.reduce((s, x) => s + parseFloat(x.discount       || 0), 0).toFixed(2)}</p>
+            <p><strong>Total Revenue:</strong>    ${salesData.reduce((s, x) => s + parseFloat(x.total          || 0), 0).toFixed(2)}</p>
+            <p><strong>Total Payments Received:</strong> ${salesData.reduce((s, x) => s + parseFloat(x.payment_amount || 0), 0).toFixed(2)}</p>
+            <p><strong>Completed Payments:</strong> ${salesData.filter(x => (x.paymentStatus || x.payment_status) === 'COMPLETED').length}</p>
+            <p><strong>Pending Payments:</strong>   ${salesData.filter(x => (x.paymentStatus || x.payment_status) === 'PENDING').length}</p>
+          </div>
+          ${itemSummaryHtml}
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Time</th><th>Invoice #</th><th>Customer</th>
+                ${hasWarehouse ? '<th>Salesperson</th>' : ''}
+                <th>Subtotal</th><th>Tax</th><th>Discount</th><th>Total</th>
+                <th>Payment</th><th>Credit</th><th>Balance</th>
+                <th>Payment Method</th><th>Payment Type</th><th>Payment Status</th>
+                <th>Returns</th><th>Notes</th><th>Created By</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${salesData.map(sale => {
+                const returns = salesReturns?.filter(r => r.sale_id === sale.id) || []
+                const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
+                const d = new Date(sale.created_at)
+                return `
+                  <tr>
+                    <td>${d.toLocaleDateString()}</td>
+                    <td>${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
+                    <td>${sale.invoice_no || 'N/A'}</td>
+                    <td>${resolveCustomerName(sale)}</td>
+                    ${hasWarehouse ? `<td>${resolveSalesperson(sale) || 'N/A'}</td>` : ''}
+                    <td>${parseFloat(sale.subtotal        || 0).toFixed(2)}</td>
+                    <td>${parseFloat(sale.tax             || 0).toFixed(2)}</td>
+                    <td>${parseFloat(sale.discount        || 0).toFixed(2)}</td>
+                    <td>${parseFloat(sale.total           || 0).toFixed(2)}</td>
+                    <td>${parseFloat(sale.payment_amount  || 0).toFixed(2)}</td>
+                    <td>${parseFloat(sale.credit_amount   || sale.creditAmount   || 0).toFixed(2)}</td>
+                    <td>${parseFloat(sale.running_balance || sale.runningBalance || 0).toFixed(2)}</td>
+                    <td>${sale.paymentMethod || sale.payment_method || 'N/A'}</td>
+                    <td>${sale.paymentType   || sale.payment_type   || 'N/A'}</td>
+                    <td class="status-${(sale.paymentStatus || sale.payment_status)?.toLowerCase() || 'unknown'}">
+                      ${sale.paymentStatus || sale.payment_status || 'N/A'}
+                    </td>
+                    <td>${totalReturnedQty}</td>
+                    <td>${sale.notes || 'No Notes'}</td>
+                    <td>${sale.created_by || sale.username || sale.user_name || 'Unknown'}</td>
+                  </tr>`
+              }).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>`
   }
 
   const downloadFile = (content, filename, mimeType) => {
     if (mimeType === 'application/pdf') {
-      const w = window.open('', '_blank'); w.document.write(content); w.document.close(); w.onload = () => { w.print(); w.close() }
+      const w = window.open('', '_blank')
+      w.document.write(content)
+      w.document.close()
+      w.onload = () => { w.print(); w.close() }
     } else {
-      const blob = new Blob([content], { type: mimeType }); const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a'); link.href = url; link.download = filename
-      document.body.appendChild(link); link.click(); document.body.removeChild(link); window.URL.revokeObjectURL(url)
+      const blob = new Blob([content], { type: mimeType })
+      const url  = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url; link.download = filename
+      document.body.appendChild(link); link.click()
+      document.body.removeChild(link); window.URL.revokeObjectURL(url)
     }
   }
 
-  const exportToCSV   = () => { downloadFile(generateCSV(getFilteredAndSortedSales()), 'sales-data.csv', 'text/csv'); handleExportClose() }
+  const exportToCSV = () => {
+    downloadFile(generateCSV(getFilteredAndSortedSales()), 'sales-data.csv', 'text/csv')
+    handleExportClose()
+  }
+
   const exportToExcel = async () => {
     const data = await generateExcel(getFilteredAndSortedSales())
     const isBuffer = data instanceof ArrayBuffer || data instanceof Uint8Array
     const mime = isBuffer ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv'
     const ext  = isBuffer ? 'xlsx' : 'csv'
-    const blob = new Blob([data], { type: mime }); const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a'); link.href = url; link.download = `sales-data-${new Date().toISOString().split('T')[0]}.${ext}`
-    document.body.appendChild(link); link.click(); document.body.removeChild(link); window.URL.revokeObjectURL(url)
+    const blob = new Blob([data], { type: mime })
+    const url  = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url; link.download = `sales-data-${new Date().toISOString().split('T')[0]}.${ext}`
+    document.body.appendChild(link); link.click()
+    document.body.removeChild(link); window.URL.revokeObjectURL(url)
     handleExportClose()
   }
-  const exportToPDF = () => { downloadFile(generatePDF(getFilteredAndSortedSales()), 'sales-data.pdf', 'application/pdf'); handleExportClose() }
 
-  // ── Computed ──────────────────────────────────────────────────────────────
+  const exportToPDF = () => {
+    downloadFile(generatePDF(getFilteredAndSortedSales()), 'sales-data.pdf', 'application/pdf')
+    handleExportClose()
+  }
+
+  // ── Computed values ────────────────────────────────────────────────────────
   const salesStats = useMemo(() => ({
     totalSales:        Number(salesSummary.totalSales        || 0),
     totalTransactions: Number(salesSummary.totalTransactions || 0),
     averageOrderValue: Number(salesSummary.averageOrderValue || 0),
-    completedSales:    Number(salesSummary.completedSales    || 0),
+    completedSales:    Number(salesSummary.completedSales    || 0)
   }), [salesSummary])
 
   const hasWarehouseSales = useMemo(() =>
-    (sales || []).some(s => (s.scope_type || s.scopeType) === 'WAREHOUSE'), [sales])
+    (sales || []).some(s => (s.scope_type || s.scopeType) === 'WAREHOUSE'),
+    [sales]
+  )
 
   const methodColors = { CASH: 'success', CARD: 'primary', BANK_TRANSFER: 'info', MOBILE_PAYMENT: 'secondary', CHEQUE: 'warning' }
   const typeColors   = { FULL_PAYMENT: 'success', PARTIAL_PAYMENT: 'warning', FULLY_CREDIT: 'error', CASH: 'success', CARD: 'primary', BANK_TRANSFER: 'info', CHEQUE: 'warning' }
   const typeLabels   = { FULL_PAYMENT: 'Full Payment', PARTIAL_PAYMENT: 'Partial Payment', FULLY_CREDIT: 'Fully Credit', CASH: 'Cash', CARD: 'Card', BANK_TRANSFER: 'Bank Transfer', CHEQUE: 'Cheque' }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
         <PermissionCheck roles={['ADMIN', 'MANAGER', 'CASHIER', 'WAREHOUSE_KEEPER']}>
           <Box sx={{ p: 3 }}>
-
-            {/* Admin simulation banner */}
+            {/* FIX 5: Admin simulation banner */}
             {isAdminMode && scopeInfo && (
               <Box sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', p: 1, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main', mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
@@ -770,27 +1002,33 @@ const SalesManagement = () => {
             {/* Stats */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
               {[
-                { label: 'Total Sales',         value: salesStats.totalSales.toFixed(2) },
-                { label: 'Total Transactions',  value: salesStats.totalTransactions },
-                { label: 'Average Order Value', value: salesStats.averageOrderValue.toFixed(2) },
-                { label: 'Completed Sales',     value: salesStats.completedSales },
+                { label: 'Total Sales',        value: salesStats.totalSales.toFixed(2) },
+                { label: 'Total Transactions', value: salesStats.totalTransactions },
+                { label: 'Average Order Value',value: salesStats.averageOrderValue.toFixed(2) },
+                { label: 'Completed Sales',    value: salesStats.completedSales },
               ].map(({ label, value }) => (
                 <Grid item xs={12} sm={6} md={3} key={label}>
-                  <Card><CardContent>
-                    <Typography color="textSecondary" gutterBottom>{label}</Typography>
-                    <Typography variant="h5" component="div">{value}</Typography>
-                  </CardContent></Card>
+                  <Card>
+                    <CardContent>
+                      <Typography color="textSecondary" gutterBottom>{label}</Typography>
+                      <Typography variant="h5" component="div">{value}</Typography>
+                    </CardContent>
+                  </Card>
                 </Grid>
               ))}
             </Grid>
 
-            {/* Table section */}
+            {/* Table */}
             <Box sx={{ mb: 4 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">Sales Transactions</Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button variant="outlined" startIcon={<RefreshIcon />} onClick={handleManualRefresh} disabled={salesLoading} sx={{ minWidth: 120 }}>Refresh</Button>
-                  <Button variant="outlined" startIcon={<ExportIcon />}  onClick={handleExportClick}  sx={{ minWidth: 120 }}>Export</Button>
+                  <Button variant="outlined" startIcon={<RefreshIcon />} onClick={handleManualRefresh} disabled={salesLoading} sx={{ minWidth: 120 }}>
+                    Refresh
+                  </Button>
+                  <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExportClick} sx={{ minWidth: 120 }}>
+                    Export
+                  </Button>
                 </Box>
               </Box>
 
@@ -802,23 +1040,33 @@ const SalesManagement = () => {
                       <FilterIcon sx={{ mr: 1, fontSize: 20 }} />
                       <Typography variant="subtitle2">Search &amp; Filters</Typography>
                     </Box>
+
                     <Grid container spacing={2} sx={{ mb: 1 }} alignItems="center">
                       <Grid item xs={12} md={4}>
-                        <TextField fullWidth size="small" label="Search Sales" placeholder="Search by invoice, customer..."
+                        <TextField
+                          fullWidth size="small" label="Search Sales"
+                          placeholder="Search by invoice, customer..."
                           value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                           InputProps={{
                             startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
-                            endAdornment: searchTerm && <InputAdornment position="end"><IconButton size="small" onClick={() => setSearchTerm('')} edge="end"><ClearIcon /></IconButton></InputAdornment>
-                          }} />
+                            endAdornment: searchTerm && (
+                              <InputAdornment position="end">
+                                <IconButton size="small" onClick={() => setSearchTerm('')} edge="end"><ClearIcon /></IconButton>
+                              </InputAdornment>
+                            )
+                          }}
+                        />
                       </Grid>
                       <Grid item xs={12} md={2}>
                         <LocalizationProvider dateAdapter={AdapterDateFns}>
-                          <DatePicker label="Start Date" value={startDate} onChange={setStartDate} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+                          <DatePicker label="Start Date" value={startDate} onChange={setStartDate}
+                            slotProps={{ textField: { size: 'small', fullWidth: true } }} />
                         </LocalizationProvider>
                       </Grid>
                       <Grid item xs={12} md={2}>
                         <LocalizationProvider dateAdapter={AdapterDateFns}>
-                          <DatePicker label="End Date" value={endDate} onChange={setEndDate} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+                          <DatePicker label="End Date" value={endDate} onChange={setEndDate}
+                            slotProps={{ textField: { size: 'small', fullWidth: true } }} />
                         </LocalizationProvider>
                       </Grid>
                       <Grid item xs={12} md={2}>
@@ -855,15 +1103,22 @@ const SalesManagement = () => {
                           </Select>
                         </FormControl>
                       </Grid>
-                      {/* Only show scope search when admin is NOT in simulation mode */}
+                      {/* FIX 6: Only show scope search for unscoped admin (not in simulation) */}
                       {isActualAdmin && !isAdminMode && (
                         <Grid item xs={12} md={3}>
-                          <TextField fullWidth size="small" label="Search Branch/Warehouse" placeholder="Name or ID"
-                            value={scopeSearch} onChange={(e) => { setScopeSearch(e.target.value); setPage(1) }}
+                          <TextField
+                            fullWidth size="small" label="Search Branch/Warehouse" placeholder="Name or ID"
+                            value={scopeSearch}
+                            onChange={(e) => { setScopeSearch(e.target.value); setPage(1) }}
                             InputProps={{
                               startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
-                              endAdornment: scopeSearch && <InputAdornment position="end"><IconButton size="small" onClick={() => { setScopeSearch(''); setPage(1) }} edge="end"><ClearIcon fontSize="small" /></IconButton></InputAdornment>
-                            }} />
+                              endAdornment: scopeSearch && (
+                                <InputAdornment position="end">
+                                  <IconButton size="small" onClick={() => { setScopeSearch(''); setPage(1) }} edge="end"><ClearIcon fontSize="small" /></IconButton>
+                                </InputAdornment>
+                              )
+                            }}
+                          />
                         </Grid>
                       )}
                       <Grid item xs={12} md={1}>
@@ -890,10 +1145,18 @@ const SalesManagement = () => {
                         </Box>
                       </Grid>
                     </Grid>
+
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      {getFilterSummary().length > 0
-                        ? <><Typography variant="body2" color="text.secondary">Active filters:</Typography>{getFilterSummary().map((f, i) => <Chip key={i} label={f} size="small" color="primary" variant="outlined" />)}</>
-                        : <Typography variant="body2" color="text.secondary">No filters applied — showing all items</Typography>}
+                      {getFilterSummary().length > 0 ? (
+                        <>
+                          <Typography variant="body2" color="text.secondary">Active filters:</Typography>
+                          {getFilterSummary().map((f, i) => (
+                            <Chip key={i} label={f} size="small" color="primary" variant="outlined" />
+                          ))}
+                        </>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">No filters applied — showing all items</Typography>
+                      )}
                     </Box>
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -902,7 +1165,7 @@ const SalesManagement = () => {
                     </Box>
                   </Box>
 
-                  {/* Table */}
+                  {/* Table content */}
                   {salesLoading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}><CircularProgress /></Box>
                   ) : salesError ? (
@@ -937,19 +1200,31 @@ const SalesManagement = () => {
                           {paginatedSales.map((sale) => {
                             const scopeType = sale.scope_type || sale.scopeType
                             const scopeId   = sale.scope_id   || sale.scopeId
-                            const pm = resolvePaymentMethod(sale)
-                            const pt = sale.paymentType || sale.payment_type
-                            const ps = sale.paymentStatus || sale.payment_status
+                            const pm        = resolvePaymentMethod(sale)
+                            const pt        = sale.paymentType || sale.payment_type
+                            const ps        = sale.paymentStatus || sale.payment_status
+
                             return (
                               <TableRow key={sale.id}>
                                 <TableCell>{sale.id}</TableCell>
-                                <TableCell>{(() => { try { const d = new Date(sale.created_at); return isNaN(d) ? 'N/A' : d.toLocaleDateString() } catch { return 'N/A' } })()}</TableCell>
-                                <TableCell>{(() => { try { return new Date(sale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) } catch { return 'N/A' } })()}</TableCell>
+                                <TableCell>
+                                  {(() => {
+                                    try { const d = new Date(sale.created_at); return isNaN(d) ? 'N/A' : d.toLocaleDateString() }
+                                    catch { return 'N/A' }
+                                  })()}
+                                </TableCell>
+                                <TableCell>
+                                  {(() => {
+                                    try { return new Date(sale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) }
+                                    catch { return 'N/A' }
+                                  })()}
+                                </TableCell>
                                 <TableCell>{sale.invoice_no || 'N/A'}</TableCell>
                                 <TableCell>
                                   {scopeType === 'WAREHOUSE'
                                     ? (warehouses || []).find(w => w.id === scopeId || w.id === Number(scopeId))?.name || `Warehouse ${scopeId}`
-                                    : (branches  || []).find(b => b.id === scopeId || b.id === Number(scopeId))?.name  || `Branch ${scopeId}`}
+                                    : (branches  || []).find(b => b.id === scopeId || b.id === Number(scopeId))?.name  || `Branch ${scopeId}`
+                                  }
                                 </TableCell>
                                 <TableCell>{resolveCustomerName(sale)}</TableCell>
                                 {hasWarehouseSales && <TableCell>{resolveSalesperson(sale) || '—'}</TableCell>}
@@ -958,20 +1233,32 @@ const SalesManagement = () => {
                                 <TableCell align="right">{parseFloat(sale.discount || 0).toFixed(2)}</TableCell>
                                 <TableCell align="right">{parseFloat(sale.total    || 0).toFixed(2)}</TableCell>
                                 <TableCell>
-                                  <Chip label={pm === 'FULLY_CREDIT' ? 'FULLY CREDIT' : pm === 'PARTIAL_PAYMENT' ? 'PARTIAL PAYMENT' : (pm?.replace('_', ' ').toUpperCase() || 'N/A')}
-                                    color={methodColors[pm] || (pm === 'FULLY_CREDIT' ? 'error' : pm === 'PARTIAL_PAYMENT' ? 'warning' : 'default')} size="small" />
+                                  <Chip
+                                    label={pm === 'FULLY_CREDIT' ? 'FULLY CREDIT' : pm === 'PARTIAL_PAYMENT' ? 'PARTIAL PAYMENT' : (pm?.replace('_', ' ').toUpperCase() || 'N/A')}
+                                    color={methodColors[pm] || (pm === 'FULLY_CREDIT' ? 'error' : pm === 'PARTIAL_PAYMENT' ? 'warning' : 'default')}
+                                    size="small"
+                                  />
                                 </TableCell>
                                 <TableCell>
                                   <Chip label={typeLabels[pt] || pt || 'N/A'} color={typeColors[pt] || 'default'} size="small" />
                                 </TableCell>
                                 <TableCell>
-                                  {pm === 'CREDIT' ? (() => {
-                                    const ci = sale.customerInfo || (() => { try { return typeof sale.customer_info === 'string' ? JSON.parse(sale.customer_info) : sale.customer_info } catch { return null } })()
-                                    return ci?.paymentTerms || 'N/A'
-                                  })() : '—'}
+                                  {pm === 'CREDIT'
+                                    ? (() => {
+                                        const ci = sale.customerInfo || (() => {
+                                          try { return typeof sale.customer_info === 'string' ? JSON.parse(sale.customer_info) : sale.customer_info } catch { return null }
+                                        })()
+                                        return ci?.paymentTerms || 'N/A'
+                                      })()
+                                    : '—'
+                                  }
                                 </TableCell>
                                 <TableCell>
-                                  <Chip label={ps || 'N/A'} color={ps === 'COMPLETED' ? 'success' : ps === 'PENDING' ? 'error' : 'default'} size="small" />
+                                  <Chip
+                                    label={ps || 'N/A'}
+                                    color={ps === 'COMPLETED' ? 'success' : ps === 'PENDING' ? 'error' : 'default'}
+                                    size="small"
+                                  />
                                 </TableCell>
                                 <TableCell>
                                   <Typography variant="body2" fontWeight="medium">
@@ -981,20 +1268,28 @@ const SalesManagement = () => {
                                 <TableCell>
                                   <Box sx={{ display: 'flex', gap: 1 }}>
                                     <Tooltip title="View Invoice">
-                                      <IconButton size="small" color="info" onClick={async () => {
-                                        const full = await fetchSaleForEdit(sale.id)
-                                        setViewingSale(full || sale)
-                                        setShowItemsDialog(true)
-                                      }}><ViewIcon /></IconButton>
+                                      <IconButton size="small" color="info"
+                                        onClick={async () => {
+                                          const full = await fetchSaleForEdit(sale.id)
+                                          setViewingSale(full || sale)
+                                          setShowItemsDialog(true)
+                                        }}>
+                                        <ViewIcon />
+                                      </IconButton>
                                     </Tooltip>
                                     {canEdit && (
                                       <Tooltip title="Edit Invoice">
-                                        <IconButton size="small" color="secondary" onClick={() => handleEditInvoice(sale)}><ReceiptIcon /></IconButton>
+                                        <IconButton size="small" color="secondary" onClick={() => handleEditInvoice(sale)}>
+                                          <ReceiptIcon />
+                                        </IconButton>
                                       </Tooltip>
                                     )}
                                     {canDelete && (
                                       <Tooltip title="Delete">
-                                        <IconButton size="small" color="error" onClick={() => { setEntityToDelete(sale); setOpenDeleteDialog(true) }}><DeleteIcon /></IconButton>
+                                        <IconButton size="small" color="error"
+                                          onClick={() => { setEntityToDelete(sale); setOpenDeleteDialog(true) }}>
+                                          <DeleteIcon />
+                                        </IconButton>
                                       </Tooltip>
                                     )}
                                   </Box>
@@ -1014,8 +1309,10 @@ const SalesManagement = () => {
                         <Typography variant="body2" color="text.secondary">Rows per page:</Typography>
                         <FormControl size="small" sx={{ minWidth: 80 }}>
                           <Select value={rowsPerPage} onChange={handleRowsPerPageChange}>
-                            <MenuItem value={10}>10</MenuItem><MenuItem value={25}>25</MenuItem>
-                            <MenuItem value={50}>50</MenuItem><MenuItem value={100}>100</MenuItem>
+                            <MenuItem value={10}>10</MenuItem>
+                            <MenuItem value={25}>25</MenuItem>
+                            <MenuItem value={50}>50</MenuItem>
+                            <MenuItem value={100}>100</MenuItem>
                           </Select>
                         </FormControl>
                       </Box>
@@ -1041,21 +1338,34 @@ const SalesManagement = () => {
       />
 
       <ReadOnlyInvoiceView
-        open={showItemsDialog} onClose={() => setShowItemsDialog(false)}
-        sale={viewingSale} user={user} branches={branches || []} warehouses={warehouses || []}
+        open={showItemsDialog}
+        onClose={() => setShowItemsDialog(false)}
+        sale={viewingSale}
+        user={user}
+        branches={branches || []}
+        warehouses={warehouses || []}
       />
 
-      {/* Legacy filter drawer */}
-      <Drawer anchor="bottom" open={filterDrawerOpen} onClose={() => setFilterDrawerOpen(false)}
-        sx={{ '& .MuiDrawer-paper': { height: '70vh', borderTopLeftRadius: 16, borderTopRightRadius: 16 } }}>
+      {/* Legacy filter drawer — kept for filtered sales drawer view */}
+      <Drawer
+        anchor="bottom"
+        open={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        sx={{ '& .MuiDrawer-paper': { height: '70vh', borderTopLeftRadius: 16, borderTopRightRadius: 16 } }}
+      >
         <Box sx={{ p: 2 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">Filtered Sales Results <Badge badgeContent={filteredSales.length} color="primary" sx={{ ml: 2 }} /></Typography>
+            <Typography variant="h6">
+              Filtered Sales Results
+              <Badge badgeContent={filteredSales.length} color="primary" sx={{ ml: 2 }} />
+            </Typography>
             <IconButton onClick={() => setFilterDrawerOpen(false)}><CloseIcon /></IconButton>
           </Box>
           <Divider sx={{ mb: 2 }} />
           {filteredSales.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 4 }}><Typography variant="body1" color="text.secondary">No sales found matching the selected filters.</Typography></Box>
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="body1" color="text.secondary">No sales found matching the selected filters.</Typography>
+            </Box>
           ) : (
             <Box sx={{ height: 'calc(70vh - 120px)', overflow: 'auto' }}>
               <List>
@@ -1074,10 +1384,19 @@ const SalesManagement = () => {
                         </Box>
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', width: '100%' }}>
                           <ListItemText primary="Date"     secondary={new Date(sale.createdAt || sale.date).toLocaleDateString()} sx={{ minWidth: 100 }} />
+                          <ListItemText primary="Time"     secondary={new Date(sale.createdAt || sale.date).toLocaleTimeString()}  sx={{ minWidth: 100 }} />
                           <ListItemText primary="Customer" secondary={resolveCustomerName(sale)} sx={{ minWidth: 120 }} />
                           <ListItemText primary="Total"    secondary={parseFloat(sale.total || 0).toFixed(2)} sx={{ minWidth: 100 }} />
                           <ListItemText primary="Payment"  secondary={sale.paymentMethod || 'Cash'} sx={{ minWidth: 100 }} />
+                          <ListItemText primary="Location" secondary={locName} sx={{ minWidth: 150 }} />
                         </Box>
+                        {sale.items && sale.items.length > 0 && (
+                          <Box sx={{ mt: 1, width: '100%' }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Items: {sale.items.map(i => `${i.name} (${i.quantity})`).join(', ')}
+                            </Typography>
+                          </Box>
+                        )}
                       </ListItem>
                       {index < filteredSales.length - 1 && <Divider />}
                     </React.Fragment>
@@ -1090,16 +1409,27 @@ const SalesManagement = () => {
       </Drawer>
 
       <Menu anchorEl={exportAnchorEl} open={Boolean(exportAnchorEl)} onClose={handleExportClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
-        <MenuItem onClick={exportToCSV}>  <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>Export as CSV</MenuItem>
-        <MenuItem onClick={exportToExcel}><ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>Export as Excel</MenuItem>
-        <MenuItem onClick={exportToPDF}>  <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>Export as PDF</MenuItem>
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem onClick={exportToCSV}>
+          <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>Export as CSV
+        </MenuItem>
+        <MenuItem onClick={exportToExcel}>
+          <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>Export as Excel
+        </MenuItem>
+        <MenuItem onClick={exportToPDF}>
+          <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>Export as PDF
+        </MenuItem>
       </Menu>
 
       <EditableInvoiceForm
-        open={showEditableInvoice} onClose={handleCloseEditableInvoice}
-        sale={editingSale} onSave={handleSaveEditableInvoice}
-        branches={branches || []} warehouses={warehouses || []}
+        open={showEditableInvoice}
+        onClose={handleCloseEditableInvoice}
+        sale={editingSale}
+        onSave={handleSaveEditableInvoice}
+        branches={branches || []}
+        warehouses={warehouses || []}
       />
     </DashboardLayout>
   )
