@@ -319,27 +319,32 @@ useEffect(() => {
     }
 
     // Handle item quantity change
-    const handleItemQuantityChange = (itemId, newQuantity) => {
-        const quantity = Math.round(parseFloat(newQuantity) || 1) // Ensure whole numbers, minimum 1
-        
-        setFormData(prev => ({
-        ...prev,
-        items: prev.items.map(item => 
-            item.id === itemId 
-            ? { ...item, quantity, total: quantity * parseFloat(item.unitPrice) }
-            : item
-        )
-        }))
-        
-        // Track inventory change
-        const item = formData.items.find(i => i.id === itemId)
-        if (item) {
-        const quantityChange = quantity - Math.round(parseFloat(item.quantity) || 1)
-        if (quantityChange !== 0) {
-            trackInventoryChange(item, quantityChange, 'MODIFY')
-        }
-        }
+const handleItemQuantityChange = (itemId, newQuantity) => {
+    const quantity = Math.round(parseFloat(newQuantity) || 1)
+    
+    setFormData(prev => ({
+    ...prev,
+    items: prev.items.map(item => 
+        item.id === itemId 
+        ? { ...item, quantity, total: quantity * parseFloat(item.unitPrice) }
+        : item
+    )
+    }))
+    
+    // Track inventory change
+    // ✅ FIX: quantityChange must be NEGATIVE when new qty > old qty
+    // because selling MORE means deducting MORE from stock
+    const item = formData.items.find(i => i.id === itemId)
+    if (item) {
+    const oldQty = Math.round(parseFloat(item.quantity) || 1)
+    const diff = quantity - oldQty  // positive if qty increased, negative if decreased
+    // ✅ Negate the diff: if sold more (+diff), stock should go down (-diff)
+    const quantityChange = -diff
+    if (quantityChange !== 0) {
+        trackInventoryChange(item, quantityChange, 'MODIFY')
     }
+    }
+}
 
     // Handle item name change (for empty rows)
     const handleItemNameChange = (itemId, newName) => {
@@ -379,12 +384,12 @@ useEffect(() => {
             )
         }))
         
-        // Track inventory change
-        trackInventoryChange({
-            inventoryItemId: selectedItem.id,
-            itemName: selectedItem.name,
-            quantity: 1
-        }, 1, 'ADD')
+// ✅ FIX: When adding new item to sale, stock should DECREASE (negative change)
+trackInventoryChange({
+    inventoryItemId: selectedItem.id,
+    itemName: selectedItem.name,
+    quantity: 1
+}, -1, 'ADD')
         }
     }
 
@@ -417,19 +422,19 @@ useEffect(() => {
     }
 
     // Remove item from sale
-    const handleRemoveItem = (itemId) => {
-        const item = formData.items.find(i => i.id === itemId)
-        
-        setFormData(prev => ({
-        ...prev,
-        items: prev.items.filter(item => item.id !== itemId)
-        }))
-        
-        // Track inventory change (restore stock)
-        if (item) {
-        trackInventoryChange(item, parseFloat(item.quantity), 'REMOVE')
-        }
+const handleRemoveItem = (itemId) => {
+    const item = formData.items.find(i => i.id === itemId)
+    
+    setFormData(prev => ({
+    ...prev,
+    items: prev.items.filter(item => item.id !== itemId)
+    }))
+    
+    // ✅ FIX: When removing item from sale, stock should be RESTORED (positive change)
+    if (item) {
+    trackInventoryChange(item, +parseFloat(item.quantity), 'REMOVE')
     }
+}
 
     // Add empty row to table
     const handleAddEmptyRow = () => {
