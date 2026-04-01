@@ -6,16 +6,8 @@ export const fetchCustomerLedger = createAsyncThunk(
   'customerLedger/fetchCustomerLedger',
   async ({ customerId, params = {} }, { rejectWithValue }) => {
     try {
-      const queryParams = new URLSearchParams()
-      if (params.startDate) queryParams.append('startDate', params.startDate)
-      if (params.endDate) queryParams.append('endDate', params.endDate)
-      if (params.transactionType) queryParams.append('transactionType', params.transactionType)
-      if (params.paymentMethod) queryParams.append('paymentMethod', params.paymentMethod)
-      if (params.limit) queryParams.append('limit', params.limit)
-      if (params.offset) queryParams.append('offset', params.offset)
-      if (params.detailed) queryParams.append('detailed', params.detailed)
-      
-      const response = await api.get(`/customer-ledger/${customerId}?${queryParams.toString()}`)
+      // ✅ FIX: use { params } directly like inventorySlice — axios handles query string
+      const response = await api.get(`/customer-ledger/${customerId}`, { params })
       return response.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch customer ledger')
@@ -27,25 +19,10 @@ export const fetchAllCustomersWithSummaries = createAsyncThunk(
   'customerLedger/fetchAllCustomersWithSummaries',
   async (params = {}, { rejectWithValue }) => {
     try {
-      console.log('🚨🚨🚨 CUSTOMER LEDGER API CALL STARTING 🚨🚨🚨')
-      
-      const queryParams = new URLSearchParams()
-      if (params.search) queryParams.append('search', params.search)
-      if (params.customerType) queryParams.append('customerType', params.customerType)
-      if (params.hasBalance) queryParams.append('hasBalance', params.hasBalance)
-      if (params.limit) queryParams.append('limit', params.limit)
-      if (params.offset) queryParams.append('offset', params.offset)
-      
-      const url = `/customer-ledger/customers?${queryParams.toString()}`
-      console.log('🔍 CUSTOMER LEDGER DEBUG - Fetching customers from URL:', url)
-      
-      const response = await api.get(url)
-      console.log('🔍 CUSTOMER LEDGER DEBUG - API response:', response.data)
-      
+      // ✅ FIX: use { params } directly — scopeType, scopeId, _t all forwarded automatically
+      const response = await api.get('/customer-ledger/customers', { params })
       return response.data
     } catch (error) {
-      console.error('Error fetching customers:', error)
-      console.error('Error response:', error.response?.data)
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch customers')
     }
   }
@@ -231,21 +208,20 @@ export const exportCustomerLedger = createAsyncThunk(
         if (params.detailed === 'true' && payload) {
           const detailedTransactions = Array.isArray(payload)
             ? payload
-            : (payload.transactions || []);
+            : (payload.transactions || [])
 
-          // Detailed export - sort by date ascending and flatten items into separate rows
           const sortedTransactions = [...detailedTransactions].sort((a, b) => {
-            const dateA = new Date(a.transaction_date || a.created_at);
-            const dateB = new Date(b.transaction_date || b.created_at);
-            return dateA - dateB;
-          });
+            const dateA = new Date(a.transaction_date || a.created_at)
+            const dateB = new Date(b.transaction_date || b.created_at)
+            return dateA - dateB
+          })
           
           sortedTransactions.forEach(transaction => {
-            const amount = parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0);
-            const oldBalance = parseFloat(transaction.old_balance ?? 0);
-            const totalAmountDue = parseFloat(transaction.total_amount ?? (oldBalance + amount));
-            const payment = parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0);
-            const balance = parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0);
+            const amount = parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0)
+            const oldBalance = parseFloat(transaction.old_balance ?? 0)
+            const totalAmountDue = parseFloat(transaction.total_amount ?? (oldBalance + amount))
+            const payment = parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0)
+            const balance = parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0)
 
             if (transaction.items && transaction.items.length > 0) {
               transaction.items.forEach(item => {
@@ -268,7 +244,6 @@ export const exportCustomerLedger = createAsyncThunk(
                 })
               })
             } else {
-              // Transaction without items
               excelData.push({
                 'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
                 'Invoice #': transaction.invoice_no || 'N/A',
@@ -289,16 +264,15 @@ export const exportCustomerLedger = createAsyncThunk(
             }
           })
         } else {
-          // Summary export - sort by date ascending
           const summaryTransactions = Array.isArray(payload)
             ? payload
-            : (payload.transactions || []);
+            : (payload.transactions || [])
 
           const sortedTransactions = [...summaryTransactions].sort((a, b) => {
-            const dateA = new Date(a.transaction_date || a.created_at);
-            const dateB = new Date(b.transaction_date || b.created_at);
-            return dateA - dateB;
-          });
+            const dateA = new Date(a.transaction_date || a.created_at)
+            const dateB = new Date(b.transaction_date || b.created_at)
+            return dateA - dateB
+          })
           
           excelData = sortedTransactions.map(transaction => ({
             'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
@@ -314,20 +288,10 @@ export const exportCustomerLedger = createAsyncThunk(
           }))
         }
         
-        // Create workbook and worksheet
         const workbook = XLSX.utils.book_new()
         const worksheet = XLSX.utils.json_to_sheet(excelData)
-        
-        // Add worksheet to workbook
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Customer Ledger')
-        
-        // Generate Excel file buffer
-        const excelBuffer = XLSX.write(workbook, { 
-          type: 'array', 
-          bookType: 'xlsx' 
-        })
-        
-        // Create download link
+        const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
         const blob = new Blob([excelBuffer], { 
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
         })
@@ -341,7 +305,6 @@ export const exportCustomerLedger = createAsyncThunk(
         document.body.removeChild(link)
         window.URL.revokeObjectURL(url)
       } else {
-        // For other formats, create download link
         const blob = new Blob([response.data], { type: 'text/plain' })
         const url = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
@@ -387,7 +350,6 @@ const customerLedgerSlice = createSlice({
     setLedgerPagination: (state, action) => {
       state.pagination.ledger = { ...state.pagination.ledger, ...action.payload }
     },
-    // NEW: Add debug action to log current state
     debugState: (state) => {
       console.log('🔍 CUSTOMER LEDGER STATE DEBUG:', {
         customers: state.customers,
@@ -408,21 +370,16 @@ const customerLedgerSlice = createSlice({
       .addCase(fetchCustomerLedger.fulfilled, (state, action) => {
         state.loading = false
         
-        // FIX: Handle different response structures
         const responseData = action.payload.data || action.payload
         
-        // Ensure transactions have old_balance field
         if (responseData.transactions) {
           responseData.transactions = responseData.transactions.map((transaction, index) => {
-            // Calculate old_balance if not provided by API
             let old_balance = transaction.old_balance
             
             if (old_balance === undefined || old_balance === null) {
               if (index === 0) {
-                // First transaction has old balance of 0
                 old_balance = 0
               } else {
-                // Calculate old balance from previous transaction
                 const prevTransaction = responseData.transactions[index - 1]
                 const prevTotal = parseFloat(prevTransaction.total_amount || prevTransaction.total || 0)
                 const prevPaid = prevTransaction.payment_method === 'FULLY_CREDIT' ? 0 : 
@@ -434,7 +391,6 @@ const customerLedgerSlice = createSlice({
             return {
               ...transaction,
               old_balance: old_balance,
-              // Ensure all required fields are present
               subtotal: transaction.subtotal || transaction.amount || 0,
               total_amount: transaction.total_amount || transaction.total || 0,
               paid_amount: transaction.paid_amount || transaction.payment_amount || 0,
@@ -445,15 +401,10 @@ const customerLedgerSlice = createSlice({
           })
         }
         
-        // ✅ FIX: Process groupedLedgers if present (for all customers view)
         if (responseData.groupedLedgers && Array.isArray(responseData.groupedLedgers)) {
-          console.log('🔍 Processing groupedLedgers:', responseData.groupedLedgers.length, 'groups');
-          
-          // Process transactions within each group
           responseData.groupedLedgers = responseData.groupedLedgers.map(group => {
             if (group.transactions && Array.isArray(group.transactions)) {
               group.transactions = group.transactions.map((transaction, index) => {
-                // Calculate old_balance if not provided
                 let old_balance = transaction.old_balance
                 
                 if (old_balance === undefined || old_balance === null) {
@@ -482,19 +433,10 @@ const customerLedgerSlice = createSlice({
             }
             return group
           })
-          
-          console.log('🔍 Processed groupedLedgers:', {
-            totalGroups: responseData.groupedLedgers.length,
-            firstGroup: responseData.groupedLedgers[0] ? {
-              customer: responseData.groupedLedgers[0].customer,
-              transactionCount: responseData.groupedLedgers[0].transactions?.length || 0
-            } : null
-          })
         }
         
         state.currentCustomerLedger = responseData
         
-        // Update pagination if available
         if (responseData.pagination) {
           state.pagination.ledger = { 
             ...state.pagination.ledger, 
@@ -503,15 +445,6 @@ const customerLedgerSlice = createSlice({
         }
         
         state.error = null
-        
-        // Debug log
-        console.log('🔍 Ledger data processed:', {
-          hasGroupedLedgers: !!state.currentCustomerLedger.groupedLedgers,
-          groupedLedgersCount: state.currentCustomerLedger.groupedLedgers?.length || 0,
-          hasTransactions: !!state.currentCustomerLedger.transactions,
-          transactionsCount: state.currentCustomerLedger.transactions?.length || 0,
-          fullData: state.currentCustomerLedger
-        })
       })
       .addCase(fetchCustomerLedger.rejected, (state, action) => {
         state.loading = false
@@ -526,14 +459,11 @@ const customerLedgerSlice = createSlice({
       .addCase(fetchAllCustomersWithSummaries.fulfilled, (state, action) => {
         state.loading = false
         
-        // FIX: Handle different response structures
         const responseData = action.payload.data || action.payload
         
-        // Ensure customers array exists and has proper structure
         if (responseData.customers) {
           state.customers = responseData.customers.map(customer => ({
             ...customer,
-            // Ensure all required fields are present with fallbacks
             customer_name: customer.customer_name || customer.name || 'N/A',
             customer_phone: customer.customer_phone || customer.phone || 'N/A',
             total_transactions: customer.total_transactions || 0,
@@ -546,7 +476,6 @@ const customerLedgerSlice = createSlice({
           state.customers = responseData || []
         }
         
-        // Update pagination if available
         if (responseData.pagination) {
           state.pagination.customers = { 
             ...state.pagination.customers, 
@@ -560,10 +489,6 @@ const customerLedgerSlice = createSlice({
         }
         
         state.error = null
-        
-        // Debug log
-        console.log('🔍 Customers data processed:', state.customers)
-        console.log('🔍 Pagination:', state.pagination.customers)
       })
       .addCase(fetchAllCustomersWithSummaries.rejected, (state, action) => {
         state.loading = false
@@ -591,7 +516,7 @@ export const {
   clearCurrentLedger, 
   setCustomersPagination, 
   setLedgerPagination,
-  debugState // NEW: Export debug action
+  debugState
 } = customerLedgerSlice.actions
 
 export default customerLedgerSlice.reducer

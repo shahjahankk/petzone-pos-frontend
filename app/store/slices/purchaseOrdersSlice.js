@@ -8,16 +8,18 @@ export const fetchPurchaseOrders = createAsyncThunk(
     try {
       const response = await api.get('/purchase-orders', {
         params: {
-          search: filters.search || '',
-          status: filters.status || '',
-          supplierId: filters.supplierId || '',
+          search:        filters.search        || '',
+          status:        filters.status        || '',
+          supplierId:    filters.supplierId    || '',
           orderDateFrom: filters.orderDateFrom || '',
-          orderDateTo: filters.orderDateTo || '',
-          page: filters.page || 1,
-          limit: filters.limit || 10
+          orderDateTo:   filters.orderDateTo   || '',
+          page:          filters.page          || 1,
+          limit:         filters.limit         || 10,
+          // ✅ scope params for admin simulation and role-based filtering
+          ...(filters.scopeType && { scopeType: filters.scopeType }),
+          ...(filters.scopeId   && { scopeId:   String(filters.scopeId) }),
         }
       })
-
       return response.data
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message)

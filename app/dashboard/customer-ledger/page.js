@@ -213,12 +213,24 @@ function CustomerLedgerPage() {
     checkPermissions()
   }, [user?.role, user?.branchId, user?.warehouseId, originalUser?.role])
 
-  const loadCustomerLedger = useCallback((customerId) => {
-    dispatch(fetchCustomerLedger({
-      customerId,
-      params: { ...ledgerFilters, limit: 50, offset: (ledgerPage - 1) * 50 }
-    }))
-  }, [dispatch, ledgerFilters, ledgerPage])
+const loadCustomerLedger = useCallback((customerId) => {
+  const scopeParams = {}
+  if (isAdminMode && urlParams.scope && urlParams.id) {
+    scopeParams.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
+    scopeParams.scopeId   = urlParams.id
+  } else if (user?.role === 'CASHIER' && user?.branchId) {
+    scopeParams.scopeType = 'BRANCH'
+    scopeParams.scopeId   = String(user.branchId)
+  } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+    scopeParams.scopeType = 'WAREHOUSE'
+    scopeParams.scopeId   = String(user.warehouseId)
+  }
+
+  dispatch(fetchCustomerLedger({
+    customerId,
+    params: { ...ledgerFilters, ...scopeParams, limit: 50, offset: (ledgerPage - 1) * 50 }
+  }))
+}, [dispatch, ledgerFilters, ledgerPage, isAdminMode, urlParams, user])
 
   const handleSearch = () => { setCustomersPage(1); loadCustomers() }
 
