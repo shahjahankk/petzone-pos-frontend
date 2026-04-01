@@ -1249,10 +1249,19 @@ const canEditInventory = useMemo(() => {
             ) : (
               <>
               
-              <TableContainer component={Paper}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.8rem', py: 0.5 } }}>
-                  <TableHead>
-                    <TableRow>
+              <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 320px)' }}>
+                <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.8rem', py: 0.5 } }}>
+                    <TableHead>
+                     <TableRow sx={{
+      '& .MuiTableCell-head': {
+        backgroundColor: '#f3f4f6',
+        color: '#374151',
+        fontWeight: 700,
+        fontSize: '0.78rem',
+        borderBottom: '2px solid #d1d5db',
+        whiteSpace: 'nowrap',
+      }
+    }}>
                       <TableCell>Name</TableCell>
                       <TableCell>Category</TableCell>
                       <TableCell>Unit</TableCell>
