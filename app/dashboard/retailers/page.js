@@ -225,12 +225,12 @@ const RetailersPage = () => {
   // Form validation schema
   const validationSchema = yup.object({
     name:         yup.string().required('Retailer name is required'),
-    phone:        yup.string().optional(),
+    phone:        yup.string().required('Phone number is required'),
     address:      yup.string().optional(),
     city:         yup.string().optional(),
     creditLimit:  yup.number().min(0).optional(),
     paymentTerms: yup.string().optional(),
-    status:       yup.string().required('Status is required'),
+    status:       yup.string().optional(),
     notes:        yup.string().optional(),
   })
 
