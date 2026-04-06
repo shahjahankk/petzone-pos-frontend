@@ -32,6 +32,7 @@ import api from '../../../utils/axios'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const defaultCategories = ['General', 'Food', 'Accessories', 'Medicine', 'Toys', 'Grooming', 'Other']
+const searchDebounceRef = useRef(null)
 
 const statusConfig = {
   PENDING:   { color: 'warning', icon: <PendingIcon />, label: 'Pending' },
@@ -80,6 +81,16 @@ const emptyItem = () => ({
   quantityOrdered: 1, unitPrice: 0, sellingPrice: null, notes: ''
 })
 
+const handleSearchChange = (e) => {
+  const val = e.target.value
+  // Update Redux immediately for UI display
+  dispatch(setFilters({ search: val, page: 1 }))
+  // Debounce the actual fetch so we don't fire on every keystroke
+  clearTimeout(searchDebounceRef.current)
+  searchDebounceRef.current = setTimeout(() => {
+    dispatch(fetchPurchaseOrders({ ...filters, search: val, page: 1 }))
+  }, 400)
+}
 // ── Sub-components (defined outside main to prevent re-creation on render) ───
 
 function FormHeader({ title, onClose }) {
@@ -729,9 +740,13 @@ function PurchaseOrdersPage() {
     } catch (e) { console.error(e) }
   }
 
-  const handlePageChange = (_, newPage) => {
-    dispatch(setFilters({ ...filters, page: newPage }))
-  }
+const handlePageChange = (_, newPage) => {
+  dispatch(setFilters({ page: newPage }))
+}
+
+const handleLimitChange = (e) => {
+  dispatch(setFilters({ limit: parseInt(e.target.value), page: 1 }))
+}
 
   // ── Shared props ──────────────────────────────────────────────────────────
   const itemsTableProps = {
@@ -781,7 +796,7 @@ function PurchaseOrdersPage() {
               <Grid item xs={12} md={3}>
                 <TextField fullWidth size="small" label="Search Orders" placeholder="Order # or supplier..."
                   value={filters.search}
-                  onChange={(e) => dispatch(setFilters({ search: e.target.value }))}
+                     onChange={handleSearchChange}
                   InputProps={{
                     startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
                     endAdornment: filters.search && (
@@ -935,22 +950,44 @@ function PurchaseOrdersPage() {
                   </TableContainer>
                 )}
 
-            {/* ✅ FIX: pagination was checking totalPages but page changes weren't updating filters.page */}
-            {pagination.total > pagination.limit && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 2, gap: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Page {pagination.page} of {pagination.totalPages} ({pagination.total} orders)
-                </Typography>
-                <Pagination
-                  count={pagination.totalPages}
-                  page={pagination.page}
-                  onChange={handlePageChange}
-                  color="primary"
-                  showFirstButton
-                  showLastButton
-                />
-              </Box>
-            )}
+{/* Pagination */}
+{pagination.total > 0 && (
+  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2, flexWrap: 'wrap', gap: 1 }}>
+    
+    {/* Rows per page */}
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Typography variant="body2" color="text.secondary">Rows per page:</Typography>
+      <FormControl size="small" sx={{ minWidth: 80 }}>
+        <Select
+          value={filters.limit || 10}
+          onChange={handleLimitChange}
+        >
+          <MenuItem value={10}>10</MenuItem>
+          <MenuItem value={25}>25</MenuItem>
+          <MenuItem value={50}>50</MenuItem>
+          <MenuItem value={100}>100</MenuItem>
+        </Select>
+      </FormControl>
+    </Box>
+
+    {/* Page info + controls */}
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Typography variant="body2" color="text.secondary">
+        Page {pagination.page} of {pagination.totalPages} ({pagination.total} orders)
+      </Typography>
+      <Pagination
+        count={pagination.totalPages}
+        page={pagination.page}
+        onChange={handlePageChange}
+        color="primary"
+        showFirstButton
+        showLastButton
+        disabled={pagination.totalPages <= 1}
+      />
+    </Box>
+
+  </Box>
+)}
           </CardContent>
         </Card>
 

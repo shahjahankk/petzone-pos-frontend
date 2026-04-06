@@ -121,7 +121,7 @@ const initialState = {
   suppliersError: null,
   pagination: {
     page: 1,
-    limit: 20,
+    limit: 10,
     total: 0,
     totalPages: 0
   },
@@ -132,7 +132,9 @@ const initialState = {
     status: '',
     orderDateFrom: '',
     orderDateTo: '',
-    search: ''
+    search: '',
+    page:          1,  
+    limit:         10,
   }
 }
 
@@ -173,16 +175,17 @@ const purchaseOrdersSlice = createSlice({
         state.loading = true
         state.error = null
       })
-      .addCase(fetchPurchaseOrders.fulfilled, (state, action) => {
-        state.loading = false
-        state.data = action.payload.data || []
-        state.pagination = {
-          page: action.payload.page || 1,
-          limit: action.payload.limit || 20,
-          total: action.payload.total || 0,
-          totalPages: action.payload.totalPages || 0
-        }
-      })
+// AFTER
+.addCase(fetchPurchaseOrders.fulfilled, (state, action) => {
+  state.loading = false
+  state.data = action.payload.data || []
+  state.pagination = {
+    page:       action.payload.page                                          || 1,
+    limit:      action.payload.limit                                         || 20,
+    total:      action.payload.total                                         || 0,
+    totalPages: action.payload.totalPages || action.payload.pages            || 0  // ✅ handle both
+  }
+})
       .addCase(fetchPurchaseOrders.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
