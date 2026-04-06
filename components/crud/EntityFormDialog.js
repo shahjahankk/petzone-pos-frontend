@@ -132,7 +132,7 @@ const EntityFormDialog = ({
             label={label}
             type={type}
             margin="normal"
-            {...register(name, { required })}
+            {...register(name)}
             defaultValue={defaultValue}
             error={!!errors[name]}
             helperText={errors[name]?.message || helperText}

@@ -199,7 +199,7 @@ const getFields = (user, categoryOptions, isEdit = false) => {
     ] : []),
 
     { name: 'sellingPrice', label: 'Selling Price', type: 'number', required: true, step: 0.01 },
-    { name: 'currentStock', label: 'Current Stock', type: 'number', required: true },
+    { name: 'currentStock', label: 'Current Stock', type: 'number', required: true, min: null, step: 1 },
 
     // supplierId, supplierName, purchaseDate, purchasePrice — hidden on EDIT
     ...(!isEdit ? [
@@ -791,11 +791,11 @@ const handleUpdate = async (data) => {
   }
 
 const handleFormSubmit = (formData) => {
-  const normNum = (val) => {
-    if (val === '' || val === null || val === undefined) return undefined
-    const n = Number(val)
-    return Number.isNaN(n) ? undefined : n
-  }
+const normNum = (val) => {
+  if (val === '' || val === null || val === undefined) return undefined
+  const n = Number(val)
+  return Number.isNaN(n) ? undefined : n  // correctly returns 0, negatives, etc.
+}
 
   const fallbackScopeType = isEdit && selectedEntity?.scopeType 
     ? String(selectedEntity.scopeType).trim().toUpperCase() 
@@ -833,12 +833,13 @@ const handleFormSubmit = (formData) => {
   }
 
   // Clean up all empty/null/undefined/NaN values
-  Object.keys(normalized).forEach((key) => {
-    const v = normalized[key]
-    if (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v))) {
-      delete normalized[key]
-    }
-  })
+Object.keys(normalized).forEach((key) => {
+  const v = normalized[key]
+  if (key === 'currentStock') return  // never delete stock, even if 0 or negative
+  if (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v))) {
+    delete normalized[key]
+  }
+})
 
   // ── ADMIN scope guard ──────────────────────────────────────────────
   // Admin must select a branch/warehouse before creating items
