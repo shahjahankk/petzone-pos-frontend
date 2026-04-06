@@ -32,7 +32,6 @@ import api from '../../../utils/axios'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const defaultCategories = ['General', 'Food', 'Accessories', 'Medicine', 'Toys', 'Grooming', 'Other']
-const searchDebounceRef = useRef(null)
 
 const statusConfig = {
   PENDING:   { color: 'warning', icon: <PendingIcon />, label: 'Pending' },
@@ -81,16 +80,6 @@ const emptyItem = () => ({
   quantityOrdered: 1, unitPrice: 0, sellingPrice: null, notes: ''
 })
 
-const handleSearchChange = (e) => {
-  const val = e.target.value
-  // Update Redux immediately for UI display
-  dispatch(setFilters({ search: val, page: 1 }))
-  // Debounce the actual fetch so we don't fire on every keystroke
-  clearTimeout(searchDebounceRef.current)
-  searchDebounceRef.current = setTimeout(() => {
-    dispatch(fetchPurchaseOrders({ ...filters, search: val, page: 1 }))
-  }, 400)
-}
 // ── Sub-components (defined outside main to prevent re-creation on render) ───
 
 function FormHeader({ title, onClose }) {
@@ -758,7 +747,16 @@ const handleLimitChange = (e) => {
   }
 
   const dialogPaperProps = { sx: { minHeight: '80vh', maxHeight: '90vh', width: '98vw', maxWidth: '1900px' } }
+const searchDebounceRef = useRef(null)
 
+const handleSearchChange = useCallback((e) => {
+  const val = e.target.value
+  dispatch(setFilters({ search: val, page: 1 }))
+  clearTimeout(searchDebounceRef.current)
+  searchDebounceRef.current = setTimeout(() => {
+    dispatch(fetchPurchaseOrders({ ...filters, search: val, page: 1 }))
+  }, 400)
+}, [dispatch, filters])
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
