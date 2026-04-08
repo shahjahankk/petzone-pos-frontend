@@ -1170,7 +1170,8 @@ function WarehouseBillingPage() {
       customerName: referencePayment.customer_name,
       phone: referencePayment.customer_phone,
       paymentAmount: paymentAmountForBackend,
-      paymentMethod: (paymentMethod || 'CASH').toUpperCase()
+      paymentMethod: (paymentMethod || 'CASH').toUpperCase(),
+      notes: notes || ''
     }
     if (isCredit) { payload.isCreditUsage = true; payload.creditAmount = Math.abs(creditAmount) }
     if (paymentAmountForBackend === 0 && !isCredit) payload.isCreditNote = true

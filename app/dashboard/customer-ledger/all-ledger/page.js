@@ -81,27 +81,17 @@ function AllLedgerContent() {
     return parseFloat(t.paid_amount || t.payment_amount || 0) || 0
   }
 
-  // ── Sort transactions ascending by date then invoice number ───────────────
-  // This ensures the ledger reads chronologically: first invoice at top,
-  // latest invoice at bottom — like a proper account statement.
   const sortTransactionsAsc = (transactions) => {
     if (!transactions || transactions.length === 0) return []
     return [...transactions].sort((a, b) => {
-      // Primary sort: transaction date ascending (oldest first)
       const dateA = new Date(a.transaction_date || a.created_at || 0).getTime()
       const dateB = new Date(b.transaction_date || b.created_at || 0).getTime()
       if (dateA !== dateB) return dateA - dateB
-
-      // Secondary sort: invoice number ascending (e.g. PZ-000007 before PZ-000011)
       const invoiceA = a.invoice_no || ''
       const invoiceB = b.invoice_no || ''
-
-      // Extract numeric part from invoice for proper numeric sort
       const numA = parseInt(invoiceA.replace(/\D/g, '') || '0', 10)
       const numB = parseInt(invoiceB.replace(/\D/g, '') || '0', 10)
       if (numA !== numB) return numA - numB
-
-      // Fallback: transaction_id ascending
       return (a.transaction_id || 0) - (b.transaction_id || 0)
     })
   }
@@ -121,6 +111,7 @@ function AllLedgerContent() {
     }
   }, { totalAmount: 0, totalPaid: 0, outstandingBalance: 0, totalTransactions: 0, completedTransactions: 0 })
 
+  // ── column style shortcuts ────────────────────────────────────────────────
   const H = { fontWeight: 700, color: '#475569', fontSize: '0.72rem', whiteSpace: 'nowrap', py: 1, px: 1.5, backgroundColor: '#f1f5f9' }
   const C = { fontSize: '0.78rem', py: 0.8, px: 1.5, verticalAlign: 'top' }
 
@@ -184,10 +175,10 @@ function AllLedgerContent() {
         {!loading && groups.length > 0 && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {[
-              { label: 'Total Customers',    value: uniqueCount,                                  color: '#3b82f6' },
-              { label: 'Total Amount',       value: formatCurrency(grandTotals.totalAmount),      color: '#1e293b' },
-              { label: 'Total Paid',         value: formatCurrency(grandTotals.totalPaid),        color: '#22c55e' },
-              { label: 'Outstanding Balance',value: formatCurrency(grandTotals.outstandingBalance), color: '#ef4444' },
+              { label: 'Total Customers',     value: uniqueCount,                                    color: '#3b82f6' },
+              { label: 'Total Amount',         value: formatCurrency(grandTotals.totalAmount),        color: '#1e293b' },
+              { label: 'Total Paid',           value: formatCurrency(grandTotals.totalPaid),          color: '#22c55e' },
+              { label: 'Outstanding Balance',  value: formatCurrency(grandTotals.outstandingBalance), color: '#ef4444' },
             ].map((card) => (
               <Grid item xs={12} sm={6} md={3} key={card.label}>
                 <Paper sx={{ p: 2.5, borderRadius: 2, borderLeft: `4px solid ${card.color}` }} elevation={0} variant="outlined">
@@ -210,8 +201,6 @@ function AllLedgerContent() {
         {/* Customer Groups */}
         {!loading && groups.map((group, gIdx) => {
           const gs = group.summary || {}
-
-          // ── Sort transactions ascending so first invoice shows at top ──────
           const transactions = sortTransactionsAsc(group.transactions || [])
 
           const custTotals = transactions.reduce((acc, t) => ({
@@ -219,7 +208,6 @@ function AllLedgerContent() {
             paid:   acc.paid   + getPaid(t),
           }), { amount: 0, paid: 0 })
 
-          // Running balance after last transaction (last row after ascending sort)
           const lastBalance = transactions.length > 0
             ? parseFloat(transactions[transactions.length - 1]?.running_balance || transactions[transactions.length - 1]?.balance || 0)
             : 0
@@ -245,8 +233,8 @@ function AllLedgerContent() {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {/* Added # serial column */}
-                      {['#', 'Date', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance'].map(h => (
+                      {/* CHANGE 1: Added 'Notes' to the headers array */}
+                      {['#', 'Date', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance', 'Notes'].map(h => (
                         <TableCell key={h} sx={H}>{h}</TableCell>
                       ))}
                     </TableRow>
@@ -265,34 +253,64 @@ function AllLedgerContent() {
                       return (
                         <TableRow key={t.transaction_id || tIdx}
                           sx={{ '&:hover': { backgroundColor: '#f8fafc' }, backgroundColor: isReturn ? 'rgba(239,68,68,0.04)' : 'inherit' }}>
-                          {/* Serial number — 1-based, ascending */}
+
+                          {/* Serial number */}
                           <TableCell sx={{ ...C, color: '#94a3b8', fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {tIdx + 1}
                           </TableCell>
+
                           <TableCell sx={{ ...C, whiteSpace: 'nowrap' }}>{formatDate(t.transaction_date)}</TableCell>
+
                           <TableCell sx={{ ...C, fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {isReturn && <span style={{ color: '#ef4444', marginRight: 4 }}>↩</span>}
                             {t.invoice_no}
                           </TableCell>
+
                           <TableCell sx={{ ...C, minWidth: 180, maxWidth: 260 }}>{renderItems(t.items)}</TableCell>
+
                           <TableCell sx={{ ...C, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(amount)}</TableCell>
+
                           <TableCell sx={{ ...C, textAlign: 'right', color: '#f59e0b', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatCurrency(oldBal)}</TableCell>
+
                           <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#3b82f6', whiteSpace: 'nowrap' }}>{formatCurrency(totalAmt)}</TableCell>
+
                           <TableCell sx={{ ...C, textAlign: 'right', color: '#22c55e', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatCurrency(paid)}</TableCell>
+
                           <TableCell sx={{ ...C, whiteSpace: 'nowrap' }}>{t.payment_method || 'N/A'}</TableCell>
+
                           <TableCell sx={C}>
                             <Box sx={{ display: 'inline-block', px: 1, py: 0.3, borderRadius: 1, backgroundColor: txType.bg, color: txType.color, fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                               {txType.label}
                             </Box>
                           </TableCell>
+
                           <TableCell sx={C}>
                             <Box sx={{ display: 'inline-block', px: 1.2, py: 0.3, borderRadius: 1, backgroundColor: status.bg, color: status.color, fontSize: '0.72rem', fontWeight: 700 }}>
                               {status.label}
                             </Box>
                           </TableCell>
+
                           <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: balance > 0 ? '#ef4444' : balance < 0 ? '#22c55e' : '#64748b' }}>
                             {formatCurrency(balance)}
                           </TableCell>
+
+                          {/* CHANGE 2: New Notes cell */}
+                          <TableCell sx={{ ...C, minWidth: 140, maxWidth: 220 }}>
+                            {t.notes && (
+                              <Typography sx={{ fontSize: '0.73rem', color: '#475569', lineHeight: 1.5 }}>
+                                {t.notes}
+                              </Typography>
+                            )}
+                            {t.return_reason && (
+                              <Typography sx={{ fontSize: '0.73rem', color: '#ef4444', fontStyle: 'italic', lineHeight: 1.5 }}>
+                                ↩ {t.return_reason}
+                              </Typography>
+                            )}
+                            {!t.notes && !t.return_reason && (
+                              <Typography sx={{ fontSize: '0.73rem', color: '#cbd5e1' }}>—</Typography>
+                            )}
+                          </TableCell>
+
                         </TableRow>
                       )
                     })}
@@ -317,6 +335,8 @@ function AllLedgerContent() {
                       <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: lastBalance > 0 ? '#ef4444' : '#16a34a' }}>
                         {formatCurrency(lastBalance)}
                       </TableCell>
+                      {/* CHANGE 3: Empty Notes cell to keep columns aligned */}
+                      <TableCell sx={C} />
                     </TableRow>
 
                   </TableBody>
@@ -336,40 +356,35 @@ function AllLedgerContent() {
               <Table size="small">
                 <TableBody>
                   <TableRow sx={{ backgroundColor: '#f8fafc' }}>
-                    {/* # + col 1-3 */}
                     <TableCell colSpan={4} sx={{ ...C, fontWeight: 700, color: '#475569' }}>
                       {grandTotals.totalTransactions} Transactions across {uniqueCount} Customers
                     </TableCell>
-                    {/* Amount */}
                     <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
                       <Typography variant="caption" display="block" sx={{ fontSize: '0.63rem', color: '#94a3b8' }}>TOTAL AMOUNT</Typography>
                       {formatCurrency(grandTotals.totalAmount)}
                     </TableCell>
-                    {/* Old bal */}
                     <TableCell sx={{ ...C, textAlign: 'right', color: '#94a3b8' }}>—</TableCell>
-                    {/* Total amt */}
                     <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#3b82f6' }}>
                       <Typography variant="caption" display="block" sx={{ fontSize: '0.63rem', color: '#94a3b8' }}>TOTAL</Typography>
                       {formatCurrency(grandTotals.totalAmount)}
                     </TableCell>
-                    {/* Paid */}
                     <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#22c55e' }}>
                       <Typography variant="caption" display="block" sx={{ fontSize: '0.63rem', color: '#94a3b8' }}>TOTAL PAID</Typography>
                       {formatCurrency(grandTotals.totalPaid)}
                     </TableCell>
                     <TableCell sx={C} />
                     <TableCell sx={C} />
-                    {/* Completed */}
                     <TableCell sx={C}>
                       <Box sx={{ display: 'inline-block', px: 1.2, py: 0.3, borderRadius: 1, backgroundColor: '#f0fdf4', color: '#16a34a', fontSize: '0.72rem', fontWeight: 700 }}>
                         {grandTotals.completedTransactions} Completed
                       </Box>
                     </TableCell>
-                    {/* Outstanding */}
                     <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: grandTotals.outstandingBalance > 0 ? '#ef4444' : '#16a34a' }}>
                       <Typography variant="caption" display="block" sx={{ fontSize: '0.63rem', color: '#94a3b8' }}>OUTSTANDING</Typography>
                       {formatCurrency(grandTotals.outstandingBalance)}
                     </TableCell>
+                    {/* CHANGE 4: Empty Notes cell to keep columns aligned */}
+                    <TableCell sx={C} />
                   </TableRow>
                 </TableBody>
               </Table>
