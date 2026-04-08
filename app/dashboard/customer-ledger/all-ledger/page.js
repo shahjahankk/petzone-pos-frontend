@@ -21,7 +21,7 @@ function AllLedgerContent() {
   const loadAllLedger = useCallback(() => {
     dispatch(fetchCustomerLedger({
       customerId: '__all__',
-      params: { ...filters, detailed: 'true', limit: 20, offset: (page - 1) * 20 }
+      params: { ...filters, detailed: 'true', limit: 10, offset: (page - 1) * 10 }
     }))
   }, [dispatch, filters, page])
 
@@ -393,9 +393,9 @@ function AllLedgerContent() {
         )}
 
         {/* Pagination */}
-        {totalRecords > 20 && (
+        {totalRecords > 10 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <Pagination count={Math.ceil(totalRecords / 20)} page={page} color="primary"
+            <Pagination count={Math.ceil(totalRecords / 10)} page={page} color="primary"
               onChange={(e, p) => { setPage(p); loadAllLedger() }} />
           </Box>
         )}
