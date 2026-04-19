@@ -273,12 +273,14 @@ const transactions = (
 ).slice().sort((a, b) => {
   const dateA = new Date(a.transaction_date || a.created_at);
   const dateB = new Date(b.transaction_date || b.created_at);
-  if (dateA.getTime() === dateB.getTime()) {
+  const dayA = dateA.toISOString().substring(0, 10);
+  const dayB = dateB.toISOString().substring(0, 10);
+  if (dayA === dayB) {
     const invoiceA = a.invoice_no || '';
     const invoiceB = b.invoice_no || '';
     return invoiceA.localeCompare(invoiceB, undefined, { numeric: true, sensitivity: 'base' });
   }
-  return dateA - dateB; // oldest first for detailed view
+  return dateA - dateB;
 });
   
   return (
