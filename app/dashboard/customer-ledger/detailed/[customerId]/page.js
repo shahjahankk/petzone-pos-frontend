@@ -266,15 +266,20 @@ const DetailedCustomerLedgerPage = () => {
     )
   }
 
-  const transactions = (
-    transactionsWithItems.length > 0
-      ? transactionsWithItems
-      : (currentCustomerLedger?.transactions || [])
-  ).slice().sort((a, b) => {
-    const dateA = new Date(a.transaction_date || a.created_at)
-    const dateB = new Date(b.transaction_date || b.created_at)
-    return dateA - dateB   // oldest first
-  })
+const transactions = (
+  transactionsWithItems.length > 0
+    ? transactionsWithItems
+    : (currentCustomerLedger?.transactions || [])
+).slice().sort((a, b) => {
+  const dateA = new Date(a.transaction_date || a.created_at);
+  const dateB = new Date(b.transaction_date || b.created_at);
+  if (dateA.getTime() === dateB.getTime()) {
+    const invoiceA = a.invoice_no || '';
+    const invoiceB = b.invoice_no || '';
+    return invoiceA.localeCompare(invoiceB, undefined, { numeric: true, sensitivity: 'base' });
+  }
+  return dateA - dateB; // oldest first for detailed view
+});
   
   return (
     <DashboardLayout>
