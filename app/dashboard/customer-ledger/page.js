@@ -420,13 +420,11 @@ const loadCustomerLedger = useCallback((customerId) => {
       }
     }, { totalTransactions: 0, totalAmount: 0, totalPaid: 0, totalRefunded: 0, netPaid: 0, totalCredit: 0 })
 
-    const sorted = [...transactions].sort((a, b) => {
-  const dayA = String(a.transaction_date || '').substring(0, 10)
-  const dayB = String(b.transaction_date || '').substring(0, 10)
-  if (dayA === dayB) {
-    return (b.transaction_id || 0) - (a.transaction_id || 0)
-  }
-  return dayB > dayA ? 1 : -1
+// REPLACE the entire sorted block with:
+const sorted = [...transactions].sort((a, b) => {
+  // Always use highest transaction_id as the latest — 
+  // this reflects actual DB insertion order regardless of dates
+  return (b.transaction_id || 0) - (a.transaction_id || 0)
 })
     return {
       ...totals,
