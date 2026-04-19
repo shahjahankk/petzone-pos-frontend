@@ -18,16 +18,22 @@ function AllLedgerContent() {
   const [filters, setFilters] = useState({ startDate: '', endDate: '', transactionType: 'all' })
   const [page, setPage] = useState(1)
 
-  const loadAllLedger = useCallback(() => {
-    dispatch(fetchCustomerLedger({
-      customerId: '__all__',
-      params: { ...filters, detailed: 'true', limit: 10, offset: (page - 1) * 10 }
-    }))
-  }, [dispatch, filters, page])
+const loadAllLedger = useCallback(() => {
+  dispatch(fetchCustomerLedger({
+    customerId: '__all__',
+    params: { ...filters, detailed: 'true', limit: 10, offset: (page - 1) * 10 }
+  }))
+}, [dispatch, filters, page])
 
-  useEffect(() => { loadAllLedger() }, [])
+useEffect(() => { loadAllLedger() }, [page])
 
-  const handleApplyFilters = () => { setPage(1); loadAllLedger() }
+const handleApplyFilters = () => {
+  if (page === 1) {
+    loadAllLedger() // page didn't change so effect won't fire, call manually
+  } else {
+    setPage(1) // page change will trigger the effect
+  }
+}
 
   const handleExport = (format = 'pdf', detailed = false) =>
     dispatch(exportCustomerLedger({ customerId: '__all__', params: { ...filters, format, detailed: detailed.toString() } }))
@@ -81,20 +87,21 @@ function AllLedgerContent() {
     return parseFloat(t.paid_amount || t.payment_amount || 0) || 0
   }
 
-  const sortTransactionsAsc = (transactions) => {
-    if (!transactions || transactions.length === 0) return []
-    return [...transactions].sort((a, b) => {
-      const dateA = new Date(a.transaction_date || a.created_at || 0).getTime()
-      const dateB = new Date(b.transaction_date || b.created_at || 0).getTime()
-      if (dateA !== dateB) return dateA - dateB
-      const invoiceA = a.invoice_no || ''
-      const invoiceB = b.invoice_no || ''
-      const numA = parseInt(invoiceA.replace(/\D/g, '') || '0', 10)
-      const numB = parseInt(invoiceB.replace(/\D/g, '') || '0', 10)
-      if (numA !== numB) return numA - numB
-      return (a.transaction_id || 0) - (b.transaction_id || 0)
-    })
-  }
+const sortTransactionsAsc = (transactions) => {
+  if (!transactions || transactions.length === 0) return []
+  return [...transactions].sort((a, b) => {
+    const dayA = String(a.transaction_date || a.created_at || '').substring(0, 10)
+    const dayB = String(b.transaction_date || b.created_at || '').substring(0, 10)
+    if (dayA !== dayB) return dayA < dayB ? -1 : 1
+    // Same day — sort by invoice number
+    const invoiceA = a.invoice_no || ''
+    const invoiceB = b.invoice_no || ''
+    const numA = parseInt(invoiceA.replace(/\D/g, '') || '0', 10)
+    const numB = parseInt(invoiceB.replace(/\D/g, '') || '0', 10)
+    if (numA !== numB) return numA - numB
+    return (a.transaction_id || 0) - (b.transaction_id || 0)
+  })
+}
 
   const groups = currentCustomerLedger?.groupedLedgers || []
   const totalRecords = currentCustomerLedger?.pagination?.total || 0
@@ -396,7 +403,7 @@ function AllLedgerContent() {
         {totalRecords > 10 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
             <Pagination count={Math.ceil(totalRecords / 10)} page={page} color="primary"
-              onChange={(e, p) => { setPage(p); loadAllLedger() }} />
+              onChange={(e, p) => { setPage(p) }} />
           </Box>
         )}
 

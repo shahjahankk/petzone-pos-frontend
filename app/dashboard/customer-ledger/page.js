@@ -420,7 +420,14 @@ const loadCustomerLedger = useCallback((customerId) => {
       }
     }, { totalTransactions: 0, totalAmount: 0, totalPaid: 0, totalRefunded: 0, netPaid: 0, totalCredit: 0 })
 
-    const sorted = [...transactions].sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date))
+    const sorted = [...transactions].sort((a, b) => {
+  const dayA = String(a.transaction_date || '').substring(0, 10)
+  const dayB = String(b.transaction_date || '').substring(0, 10)
+  if (dayA === dayB) {
+    return (b.transaction_id || 0) - (a.transaction_id || 0)
+  }
+  return dayB > dayA ? 1 : -1
+})
     return {
       ...totals,
       outstandingBalance: sorted.length > 0 ? parseFloat(sorted[0].running_balance || 0) : 0,
@@ -444,23 +451,53 @@ const loadCustomerLedger = useCallback((customerId) => {
   }
 
   const sortTransactions = (transactions) => {
-    if (!transactions || transactions.length === 0) return transactions
-    return [...transactions].sort((a, b) => {
-      let aValue, bValue
-      switch (sortField) {
-        case 'transaction_date': aValue = new Date(a.transaction_date); bValue = new Date(b.transaction_date); break
-        case 'invoice_no':       aValue = a.invoice_no      || ''; bValue = b.invoice_no      || ''; break
-        case 'amount':           aValue = parseFloat(a.amount      || 0); bValue = parseFloat(b.amount      || 0); break
-        case 'balance':          aValue = parseFloat(a.balance     || 0); bValue = parseFloat(b.balance     || 0); break
-        case 'payment_method':   aValue = a.payment_method  || ''; bValue = b.payment_method  || ''; break
-        case 'status':           aValue = a.payment_status  || ''; bValue = b.payment_status  || ''; break
-        default: return 0
+  if (!transactions || transactions.length === 0) return transactions
+  return [...transactions].sort((a, b) => {
+    let aValue, bValue
+    switch (sortField) {
+      case 'transaction_date': {
+        // Compare DATE only (strip time) to handle sale_date vs created_at mismatch
+        const dayA = String(a.transaction_date || a.created_at || '').substring(0, 10)
+        const dayB = String(b.transaction_date || b.created_at || '').substring(0, 10)
+        if (dayA === dayB) {
+          // Same day — sort by invoice number
+          const invoiceA = a.invoice_no || ''
+          const invoiceB = b.invoice_no || ''
+          return sortDirection === 'asc'
+            ? invoiceA.localeCompare(invoiceB, undefined, { numeric: true, sensitivity: 'base' })
+            : invoiceB.localeCompare(invoiceA, undefined, { numeric: true, sensitivity: 'base' })
+        }
+        aValue = dayA
+        bValue = dayB
+        break
       }
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
-      if (aValue > bValue) return sortDirection === 'asc' ?  1 : -1
-      return 0
-    })
-  }
+      case 'invoice_no':
+        aValue = a.invoice_no      || ''
+        bValue = b.invoice_no      || ''
+        break
+      case 'amount':
+        aValue = parseFloat(a.amount      || 0)
+        bValue = parseFloat(b.amount      || 0)
+        break
+      case 'balance':
+        aValue = parseFloat(a.balance     || 0)
+        bValue = parseFloat(b.balance     || 0)
+        break
+      case 'payment_method':
+        aValue = a.payment_method  || ''
+        bValue = b.payment_method  || ''
+        break
+      case 'status':
+        aValue = a.payment_status  || ''
+        bValue = b.payment_status  || ''
+        break
+      default: return 0
+    }
+    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
+    if (aValue > bValue) return sortDirection === 'asc' ?  1 : -1
+    return 0
+  })
+}
 
   const handleLedgerFilterChange = () => {
     setLedgerPage(1)
