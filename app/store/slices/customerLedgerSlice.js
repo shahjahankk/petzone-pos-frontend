@@ -6,7 +6,6 @@ export const fetchCustomerLedger = createAsyncThunk(
   'customerLedger/fetchCustomerLedger',
   async ({ customerId, params = {} }, { rejectWithValue }) => {
     try {
-      // ✅ FIX: use { params } directly like inventorySlice — axios handles query string
       const response = await api.get(`/customer-ledger/${customerId}`, { params })
       return response.data
     } catch (error) {
@@ -19,7 +18,6 @@ export const fetchAllCustomersWithSummaries = createAsyncThunk(
   'customerLedger/fetchAllCustomersWithSummaries',
   async (params = {}, { rejectWithValue }) => {
     try {
-      // ✅ FIX: use { params } directly — scopeType, scopeId, _t all forwarded automatically
       const response = await api.get('/customer-ledger/customers', { params })
       return response.data
     } catch (error) {
@@ -46,21 +44,15 @@ export const exportCustomerLedger = createAsyncThunk(
       
       // Handle HTML content for PDF generation
       if (params.format === 'pdf') {
-        // Open HTML content in new window and trigger print
         const printWindow = window.open('', '_blank')
         printWindow.document.write(response.data)
         printWindow.document.close()
-        
-        // Wait for content to load, then trigger print
-        // Don't close the window automatically - let user decide
         setTimeout(() => {
           printWindow.print()
-        }, 250) // Small delay to ensure content is rendered
+        }, 250)
       } else if (params.format === 'excel') {
-        // Generate Excel file from JSON data
         const XLSX = await import('xlsx')
         
-        // Prepare data for Excel
         let excelData = []
         const payload = response.data.data
 
@@ -184,11 +176,7 @@ export const exportCustomerLedger = createAsyncThunk(
             XLSX.utils.book_append_sheet(workbook, allSheet, 'All Transactions')
           }
 
-          const excelBuffer = XLSX.write(workbook, {
-            type: 'array',
-            bookType: 'xlsx'
-          })
-
+          const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
           const blob = new Blob([excelBuffer], {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
           })
@@ -206,15 +194,10 @@ export const exportCustomerLedger = createAsyncThunk(
         }
         
         if (params.detailed === 'true' && payload) {
-          const detailedTransactions = Array.isArray(payload)
-            ? payload
-            : (payload.transactions || [])
-
-          const sortedTransactions = [...detailedTransactions].sort((a, b) => {
-            const dateA = new Date(a.transaction_date || a.created_at)
-            const dateB = new Date(b.transaction_date || b.created_at)
-            return dateA - dateB
-          })
+          const detailedTransactions = Array.isArray(payload) ? payload : (payload.transactions || [])
+          const sortedTransactions = [...detailedTransactions].sort((a, b) =>
+            new Date(a.transaction_date || a.created_at) - new Date(b.transaction_date || b.created_at)
+          )
           
           sortedTransactions.forEach(transaction => {
             const amount = parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0)
@@ -264,15 +247,10 @@ export const exportCustomerLedger = createAsyncThunk(
             }
           })
         } else {
-          const summaryTransactions = Array.isArray(payload)
-            ? payload
-            : (payload.transactions || [])
-
-          const sortedTransactions = [...summaryTransactions].sort((a, b) => {
-            const dateA = new Date(a.transaction_date || a.created_at)
-            const dateB = new Date(b.transaction_date || b.created_at)
-            return dateA - dateB
-          })
+          const summaryTransactions = Array.isArray(payload) ? payload : (payload.transactions || [])
+          const sortedTransactions = [...summaryTransactions].sort((a, b) =>
+            new Date(a.transaction_date || a.created_at) - new Date(b.transaction_date || b.created_at)
+          )
           
           excelData = sortedTransactions.map(transaction => ({
             'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
@@ -334,6 +312,23 @@ const initialState = {
   }
 }
 
+// ─── Helper: enrich a single transaction without touching backend-calculated fields ───
+// ONLY adds display helpers; never overwrites old_balance, total_amount, balance,
+// running_balance, corrected_paid, or items that the backend already computed.
+const enrichTransaction = (transaction) => ({
+  ...transaction,
+  // items MUST be preserved exactly as received from backend
+  items: transaction.items ?? [],
+  // Only fill subtotal/paid_amount if truly absent (don't overwrite backend values)
+  subtotal: transaction.subtotal ?? transaction.amount ?? 0,
+  paid_amount: transaction.paid_amount ?? transaction.payment_amount ?? 0,
+  // Display helper — safe to derive
+  payment_status_display: transaction.payment_status_display ?? (
+    transaction.payment_status === 'COMPLETED' ? 'Paid' :
+    transaction.payment_status === 'PARTIAL'    ? 'Partial' : 'Credit'
+  )
+})
+
 const customerLedgerSlice = createSlice({
   name: 'customerLedger',
   initialState,
@@ -362,105 +357,57 @@ const customerLedgerSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch customer ledger
+      // ── Fetch customer ledger ──────────────────────────────────────────────
       .addCase(fetchCustomerLedger.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(fetchCustomerLedger.fulfilled, (state, action) => {
         state.loading = false
-        
+
         const responseData = action.payload.data || action.payload
-        
+
+        // Single-customer path — enrich transactions but NEVER recalculate balances
         if (responseData.transactions) {
-          responseData.transactions = responseData.transactions.map((transaction, index) => {
-            let old_balance = transaction.old_balance
-            
-            if (old_balance === undefined || old_balance === null) {
-              if (index === 0) {
-                old_balance = 0
-              } else {
-                const prevTransaction = responseData.transactions[index - 1]
-                const prevTotal = parseFloat(prevTransaction.total_amount || prevTransaction.total || 0)
-                const prevPaid = prevTransaction.payment_method === 'FULLY_CREDIT' ? 0 : 
-                               parseFloat(prevTransaction.paid_amount || prevTransaction.payment_amount || 0)
-                old_balance = prevTotal - prevPaid
-              }
-            }
-            
-            return {
-              ...transaction,
-              old_balance: old_balance,
-              subtotal: transaction.subtotal || transaction.amount || 0,
-              total_amount: transaction.total_amount || transaction.total || 0,
-              paid_amount: transaction.paid_amount || transaction.payment_amount || 0,
-              payment_status_display: transaction.payment_status_display || 
-                                    (transaction.payment_status === 'COMPLETED' ? 'Paid' :
-                                     transaction.payment_status === 'PARTIAL' ? 'Partial' : 'Credit')
-            }
-          })
+          responseData.transactions = responseData.transactions.map(enrichTransaction)
         }
-        
+
+        // All-customers path — enrich each group's transactions the same way
         if (responseData.groupedLedgers && Array.isArray(responseData.groupedLedgers)) {
-          responseData.groupedLedgers = responseData.groupedLedgers.map(group => {
-            if (group.transactions && Array.isArray(group.transactions)) {
-              group.transactions = group.transactions.map((transaction, index) => {
-                let old_balance = transaction.old_balance
-                
-                if (old_balance === undefined || old_balance === null) {
-                  if (index === 0) {
-                    old_balance = 0
-                  } else {
-                    const prevTransaction = group.transactions[index - 1]
-                    const prevTotal = parseFloat(prevTransaction.total_amount || prevTransaction.total || 0)
-                    const prevPaid = prevTransaction.payment_method === 'FULLY_CREDIT' ? 0 : 
-                                   parseFloat(prevTransaction.paid_amount || prevTransaction.payment_amount || 0)
-                    old_balance = prevTotal - prevPaid
-                  }
-                }
-                
-                return {
-                  ...transaction,
-                  old_balance: old_balance,
-                  subtotal: transaction.subtotal || transaction.amount || 0,
-                  total_amount: transaction.total_amount || transaction.total || 0,
-                  paid_amount: transaction.paid_amount || transaction.payment_amount || 0,
-                  payment_status_display: transaction.payment_status_display || 
-                                        (transaction.payment_status === 'COMPLETED' ? 'Paid' :
-                                         transaction.payment_status === 'PARTIAL' ? 'Partial' : 'Credit')
-                }
-              })
-            }
-            return group
-          })
+          responseData.groupedLedgers = responseData.groupedLedgers.map(group => ({
+            ...group,
+            transactions: Array.isArray(group.transactions)
+              ? group.transactions.map(enrichTransaction)
+              : []
+          }))
         }
-        
+
         state.currentCustomerLedger = responseData
-        
+
         if (responseData.pagination) {
-          state.pagination.ledger = { 
-            ...state.pagination.ledger, 
-            ...responseData.pagination 
+          state.pagination.ledger = {
+            ...state.pagination.ledger,
+            ...responseData.pagination
           }
         }
-        
+
         state.error = null
       })
       .addCase(fetchCustomerLedger.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })
-      
-      // Fetch all customers with summaries
+
+      // ── Fetch all customers with summaries ────────────────────────────────
       .addCase(fetchAllCustomersWithSummaries.pending, (state) => {
         state.loading = true
         state.error = null
       })
       .addCase(fetchAllCustomersWithSummaries.fulfilled, (state, action) => {
         state.loading = false
-        
+
         const responseData = action.payload.data || action.payload
-        
+
         if (responseData.customers) {
           state.customers = responseData.customers.map(customer => ({
             ...customer,
@@ -475,27 +422,27 @@ const customerLedgerSlice = createSlice({
         } else {
           state.customers = responseData || []
         }
-        
+
         if (responseData.pagination) {
-          state.pagination.customers = { 
-            ...state.pagination.customers, 
-            ...responseData.pagination 
+          state.pagination.customers = {
+            ...state.pagination.customers,
+            ...responseData.pagination
           }
         } else if (action.payload.pagination) {
-          state.pagination.customers = { 
-            ...state.pagination.customers, 
-            ...action.payload.pagination 
+          state.pagination.customers = {
+            ...state.pagination.customers,
+            ...action.payload.pagination
           }
         }
-        
+
         state.error = null
       })
       .addCase(fetchAllCustomersWithSummaries.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })
-      
-      // Export customer ledger
+
+      // ── Export customer ledger ────────────────────────────────────────────
       .addCase(exportCustomerLedger.pending, (state) => {
         state.loading = true
         state.error = null
@@ -511,10 +458,10 @@ const customerLedgerSlice = createSlice({
   }
 })
 
-export const { 
-  clearError, 
-  clearCurrentLedger, 
-  setCustomersPagination, 
+export const {
+  clearError,
+  clearCurrentLedger,
+  setCustomersPagination,
   setLedgerPagination,
   debugState
 } = customerLedgerSlice.actions
