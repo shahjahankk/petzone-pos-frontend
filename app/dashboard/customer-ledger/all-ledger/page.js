@@ -5,7 +5,7 @@ import {
   Box, Typography, TextField, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, Chip, IconButton,
   Tooltip, FormControl, InputLabel, Select, MenuItem, Grid,
-  Alert, CircularProgress, Pagination
+  Alert, CircularProgress
 } from '@mui/material'
 import { FilterList as FilterIcon, Refresh as RefreshIcon, Download as DownloadIcon } from '@mui/icons-material'
 import {
@@ -16,23 +16,18 @@ function AllLedgerContent() {
   const dispatch = useDispatch()
   const { currentCustomerLedger, loading, error } = useSelector((state) => state.customerLedger)
   const [filters, setFilters] = useState({ startDate: '', endDate: '', transactionType: 'all' })
-  const [page, setPage] = useState(1)
 
 const loadAllLedger = useCallback(() => {
   dispatch(fetchCustomerLedger({
     customerId: '__all__',
-    params: { ...filters, detailed: 'true', limit: 50, offset: (page - 1) * 50 }
+    params: { ...filters, detailed: 'true', limit: 1000, offset: 0 }
   }))
-}, [dispatch, filters, page])
+}, [dispatch, filters])
 
-useEffect(() => { loadAllLedger() }, [page])
+useEffect(() => { loadAllLedger() }, [])
 
 const handleApplyFilters = () => {
-  if (page === 1) {
-    loadAllLedger() // page didn't change so effect won't fire, call manually
-  } else {
-    setPage(1) // page change will trigger the effect
-  }
+  loadAllLedger()
 }
 
   const handleExport = (format = 'pdf', detailed = false) =>
@@ -104,7 +99,6 @@ const sortTransactionsAsc = (transactions) => {
 }
 
   const groups = currentCustomerLedger?.groupedLedgers || []
-  const totalRecords = currentCustomerLedger?.pagination?.total || 0
   const uniqueCount = currentCustomerLedger?.customer?.unique_customers ?? groups.length
 
   const grandTotals = groups.reduce((acc, g) => {
@@ -395,13 +389,6 @@ const sortTransactionsAsc = (transactions) => {
           </Paper>
         )}
 
-        {/* Pagination — 50 customers per page */}
-        {totalRecords > 50 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <Pagination count={Math.ceil(totalRecords / 50)} page={page} color="primary"
-              onChange={(e, p) => { setPage(p) }} />
-          </Box>
-        )}
 
       </Box>
     </Box>
