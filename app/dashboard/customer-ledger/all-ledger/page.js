@@ -21,7 +21,7 @@ function AllLedgerContent() {
 const loadAllLedger = useCallback(() => {
   dispatch(fetchCustomerLedger({
     customerId: '__all__',
-    params: { ...filters, detailed: 'true', limit: 10, offset: (page - 1) * 10 }
+    params: { ...filters, detailed: 'true', limit: 50, offset: (page - 1) * 50 }
   }))
 }, [dispatch, filters, page])
 
@@ -240,7 +240,6 @@ const sortTransactionsAsc = (transactions) => {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {/* CHANGE 1: Added 'Notes' to the headers array */}
                       {['#', 'Date', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance', 'Notes'].map(h => (
                         <TableCell key={h} sx={H}>{h}</TableCell>
                       ))}
@@ -301,7 +300,6 @@ const sortTransactionsAsc = (transactions) => {
                             {formatCurrency(balance)}
                           </TableCell>
 
-                          {/* CHANGE 2: New Notes cell */}
                           <TableCell sx={{ ...C, minWidth: 140, maxWidth: 220 }}>
                             {t.notes && (
                               <Typography sx={{ fontSize: '0.73rem', color: '#475569', lineHeight: 1.5 }}>
@@ -342,7 +340,6 @@ const sortTransactionsAsc = (transactions) => {
                       <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: lastBalance > 0 ? '#ef4444' : '#16a34a' }}>
                         {formatCurrency(lastBalance)}
                       </TableCell>
-                      {/* CHANGE 3: Empty Notes cell to keep columns aligned */}
                       <TableCell sx={C} />
                     </TableRow>
 
@@ -390,7 +387,6 @@ const sortTransactionsAsc = (transactions) => {
                       <Typography variant="caption" display="block" sx={{ fontSize: '0.63rem', color: '#94a3b8' }}>OUTSTANDING</Typography>
                       {formatCurrency(grandTotals.outstandingBalance)}
                     </TableCell>
-                    {/* CHANGE 4: Empty Notes cell to keep columns aligned */}
                     <TableCell sx={C} />
                   </TableRow>
                 </TableBody>
@@ -399,10 +395,10 @@ const sortTransactionsAsc = (transactions) => {
           </Paper>
         )}
 
-        {/* Pagination */}
-        {totalRecords > 10 && (
+        {/* Pagination — 50 customers per page */}
+        {totalRecords > 50 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <Pagination count={Math.ceil(totalRecords / 10)} page={page} color="primary"
+            <Pagination count={Math.ceil(totalRecords / 50)} page={page} color="primary"
               onChange={(e, p) => { setPage(p) }} />
           </Box>
         )}
