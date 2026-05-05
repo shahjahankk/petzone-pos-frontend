@@ -1028,7 +1028,9 @@ function WarehouseBillingPage() {
       const response = await api.get(`/sales/outstanding?${params.toString()}`)
       if (response.data.success) {
         const outstandingPayments = response.data.data.map(customer => {
-          const actualBalance = customer.creditAmount || customer.finalAmount || customer.totalOutstanding
+          const actualBalance = Number(
+            customer.creditAmount ?? customer.finalAmount ?? customer.totalOutstanding ?? 0
+          )
           return {
             id: `customer_${customer.customerName}_${customer.phone}`,
             invoice_no: customer.isCredit ? `CREDIT_${customer.customerName}` : `OUTSTANDING_${customer.customerName}`,
