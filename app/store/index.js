@@ -27,6 +27,7 @@ import warehouseSalesAnalyticsSlice from './slices/warehouseSalesAnalyticsSlice'
 import customerLedgerSlice from './slices/customerLedgerSlice'
 import financialVoucherSlice from './slices/financialVoucherSlice'
 import purchaseOrdersSlice from './slices/purchaseOrdersSlice'
+import settlementSlice from './slices/settlementSlice'
 
 export const store = configureStore({
   reducer: {
@@ -58,6 +59,7 @@ export const store = configureStore({
     customerLedger: customerLedgerSlice,
     financialVouchers: financialVoucherSlice,
     purchaseOrders: purchaseOrdersSlice,
+    settlement: settlementSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

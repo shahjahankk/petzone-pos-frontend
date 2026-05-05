@@ -73,7 +73,8 @@ import {
   AccountBalance as OutstandingIcon,
   CheckBox as CheckBoxIcon,
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
-  Inventory as InventoryIcon
+  Inventory as InventoryIcon,
+  OpenInNew as OpenInNewIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../../components/print/PrintDialog'
 import RouteGuard from '../../../components/auth/RouteGuard'
@@ -387,7 +388,7 @@ function POSTerminal() {
     outstandingPayments, selectedOutstandingPayments,
     settlementPaymentAmount, settlementCreditAmount,
     isSettlementPartial, isSettlementFullyCredit, showSettlementOptions,
-    taxRate, totalDiscount, notes, updateCurrentTab
+    taxRate, totalDiscount, notes, saleDate, updateCurrentTab
   ])
 
   const addToCart = useCallback((product) => {
@@ -2592,7 +2593,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     const itemCount = tab.cart.reduce((sum, item) => sum + item.quantity, 0)
     const hasItems = itemCount > 0
 
-    useEffect(() => { resetCachedSerialPort() }, [user?.id])
+    useEffect(() => { resetCachedSerialPort() }, [])
     useEffect(() => { return () => { resetCachedSerialPort() } }, [])
 
     return (
@@ -2936,6 +2937,24 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                     <Button variant={isSettlementFullyCredit ? 'contained' : 'outlined'} size="small" onClick={() => handleSettlementPaymentType('fullyCredit')} disabled={settlementSnapshot.isCredit} sx={{ fontFamily: 'monospace' }}>
                       Credit Note
                     </Button>
+                    <Tooltip title="Open full settlement page with this customer pre-filled">
+                      <Button
+                        variant="text"
+                        size="small"
+                        startIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+                        onClick={() => {
+                          const phone = customerPhone || ''
+                          const name = customerName || ''
+                          const params = new URLSearchParams()
+                          if (phone) params.append('phone', phone)
+                          if (name) params.append('name', name)
+                          router.push(`/dashboard/settlements?${params.toString()}`)
+                        }}
+                        sx={{ fontSize: '0.72rem', color: 'text.secondary', whiteSpace: 'nowrap' }}
+                      >
+                        Open Settlement Page
+                      </Button>
+                    </Tooltip>
                   </Box>
                 </Box>
                 {(isSettlementPartial || isSettlementFullyCredit) && (

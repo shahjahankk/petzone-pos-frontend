@@ -36,6 +36,7 @@ import usePermissions from '../../../hooks/usePermissions'
 import EditableInvoiceForm from '../../../components/sales/EditableInvoiceForm'
 import PrintDialog from '../../../components/print/PrintDialog'
 import buildPrintData from '../../../utils/buildPrintData'
+import { formatSaleBalanceForReport } from '../../../utils/ledgerFinance'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ReadOnlyInvoiceView
@@ -763,7 +764,7 @@ const SalesManagement = () => {
         parseFloat(sale.total          || 0).toFixed(2),
         parseFloat(sale.payment_amount || 0).toFixed(2),
         parseFloat(sale.credit_amount  || sale.creditAmount  || 0).toFixed(2),
-        parseFloat(sale.running_balance|| sale.runningBalance|| 0).toFixed(2),
+        formatSaleBalanceForReport(sale, { empty: '' }),
         sale.paymentMethod || sale.payment_method || 'N/A',
         sale.paymentType   || sale.payment_type   || 'N/A',
         sale.paymentStatus || sale.payment_status || 'N/A',
@@ -800,7 +801,7 @@ const SalesManagement = () => {
           'Total':          parseFloat(sale.total           || 0).toFixed(2),
           'Payment':        parseFloat(sale.payment_amount  || 0).toFixed(2),
           'Credit':         parseFloat(sale.credit_amount   || sale.creditAmount   || 0).toFixed(2),
-          'Balance':        parseFloat(sale.running_balance || sale.runningBalance || 0).toFixed(2),
+          'Balance':        formatSaleBalanceForReport(sale, { empty: '' }),
           'Payment Method': sale.paymentMethod || sale.payment_method || 'N/A',
           'Payment Type':   sale.paymentType   || sale.payment_type   || 'N/A',
           'Payment Status': sale.paymentStatus || sale.payment_status || 'N/A',
@@ -906,7 +907,7 @@ const SalesManagement = () => {
                     <td>${parseFloat(sale.total           || 0).toFixed(2)}</td>
                     <td>${parseFloat(sale.payment_amount  || 0).toFixed(2)}</td>
                     <td>${parseFloat(sale.credit_amount   || sale.creditAmount   || 0).toFixed(2)}</td>
-                    <td>${parseFloat(sale.running_balance || sale.runningBalance || 0).toFixed(2)}</td>
+                    <td>${formatSaleBalanceForReport(sale, { empty: '—' })}</td>
                     <td>${sale.paymentMethod || sale.payment_method || 'N/A'}</td>
                     <td>${sale.paymentType   || sale.payment_type   || 'N/A'}</td>
                     <td class="status-${(sale.paymentStatus || sale.payment_status)?.toLowerCase() || 'unknown'}">

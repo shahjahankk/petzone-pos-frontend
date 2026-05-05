@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../../../../utils/axios'
-import { fetchSales } from '../../../store/slices/salesSlice'
+import { fetchSales, updateSale, deleteSale } from '../../../store/slices/salesSlice'
 import {
   Box,
   Paper,
@@ -22,6 +22,7 @@ import {
   CardContent,
   Divider,
   CircularProgress,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -64,6 +65,8 @@ function SalesLedger() {
   const theme = useTheme()
   const dispatch = useDispatch()
   const { user: originalUser } = useSelector((state) => state.auth)
+  const selectedAdminBranch = useSelector((state) => state.admin?.selectedBranch)
+  const currentBranch = useSelector((state) => state.branches?.currentBranch)
   
   // URL-based role switching (same as POS terminal)
   const [urlParams, setUrlParams] = useState({})
@@ -143,12 +146,17 @@ function SalesLedger() {
     notes: ''
   })
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('CASH')
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
   
   // Branch settings for permissions
   const [branchSettings, setBranchSettings] = useState({
     allowCashierSalesEdit: false,
     allowCashierSalesDelete: false
   })
+  const [branchSettingsLoaded, setBranchSettingsLoaded] = useState(false)
+  const [branchSettingsMessage, setBranchSettingsMessage] = useState('')
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -170,40 +178,42 @@ function SalesLedger() {
   // Load branch settings for permissions
   useEffect(() => {
     const loadBranchSettings = async () => {
-      if (user?.role === 'CASHIER' && user?.branchId) {
-        try {
-          const response = await api.get(`/branches/${user.branchId}/settings`)
-          setBranchSettings(response.data.data.settings || {
-            allowCashierSalesEdit: false,
-            allowCashierSalesDelete: false
-          })
-        } catch (error) {
-          // Set default permissions if API fails
-          setBranchSettings({
-            allowCashierSalesEdit: false,
-            allowCashierSalesDelete: false
-          })
-        }
-      } else if (user?.role === 'ADMIN') {
-        // For admins, also load branch settings to respect toggle settings
-        try {
-          const response = await api.get(`/branches/${user.branchId}/settings`)
-          setBranchSettings(response.data.data.settings || {
-            allowCashierSalesEdit: false,
-            allowCashierSalesDelete: false
-          })
-        } catch (error) {
-          // Set default permissions if API fails
-          setBranchSettings({
-            allowCashierSalesEdit: false,
-            allowCashierSalesDelete: false
-          })
-        }
+      const safeDefaultSettings = {
+        allowCashierSalesEdit: false,
+        allowCashierSalesDelete: false
+      }
+
+      const selectedBranchId =
+        selectedAdminBranch?.id ||
+        selectedAdminBranch?._id ||
+        selectedAdminBranch?.branchId ||
+        currentBranch?.id ||
+        currentBranch?._id ||
+        currentBranch?.branchId ||
+        (isAdminMode && urlParams.scope === 'branch' ? parseInt(urlParams.id, 10) : null)
+
+      const branchId = user?.branchId || selectedBranchId
+      if (!branchId) {
+        setBranchSettings(safeDefaultSettings)
+        setBranchSettingsLoaded(false)
+        setBranchSettingsMessage('Select a branch to view settings')
+        return
+      }
+
+      try {
+        const response = await api.get(`/branches/${branchId}/settings`)
+        setBranchSettings(response.data.data.settings || safeDefaultSettings)
+        setBranchSettingsLoaded(true)
+        setBranchSettingsMessage('')
+      } catch (error) {
+        setBranchSettings(safeDefaultSettings)
+        setBranchSettingsLoaded(false)
+        setBranchSettingsMessage('Select a branch to view settings')
       }
     }
 
     loadBranchSettings()
-  }, [user])
+  }, [user, selectedAdminBranch, currentBranch, isAdminMode, urlParams.scope, urlParams.id])
 
   // Filter sales based on search and filters
   const filteredSales = sales?.filter(sale => {
@@ -247,19 +257,68 @@ function SalesLedger() {
   const handleMakePayment = (sale) => {
     setSelectedSale(sale)
     setPaymentAmount(sale.credit_amount || '0')
+    setPaymentMethod('CASH')
+    setPaymentError('')
     setShowPaymentDialog(true)
   }
 
   const handleProcessPayment = async () => {
-    // TODO: Implement payment processing
-    setShowPaymentDialog(false)
-    // Refresh sales data with scope parameters
-    const params = {}
-    if (user?.role === 'CASHIER' && user?.branchId) {
-      params.scopeType = 'BRANCH'
-      params.scopeId = user.branchId
+    if (!selectedSale) {
+      setPaymentError('No sale selected for payment.')
+      return
     }
-    dispatch(fetchSales(params))
+
+    const normalizedAmount = parseFloat(paymentAmount)
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      setPaymentError('Please enter a valid payment amount greater than 0.')
+      return
+    }
+
+    const customerName = selectedSale.customer_name || selectedSale.customerInfo?.name
+    const customerPhone = selectedSale.customer_phone || selectedSale.customerInfo?.phone
+
+    if (!customerName || !customerPhone) {
+      setPaymentError('Customer name and phone are required to clear outstanding payment.')
+      return
+    }
+
+    setPaymentLoading(true)
+    setPaymentError('')
+
+    try {
+      const response = await api.post('/sales/clear-outstanding', {
+        customerName,
+        phone: customerPhone,
+        paymentAmount: normalizedAmount,
+        paymentMethod,
+        notes: `Payment from sales ledger for invoice ${selectedSale.invoice_no || selectedSale.id}`
+      })
+
+      if (!response?.data?.success) {
+        throw new Error(response?.data?.message || 'Payment failed')
+      }
+
+      setShowPaymentDialog(false)
+      setPaymentAmount('')
+      setSelectedSale(null)
+
+      const params = {}
+      if (user?.role === 'CASHIER' && user?.branchId) {
+        params.scopeType = 'BRANCH'
+        params.scopeId = user.branchId
+      }
+      dispatch(fetchSales(params))
+
+      alert(response?.data?.message || 'Payment processed successfully!')
+    } catch (error) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to process payment. Please try again.'
+      setPaymentError(errorMessage)
+    } finally {
+      setPaymentLoading(false)
+    }
   }
 
   // Pagination handlers
@@ -766,7 +825,13 @@ function SalesLedger() {
                             </Tooltip>
                           )}
                           
-                          {(branchSettings.allowCashierSalesEdit && (user?.role === 'ADMIN' || (user?.role === 'CASHIER' && sale.user_id === user?.id))) && (
+                          {!branchSettingsLoaded && user?.role === 'ADMIN' && (
+                            <Typography variant="caption" color="text.secondary" sx={{ maxWidth: 130 }}>
+                              {branchSettingsMessage || 'Select a branch to view settings'}
+                            </Typography>
+                          )}
+
+                          {branchSettingsLoaded && (branchSettings.allowCashierSalesEdit && (user?.role === 'ADMIN' || (user?.role === 'CASHIER' && sale.user_id === user?.id))) && (
                             <>
                               <Tooltip title="Edit Sale">
                                 <IconButton
@@ -1011,6 +1076,12 @@ function SalesLedger() {
             <DialogContent>
               {selectedSale && (
                 <Box sx={{ mt: 2 }}>
+                  {paymentError && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      {paymentError}
+                    </Alert>
+                  )}
+
                   <Typography variant="body2" sx={{ mb: 2, fontWeight: 500 }}>
                     Outstanding Credit: {parseFloat(selectedSale.credit_amount || 0).toFixed(2)}
                   </Typography>
@@ -1024,19 +1095,35 @@ function SalesLedger() {
                     inputProps={{ min: 0, max: selectedSale.credit_amount, step: 0.01 }}
                     sx={{ fontWeight: 500 }}
                   />
+
+                  <TextField
+                    fullWidth
+                    select
+                    label="Payment Method"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    sx={{ mt: 2, fontWeight: 500 }}
+                  >
+                    <MenuItem value="CASH">Cash</MenuItem>
+                    <MenuItem value="CARD">Card</MenuItem>
+                    <MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem>
+                    <MenuItem value="MOBILE_PAYMENT">Mobile Payment</MenuItem>
+                    <MenuItem value="CHEQUE">Cheque</MenuItem>
+                  </TextField>
                 </Box>
               )}
             </DialogContent>
             <DialogActions>
-              <Button onClick={() => setShowPaymentDialog(false)} sx={{ fontWeight: 500 }}>
+              <Button onClick={() => setShowPaymentDialog(false)} sx={{ fontWeight: 500 }} disabled={paymentLoading}>
                 Cancel
               </Button>
               <Button 
                 onClick={handleProcessPayment} 
                 variant="contained"
+                disabled={paymentLoading}
                 sx={{ fontWeight: 500 }}
               >
-                Process Payment
+                {paymentLoading ? 'Processing...' : 'Process Payment'}
               </Button>
             </DialogActions>
           </Dialog>

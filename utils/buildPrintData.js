@@ -208,10 +208,32 @@ const branchName    = sale.branchName    || sale.branch_name    || (scopeType !=
     invoiceTotal = Math.round(safeNum(sale.invoiceTotal ?? sale.total, subtotal + tax - discount))
   }
 
-  const oldBalance       = Math.round(safeNum(sale.oldBalance       ?? sale.old_balance       ?? 0, 0))
-  const paymentAmount    = Math.round(safeNum(sale.paymentAmount    ?? sale.payment_amount    ?? 0, 0))
-  const creditAmount     = Math.round(safeNum(sale.creditAmount     ?? sale.credit_amount     ?? 0, 0))
-  const remainingBalance = Math.round(safeNum(sale.remainingBalance ?? sale.running_balance   ?? sale.runningBalance ?? 0, 0))
+  const useSnapshot = sale.financialSource === 'invoice_snapshots'
+  if (useSnapshot && sale.snapshotTotal != null && Number.isFinite(parseFloat(sale.snapshotTotal))) {
+    invoiceTotal = Math.round(safeNum(sale.snapshotTotal, invoiceTotal))
+  }
+
+  let oldBalance
+  let paymentAmount
+  let creditAmount
+  let remainingBalance
+  if (useSnapshot) {
+    const ob = sale.oldBalance ?? sale.old_balance
+    const rb = sale.runningBalance ?? sale.running_balance
+    const pm = sale.paymentAmount ?? sale.snapshotPayment ?? sale.payment_amount
+    oldBalance = ob != null && Number.isFinite(parseFloat(ob)) ? Math.round(parseFloat(ob)) : 0
+    remainingBalance = rb != null && Number.isFinite(parseFloat(rb)) ? Math.round(parseFloat(rb)) : 0
+    paymentAmount = pm != null && Number.isFinite(parseFloat(pm)) ? Math.round(parseFloat(pm)) : 0
+    const cr = sale.creditAmount ?? sale.credit_amount
+    creditAmount = cr != null && Number.isFinite(parseFloat(cr)) ? Math.round(parseFloat(cr)) : 0
+  } else {
+    oldBalance = Math.round(safeNum(sale.oldBalance ?? sale.old_balance ?? 0, 0))
+    paymentAmount = Math.round(safeNum(sale.paymentAmount ?? sale.payment_amount ?? 0, 0))
+    creditAmount = Math.round(safeNum(sale.creditAmount ?? sale.credit_amount ?? 0, 0))
+    remainingBalance = Math.round(
+      safeNum(sale.remainingBalance ?? sale.running_balance ?? sale.runningBalance ?? 0, 0)
+    )
+  }
   const change           = Math.round(safeNum(sale.change           ?? 0, 0))
 
   // ── Payment ──

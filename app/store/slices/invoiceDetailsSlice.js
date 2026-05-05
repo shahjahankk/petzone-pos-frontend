@@ -1,15 +1,18 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
+import { normalizeInvoiceDetailsData } from '../../../utils/ledgerFinance'
 
 // Async thunk to fetch invoice details
 export const fetchInvoiceDetails = createAsyncThunk(
   'invoiceDetails/fetchInvoiceDetails',
   async (invoiceId, { rejectWithValue }) => {
     try {
-('🔍 Invoice Details: Fetching details for invoice ID:', invoiceId)
       const response = await api.get(`/sales/invoice/${invoiceId}`)
-('🔍 Invoice Details: API Response:', response.data)
-      return response.data
+      const body = response.data
+      if (body?.success && body.data) {
+        return { ...body, data: normalizeInvoiceDetailsData(body.data) }
+      }
+      return body
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Failed to fetch invoice details')
     }
@@ -21,10 +24,12 @@ export const updateInvoice = createAsyncThunk(
   'invoiceDetails/updateInvoice',
   async ({ invoiceId, updateData }, { rejectWithValue }) => {
     try {
-('🔍 Invoice Update: Updating invoice ID:', invoiceId, 'with data:', updateData)
       const response = await api.put(`/sales/${invoiceId}`, updateData)
-('🔍 Invoice Update: API Response:', response.data)
-      return response.data
+      const body = response.data
+      if (body?.success && body.data) {
+        return { ...body, data: normalizeInvoiceDetailsData(body.data) }
+      }
+      return body
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Failed to update invoice')
     }

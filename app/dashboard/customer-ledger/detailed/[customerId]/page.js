@@ -33,7 +33,8 @@ import DashboardLayout from '../../../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../../../components/auth/RoleGuard'
 import PermissionCheck from '../../../../../components/auth/PermissionCheck'
 import { fetchCustomerLedger, exportCustomerLedger } from '../../../../store/slices/customerLedgerSlice'
-import api from '../../../../../utils/axios'
+import { pickTransactionBalance, pickTransactionOldBalance, formatMoneyOrDash } from '../../../../../utils/ledgerFinance'
+import { formatLedgerDate, formatLedgerDateTime, isLedgerBackdated, ledgerInvoiceDateCellTooltip } from '../../../../../utils/ledgerUxDates'
 
 const DetailedCustomerLedgerPage = () => {
   const dispatch = useDispatch()
@@ -67,40 +68,13 @@ const DetailedCustomerLedgerPage = () => {
       // ✅ FIX: pass phone (decodedIdentifier) — backend matches on customer_phone exactly
       const result = await dispatch(fetchCustomerLedger({ 
         customerId: decodedIdentifier,
-        params: { detailed: true, limit: 1000 }
+        params: { detailed: 'true', limit: 1000 }
       })).unwrap()
       
       console.log('🔍 FRONTEND: Received ledger data:', result)
       
       if (result.success && result.data) {
-        const transactions = result.data.transactions || []
-        
-        // Fetch items for each transaction
-        const txWithItems = await Promise.all(
-          transactions.map(async (transaction) => {
-            try {
-              const isReturn = transaction.transaction_type === 'RETURN' || 
-                               transaction.return_id || 
-                               (transaction.invoice_no && transaction.invoice_no.startsWith('RET-'))
-              
-              let itemsResponse
-              if (isReturn) {
-                const returnId = transaction.return_id || transaction.transaction_id
-                itemsResponse = await api.get(`/sales/returns/${returnId}`)
-              } else {
-                itemsResponse = await api.get(`/sales/${transaction.transaction_id}`)
-              }
-              
-              if (itemsResponse.data.success && itemsResponse.data.data.items) {
-                return { ...transaction, items: itemsResponse.data.data.items }
-              }
-              return { ...transaction, items: [] }
-            } catch (error) {
-              console.error(`Error fetching items for transaction ${transaction.transaction_id}:`, error)
-              return { ...transaction, items: [] }
-            }
-          })
-        )
+        const txWithItems = result.data.transactions || []
         
         // ✅ Build customerInfo — prefer data from API, fall back to URL params
         const apiCustomer = result.data.customer || {}
@@ -144,7 +118,8 @@ const DetailedCustomerLedgerPage = () => {
     const stats = transactions.reduce((acc, transaction) => {
       const currentAmount = parseFloat(transaction.amount || 0)
       const paidAmount    = parseFloat(transaction.corrected_paid || transaction.paid_amount || 0)
-      const balance       = parseFloat(transaction.balance || transaction.running_balance || 0)
+      const balPick = pickTransactionBalance(transaction)
+      const balance = balPick !== null ? balPick : parseFloat(transaction.balance || transaction.running_balance || 0)
       
       acc.totalTransactions += 1
       acc.totalAmount       += currentAmount
@@ -166,9 +141,10 @@ const DetailedCustomerLedgerPage = () => {
     })
     
     const lastTransaction = transactions[transactions.length - 1]
-    stats.outstandingBalance = lastTransaction
+    const lastBal = lastTransaction ? pickTransactionBalance(lastTransaction) : null
+    stats.outstandingBalance = lastBal !== null ? lastBal : (lastTransaction
       ? parseFloat(lastTransaction.running_balance || lastTransaction.balance || 0)
-      : 0
+      : 0)
     stats.totalCredit = stats.outstandingBalance
     
     setSummaryStats(stats)
@@ -271,16 +247,10 @@ const transactions = (
     ? transactionsWithItems
     : (currentCustomerLedger?.transactions || [])
 ).slice().sort((a, b) => {
-  const dateA = new Date(a.transaction_date || a.created_at);
-  const dateB = new Date(b.transaction_date || b.created_at);
-  const dayA = dateA.toISOString().substring(0, 10);
-  const dayB = dateB.toISOString().substring(0, 10);
-  if (dayA === dayB) {
-    const invoiceA = a.invoice_no || '';
-    const invoiceB = b.invoice_no || '';
-    return invoiceA.localeCompare(invoiceB, undefined, { numeric: true, sensitivity: 'base' });
-  }
-  return dateA - dateB;
+  const ta = new Date(a.postedAt || a.created_at || 0).getTime()
+  const tb = new Date(b.postedAt || b.created_at || 0).getTime()
+  if (ta !== tb) return ta - tb
+  return (a.transaction_id || 0) - (b.transaction_id || 0)
 });
   
   return (
@@ -384,11 +354,14 @@ const transactions = (
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>Transaction Details</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, maxWidth: 720 }}>
+                  (Backdated) appears when the invoice business date and the posting date fall on different calendar days. It is not tied to any date picker on this screen.
+                </Typography>
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        {['Date','Invoice','Items','Amount','Old Balance','Total Amount',
+                        {['Invoice Date','Posted On','Invoice','Items','Amount','Old Balance','Total Amount',
                           'Payment','Payment Method','Payment Type','Status','Balance'].map(h => (
                           <TableCell key={h} sx={{ fontWeight: 'bold', textAlign: ['Amount','Old Balance','Total Amount','Payment','Balance'].includes(h) ? 'right' : 'left' }}>
                             {h}
@@ -399,7 +372,25 @@ const transactions = (
                     <TableBody>
                       {transactions.map((transaction, index) => (
                         <TableRow key={index}>
-                          <TableCell>{formatDate(transaction.transaction_date || transaction.created_at)}</TableCell>
+                          <TableCell>
+                            <Tooltip title={ledgerInvoiceDateCellTooltip(transaction)}>
+                              <span>
+                                {isLedgerBackdated(transaction) ? (
+                                  <Typography component="span" sx={{ color: '#f57c00', fontWeight: 600 }}>
+                                    {formatLedgerDate(transaction.invoiceDate || transaction.transaction_date)}
+                                    {' '}(Backdated)
+                                  </Typography>
+                                ) : (
+                                  formatLedgerDate(transaction.invoiceDate || transaction.transaction_date)
+                                )}
+                              </span>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
+                            <Tooltip title={`Posted on ${formatLedgerDateTime(transaction.postedAt || transaction.created_at)}`}>
+                              <span>{formatLedgerDateTime(transaction.postedAt || transaction.created_at)}</span>
+                            </Tooltip>
+                          </TableCell>
                           <TableCell>
                             <Typography variant="body2" fontWeight="medium">
                               {transaction.invoice_no || 'N/A'}
@@ -431,7 +422,7 @@ const transactions = (
                           </TableCell>
                           <TableCell align="right">
                             <Typography variant="body2" fontFamily="monospace" color="warning.main">
-                              {formatCurrency(transaction.old_balance || 0)}
+                              {formatMoneyOrDash(pickTransactionOldBalance(transaction), formatCurrency)}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
@@ -460,9 +451,13 @@ const transactions = (
                           <TableCell align="right">
                             <Typography 
                               variant="body2" fontFamily="monospace"
-                              color={parseFloat(transaction.running_balance || transaction.balance || 0) > 0 ? 'error.main' : 'success.main'}
+                              color={(() => {
+                                const b = pickTransactionBalance(transaction)
+                                const n = b !== null ? b : parseFloat(transaction.running_balance || transaction.balance || 0)
+                                return n > 0 ? 'error.main' : 'success.main'
+                              })()}
                             >
-                              {formatCurrency(transaction.running_balance || transaction.balance || 0)}
+                              {formatMoneyOrDash(pickTransactionBalance(transaction), formatCurrency)}
                             </Typography>
                           </TableCell>
                         </TableRow>

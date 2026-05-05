@@ -57,7 +57,13 @@ export const createPurchaseOrder = createAsyncThunk(
       const response = await api.post('/purchase-orders', orderData)
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || error.message)
+      const d = error.response?.data
+      const msg =
+        (typeof d === 'string' && d) ||
+        (d && typeof d.message === 'string' && d.message) ||
+        (d && typeof d.error === 'string' && d.error) ||
+        error.message
+      return rejectWithValue(msg)
     }
   }
 )

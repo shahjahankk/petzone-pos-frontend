@@ -19,6 +19,8 @@ import withAuth from '../../../components/auth/withAuth'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import api from '../../../utils/axios'
+import { pickTransactionBalance, pickTransactionOldBalance } from '../../../utils/ledgerFinance'
+import { formatLedgerDate, formatLedgerDateTime, isLedgerBackdated, ledgerInvoiceDateCellTooltip } from '../../../utils/ledgerUxDates'
 import { 
   fetchAllCustomersWithSummaries, fetchCustomerLedger, exportCustomerLedger,
   clearError, clearCurrentLedger, setCustomersPagination, setLedgerPagination
@@ -142,6 +144,20 @@ function CustomerLedgerPage() {
     }
   }
 
+  const getTransactionTypeChip = (transaction) => {
+    const type = transaction?.transaction_type
+    switch (type) {
+      case 'SETTLEMENT':
+        return <Chip label="Settlement" color="success" size="small" />
+      case 'BILTY':
+        return <Chip label="Bilty" color="warning" size="small" />
+      case 'RETURN':
+        return <Chip label="Return" color="error" size="small" />
+      default:
+        return <Chip label="Sale" color="default" size="small" />
+    }
+  }
+
   const getBalanceColor = (balance) => {
     if (balance > 0) return 'error'
     if (balance < 0) return 'success'
@@ -211,7 +227,7 @@ function CustomerLedgerPage() {
       }
     }
     checkPermissions()
-  }, [user?.role, user?.branchId, user?.warehouseId, originalUser?.role])
+  }, [user, originalUser?.role])
 
 const loadCustomerLedger = useCallback((customerId) => {
   const scopeParams = {}
@@ -454,19 +470,15 @@ const sorted = [...transactions].sort((a, b) => {
     let aValue, bValue
     switch (sortField) {
       case 'transaction_date': {
-        // Compare DATE only (strip time) to handle sale_date vs created_at mismatch
-        const dayA = String(a.transaction_date || a.created_at || '').substring(0, 10)
-        const dayB = String(b.transaction_date || b.created_at || '').substring(0, 10)
-        if (dayA === dayB) {
-          // Same day — sort by invoice number
+        aValue = new Date(a.postedAt || a.created_at || 0).getTime()
+        bValue = new Date(b.postedAt || b.created_at || 0).getTime()
+        if (aValue === bValue) {
           const invoiceA = a.invoice_no || ''
           const invoiceB = b.invoice_no || ''
           return sortDirection === 'asc'
             ? invoiceA.localeCompare(invoiceB, undefined, { numeric: true, sensitivity: 'base' })
             : invoiceB.localeCompare(invoiceA, undefined, { numeric: true, sensitivity: 'base' })
         }
-        aValue = dayA
-        bValue = dayB
         break
       }
       case 'invoice_no':
@@ -511,13 +523,27 @@ const sorted = [...transactions].sort((a, b) => {
         transaction?.return_id ||
         (transaction?.invoice_no && transaction.invoice_no.startsWith('RET-'))
 
+      const isBilty = transaction?.transaction_type === 'BILTY' || transaction?.payment_type === 'BILTY_CHARGE'
       const response = isReturn
         ? await api.get(`/sales/returns/${transaction?.return_id || transactionId}`)
+        : isBilty
+        ? await api.get(`/bilty/${transactionId}`)
         : await api.get(`/sales/${transactionId}`)
 
       if (response.data.success) {
         setSelectedSale(response.data.data)
-        setSaleItems(response.data.data.items || [])
+        const rawItems = response.data.data.items || []
+        const normalizedItems = isBilty
+          ? rawItems.map(item => ({
+              itemName: item.description,
+              sku: item.vehicle_number || '—',
+              quantity: item.quantity,
+              unitPrice: item.amount,
+              discount: 0,
+              total: item.total
+            }))
+          : rawItems
+        setSaleItems(normalizedItems)
         setSaleItemsDialogOpen(true)
       } else {
         alert('Failed to load transaction details')
@@ -542,13 +568,15 @@ const sorted = [...transactions].sort((a, b) => {
             <TableHead>
               <TableRow>
                 {[
-                  ['transaction_date', 'Date'],
+                  ['transaction_date', 'Invoice Date'],
+                  [null,               'Posted On'],
                   ['invoice_no',       'Invoice'],
                   ['amount',           'Amount'],
                   [null,               'Old Balance'],
                   ['total_amount',     'Total Amount'],
                   ['paid_amount',      'Payment'],
                   ['payment_method',   'Payment Method'],
+                  [null,               'Type'],
                   ['status',           'Status'],
                   ['balance',          'Balance'],
                   [null,               'Actions'],
@@ -568,7 +596,11 @@ const sorted = [...transactions].sort((a, b) => {
             <TableBody>
               {sortTransactions(transactions)?.map((transaction, index) => {
                 const currentAmount = parseFloat(transaction.subtotal || transaction.amount || transaction.total || 0)
-                const oldBalance    = parseFloat(transaction.old_balance || transaction.previous_balance || 0)
+                const obPick = pickTransactionOldBalance(transaction)
+                const oldBalance =
+                  obPick !== null
+                    ? obPick
+                    : parseFloat(transaction.old_balance || transaction.previous_balance || 0)
                 const totalAmount   = parseFloat(transaction.total_amount || transaction.total || 0)
                 let correctedPaid = 0
                 if (transaction.payment_method === 'FULLY_CREDIT' && transaction.payment_type !== 'OUTSTANDING_SETTLEMENT')
@@ -577,10 +609,31 @@ const sorted = [...transactions].sort((a, b) => {
                   correctedPaid = parseFloat(transaction.payment_amount || transaction.paid_amount || 0) || 0
                 else
                   correctedPaid = parseFloat(transaction.paid_amount || transaction.payment_amount || 0) || 0
-                const balance = parseFloat(transaction.running_balance || transaction.balance || (totalAmount - correctedPaid))
+                const balPick = pickTransactionBalance(transaction)
+                const balance =
+                  balPick !== null
+                    ? balPick
+                    : parseFloat(transaction.running_balance || transaction.balance || (totalAmount - correctedPaid))
                 return (
                   <TableRow key={transaction.transaction_id || index}>
-                    <TableCell>{formatDate(transaction.transaction_date)}</TableCell>
+                    <TableCell>
+                      <Tooltip title={ledgerInvoiceDateCellTooltip(transaction)}>
+                        <span>
+                          {isLedgerBackdated(transaction) ? (
+                            <Typography component="span" variant="body2" sx={{ color: '#f57c00', fontWeight: 600 }}>
+                              {formatLedgerDate(transaction.invoiceDate || transaction.transaction_date)} (Backdated)
+                            </Typography>
+                          ) : (
+                            formatLedgerDate(transaction.invoiceDate || transaction.transaction_date)
+                          )}
+                        </span>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                      <Tooltip title={`Posted on ${formatLedgerDateTime(transaction.postedAt || transaction.created_at)}`}>
+                        <span>{formatLedgerDateTime(transaction.postedAt || transaction.created_at)}</span>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell>{transaction.invoice_no}</TableCell>
                     <TableCell>{formatCurrency(currentAmount)}</TableCell>
                     <TableCell>
@@ -599,6 +652,7 @@ const sorted = [...transactions].sort((a, b) => {
                       </Typography>
                     </TableCell>
                     <TableCell>{transaction.payment_method}</TableCell>
+                    <TableCell>{getTransactionTypeChip(transaction)}</TableCell>
                     <TableCell>
                       <Chip
                         label={transaction.payment_status_display}
@@ -933,6 +987,9 @@ const sorted = [...transactions].sort((a, b) => {
                         </Button>
                       </Grid>
                     </Grid>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5, maxWidth: 720 }}>
+                      Start and End date filter which transactions are loaded. Rows marked (Backdated) mean the invoice business date and the posting day differ — that label does not depend on these filters.
+                    </Typography>
                   </Box>
                   {renderCustomerLedger()}
                 </>
@@ -964,7 +1021,7 @@ const sorted = [...transactions].sort((a, b) => {
                     <TableHead>
                       <TableRow>
                         <TableCell>Item Name</TableCell>
-                        <TableCell>SKU</TableCell>
+                        <TableCell>Vehicle / SKU</TableCell>
                         <TableCell align="right">Quantity</TableCell>
                         <TableCell align="right">Unit Price</TableCell>
                         <TableCell align="right">Discount</TableCell>

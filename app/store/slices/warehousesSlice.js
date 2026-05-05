@@ -5,13 +5,25 @@ export const fetchWarehouses = createAsyncThunk(
   'warehouses/fetchWarehouses',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/warehouses', params)
+      const response = await api.get('/warehouses', { params: params || {} })
       return response.data
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to fetch warehouses')
     }
   }
 )
+
+function formatAxiosError(error, fallback) {
+  const data = error.response?.data
+  if (!data) return error.message || fallback
+  const msg = data.message || fallback
+  const errs = data.errors
+  if (Array.isArray(errs) && errs.length > 0) {
+    const detail = errs.map((e) => e.msg || e.message || JSON.stringify(e)).join('; ')
+    return `${msg}: ${detail}`
+  }
+  return msg
+}
 
 export const createWarehouse = createAsyncThunk(
   'warehouses/createWarehouse',
@@ -20,7 +32,7 @@ export const createWarehouse = createAsyncThunk(
       const response = await api.post('/warehouses', warehouseData)
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to create warehouse')
+      return rejectWithValue(formatAxiosError(error, 'Failed to create warehouse'))
     }
   }
 )
@@ -32,7 +44,9 @@ export const fetchWarehouseSettings = createAsyncThunk(
       const response = await api.get(`/warehouses/${warehouseId}/settings`)
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch warehouse settings')
+      return rejectWithValue(
+        formatAxiosError(error, 'Failed to fetch warehouse settings')
+      )
     }
   }
 )
@@ -56,7 +70,7 @@ export const updateWarehouse = createAsyncThunk(
       const response = await api.put(`/warehouses/${id}`, data)
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to update warehouse')
+      return rejectWithValue(formatAxiosError(error, 'Failed to update warehouse'))
     }
   }
 )

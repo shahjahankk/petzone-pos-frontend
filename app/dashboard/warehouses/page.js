@@ -54,16 +54,26 @@
       .oneOf(['active', 'inactive', 'maintenance'], 'Status must be active, inactive, or maintenance')
       .nullable()
       .transform((value) => value === '' ? null : value),
-    linkedBranchId: yup.number()
-      .integer('Linked branch ID must be a valid integer')
-      .min(1, 'Linked branch ID must be a valid integer')
+    linkedBranchId: yup
+      .mixed()
       .nullable()
-      .transform((value) => value === '' ? null : value),
-      phone: yup.string()
-    .trim()
-    .max(20, 'Phone must not exceed 20 characters')
-    .nullable()
-    .transform((value) => value === '' ? null : value),
+      .optional()
+      .transform((_, originalValue) => {
+        if (originalValue === '' || originalValue == null || originalValue === undefined) return null
+        const n = Number(originalValue)
+        return Number.isFinite(n) ? n : null
+      })
+      .test(
+        'linked-branch-id',
+        'Linked branch ID must be a positive integer when set',
+        (val) => val == null || (Number.isInteger(val) && val >= 1)
+      ),
+    phone: yup
+      .string()
+      .trim()
+      .max(20, 'Phone must not exceed 20 characters')
+      .nullable()
+      .transform((value) => (value === '' ? null : value)),
   })
 
   // Table columns configuration - unchanged
@@ -132,6 +142,9 @@
   function WarehousesPage() {
     const dispatch = useDispatch()
     const crud = useEntityCRUD('warehouses', 'warehouse')
+    const formInitialData = crud.selectedEntity
+      ? { ...crud.selectedEntity, linkedBranchId: crud.selectedEntity.branchId ?? crud.selectedEntity.linkedBranchId ?? null }
+      : null
 
     // Load data on component mount
     useEffect(() => {
@@ -191,7 +204,7 @@
             title={crud.dialogTitle}
             fields={fields}
             validationSchema={warehouseSchema}
-            initialData={crud.selectedEntity}
+            initialData={formInitialData}
             isEdit={crud.isEdit}
             onSubmit={handleFormSubmit}
             loading={crud.loading}

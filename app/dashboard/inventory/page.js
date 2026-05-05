@@ -882,11 +882,9 @@ Object.keys(normalized).forEach((key) => {
   }
 }
   
-  // Raw data from server (paginated)
-const rawInventory = Array.isArray(inventory) ? inventory : []
-  
   // Apply client-side filters (stock, sold, returned) to the server-paginated data
   const displayInventory = useMemo(() => {
+    const rawInventory = Array.isArray(inventory) ? inventory : []
     let filtered = Array.isArray(rawInventory) ? [...rawInventory] : []
     
     if (stockFilter === 'low') {
@@ -912,7 +910,7 @@ const rawInventory = Array.isArray(inventory) ? inventory : []
     }
 
     return filtered
-  }, [rawInventory, stockFilter, soldFilter, returnedFilter])
+  }, [inventory, stockFilter, soldFilter, returnedFilter])
 
   const totalItems = totalFromServer ?? 0
   const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))

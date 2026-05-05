@@ -425,7 +425,7 @@ export default function DashboardPage() {
     }
     
     loadDashboardData()
-  }, [user, scopeInfo])
+  }, [user, scopeInfo, forcedScope?.scopeType, forcedScope?.scopeId])
 
   const getGreeting = () => {
     const hour = new Date().getHours()

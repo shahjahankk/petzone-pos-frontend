@@ -320,7 +320,9 @@ export default function PrintLayout({
               {nShipping > 0 && (
                 <Row label="SHIPPING & HANDLING" value={formatCurrency(nShipping)} bold />
               )}
-              <Row label="OLD BALANCE" value={formatCurrency(nOld)} bold />
+              {nOld !== 0 && (
+                <Row label="OLD BALANCE" value={formatCurrency(nOld)} bold />
+              )}
 
               <div style={{ borderTop: '2px solid #000', margin: '10px 0', paddingTop: '10px' }}>
                 <Row label="TOTAL DUE" value={formatCurrency(finalTotal)} bold large />
@@ -518,7 +520,7 @@ export default function PrintLayout({
           {nDiscount > 0 && <ThermalRow label="Discount" value={`-${formatCurrency(nDiscount)}`} color="#d32f2f" />}
           {LINE}
           <ThermalRow label="Invoice Total" value={formatCurrency(computedInvoiceTotal)} bold />
-          <ThermalRow label="Old Balance"   value={formatCurrency(nOld)} />
+          {nOld !== 0 && <ThermalRow label="Old Balance" value={formatCurrency(nOld)} />}
           {BOLD_LINE}
           <ThermalRow label="TOTAL" value={formatCurrency(displayedTotal)} bold large />
           {EQ_LINE}

@@ -77,7 +77,8 @@ import {
   Add as AddIcon,
   Person as PersonIcon,
   Phone as PhoneIcon,
-  AttachMoney as MoneyIcon
+  AttachMoney as MoneyIcon,
+  OpenInNew as OpenInNewIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../components/print/PrintDialog'
 import RouteGuard from '../../components/auth/RouteGuard'
@@ -180,7 +181,7 @@ const createEmptyTabState = (overrides = {}) => ({
 })
 
 // ─── Inline Row Component ────────────────────────────────────────────────────
-function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem }) {
+function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem, fetchLastCustomerItemPrice }) {
   const theme = useTheme()
   const [itemSearch, setItemSearch] = useState(item.name || '')
   const [open, setOpen] = useState(false)
@@ -231,13 +232,29 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       }))
   }, [itemSearch, inventoryItems])
 
-  const handleSelectProduct = (product) => {
+  const handleSelectProduct = async (product) => {
     if (!product) return
+    // Field = catalog selling price; last sale price is hint only (see lastPriceHint below)
+    const customPrice = Number(product.price) || 0
+    let lastPriceHint = null
+    if (typeof fetchLastCustomerItemPrice === 'function') {
+      try {
+        const hint = await fetchLastCustomerItemPrice(product.id)
+        if (hint && hint.lastPrice != null && Number.isFinite(Number(hint.lastPrice))) {
+          lastPriceHint = {
+            lastPrice: hint.lastPrice,
+            lastInvoice: hint.lastInvoice,
+            lastDate: hint.lastDate
+          }
+        }
+      } catch (_) { /* no last-price hint */ }
+    }
     onUpdate(index, {
       ...product,
       quantity: 1,
       discount: 0,
-      customPrice: product.price
+      customPrice,
+      lastPriceHint
     })
     setItemSearch(product.name)
     setOpen(false)
@@ -404,24 +421,31 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       </TableCell>
 
       <TableCell sx={{ ...cellSx, width: '13%' }}>
-        <TextField
-          fullWidth
-          size="small"
-          type="number"
-          value={item.id ? parseFloat(item.customPrice ?? item.price ?? 0).toFixed(0) : ''}
-          placeholder="—"
-          disabled={!item.id}
-          onChange={(e) => onUpdate(index, { customPrice: parseFloat(e.target.value) || 0 })}
-          inputProps={{ min: 0, step: 1, style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.95rem' } }}
-          sx={{
-            ...inputSx,
-            '& .MuiOutlinedInput-root': {
-              ...inputSx['& .MuiOutlinedInput-root'],
-              bgcolor: item.customPrice !== undefined && item.customPrice !== null && item.customPrice !== item.price
-                ? '#fff8e1' : 'transparent'
-            }
-          }}
-        />
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25 }}>
+          <TextField
+            fullWidth
+            size="small"
+            type="number"
+            value={item.id ? parseFloat(item.customPrice ?? item.price ?? 0).toFixed(0) : ''}
+            placeholder="—"
+            disabled={!item.id}
+            onChange={(e) => onUpdate(index, { customPrice: parseFloat(e.target.value) || 0 })}
+            inputProps={{ min: 0, step: 1, style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.95rem' } }}
+            sx={{
+              ...inputSx,
+              '& .MuiOutlinedInput-root': {
+                ...inputSx['& .MuiOutlinedInput-root'],
+                bgcolor: item.customPrice !== undefined && item.customPrice !== null && item.customPrice !== item.price
+                  ? '#fff8e1' : 'transparent'
+              }
+            }}
+          />
+          {item.id && item.lastPriceHint?.lastInvoice != null && (
+            <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.65rem', color: 'text.secondary', lineHeight: 1.2, textAlign: 'right' }}>
+              Last price: Rs {Math.round(Number(item.lastPriceHint.lastPrice) || 0)} (Invoice {item.lastPriceHint.lastInvoice})
+            </Typography>
+          )}
+        </Box>
       </TableCell>
 
       <TableCell sx={{ ...cellSx, width: '10%' }}>
@@ -716,7 +740,28 @@ function WarehouseBillingPage() {
     setNewRowIndex(currentCart.length)
   }, [currentCart.length])
 
-  const addToCart = useCallback((product) => {
+  const fetchLastCustomerItemPrice = useCallback(async (inventoryItemId) => {
+    if (!inventoryItemId) return null
+    const rid = selectedRetailer?.id
+    const phone = (customerPhone || '').trim()
+    const name = (customerName || '').trim()
+    const hasRetailer = rid !== undefined && rid !== null && rid !== ''
+    if (!hasRetailer && !phone && !name) return null
+    try {
+      const params = { inventoryItemId }
+      if (hasRetailer) params.retailerId = rid
+      else if (phone) params.customerPhone = phone
+      else if (name) params.customerName = name
+      else return null
+      const { data } = await api.get('/warehouse-sales/last-price', { params })
+      if (data?.success && data?.data && data.data.lastPrice != null) return data.data
+      return null
+    } catch {
+      return null
+    }
+  }, [selectedRetailer, customerPhone, customerName])
+
+  const addToCart = useCallback(async (product) => {
     const existingItem = currentCart.find(item => item.id === product.id)
     let newCart
     if (existingItem) {
@@ -724,15 +769,23 @@ function WarehouseBillingPage() {
         item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
       )
     } else {
+      // Unit price field = inventory selling price; last sale shown as caption only
+      const customPrice = Number(product.sellingPrice ?? product.price) || 0
+      let lastPriceHint = null
+      const hint = await fetchLastCustomerItemPrice(product.id)
+      if (hint && hint.lastPrice != null && Number.isFinite(Number(hint.lastPrice))) {
+        lastPriceHint = { lastPrice: hint.lastPrice, lastInvoice: hint.lastInvoice, lastDate: hint.lastDate }
+      }
       newCart = [...currentCart, {
         ...product,
         quantity: 1,
         discount: 0,
-        customPrice: product.sellingPrice || product.price
+        customPrice,
+        lastPriceHint
       }]
     }
     updateCurrentTabCart(newCart)
-  }, [currentCart, updateCurrentTabCart])
+  }, [currentCart, updateCurrentTabCart, fetchLastCustomerItemPrice])
 
   const buildWarehouseSalePayload = useCallback(({
     billAmount: inputBillAmount,
@@ -960,7 +1013,7 @@ function WarehouseBillingPage() {
     loadAvailablePrinters()
   }, [dispatch, user, loadAvailablePrinters, isAdminMode])
 
-  const searchOutstandingPayments = useCallback(async (phoneNumber, customerName) => {
+  const searchOutstandingPayments = useCallback(async (phoneNumber, customerName, retailerId = null) => {
     if ((!phoneNumber || phoneNumber.trim().length < 3) && (!customerName || customerName.trim().length < 3)) {
       setOutstandingPayments([])
       setSelectedOutstandingPayments([])
@@ -969,6 +1022,7 @@ function WarehouseBillingPage() {
     setIsSearchingOutstanding(true)
     try {
       const params = new URLSearchParams()
+      if (retailerId) params.append('retailerId', String(retailerId))
       if (phoneNumber && phoneNumber.trim().length >= 3) params.append('phone', phoneNumber.trim())
       if (customerName && customerName.trim().length >= 3) params.append('customerName', customerName.trim())
       const response = await api.get(`/sales/outstanding?${params.toString()}`)
@@ -1014,12 +1068,14 @@ function WarehouseBillingPage() {
     const timeoutId = setTimeout(() => {
       const retailerPhone = selectedRetailer?.phone?.trim()
       const retailerName = selectedRetailer?.name?.trim()
+      const retailerId = selectedRetailer?.id || null
+
       if ((retailerPhone && retailerPhone.length >= 3) || (retailerName && retailerName.length >= 3)) {
-        searchOutstandingPayments(retailerPhone || '', retailerName || '')
+        searchOutstandingPayments(retailerPhone || '', retailerName || '', retailerId)
         return
       }
       if ((customerPhone && customerPhone.trim().length >= 3) || (customerName && customerName.trim().length >= 3)) {
-        searchOutstandingPayments(customerPhone?.trim(), customerName?.trim())
+        searchOutstandingPayments(customerPhone?.trim(), customerName?.trim(), null)
       } else {
         setOutstandingPayments([])
         setSelectedOutstandingPayments([])
@@ -1072,8 +1128,11 @@ function WarehouseBillingPage() {
     setCustomerPhone(retailer.phone || '')
     setShowRetailerSearch(false)
     setRetailerSearchResults([])
-    if (retailer.phone && retailer.phone.trim().length >= 3) searchOutstandingPayments(retailer.phone.trim(), retailer.name?.trim())
-    else if (retailer.name && retailer.name.trim().length >= 3) searchOutstandingPayments('', retailer.name.trim())
+    searchOutstandingPayments(
+      retailer.phone?.trim() || '',
+      retailer.name?.trim() || '',
+      retailer.id || null
+    )
   }, [searchOutstandingPayments])
 
   const subtotal = useMemo(() => {
@@ -1173,12 +1232,15 @@ function WarehouseBillingPage() {
       paymentMethod: (paymentMethod || 'CASH').toUpperCase(),
       notes: notes || ''
     }
+    if (selectedRetailer?.id != null && selectedRetailer?.id !== '') {
+      payload.retailerId = selectedRetailer.id
+    }
     if (isCredit) { payload.isCreditUsage = true; payload.creditAmount = Math.abs(creditAmount) }
     if (paymentAmountForBackend === 0 && !isCredit) payload.isCreditNote = true
     const clearResponse = await api.post('/sales/clear-outstanding', payload)
     if (!clearResponse.data?.success) throw new Error(clearResponse.data?.message || 'Failed to clear outstanding payments')
     return clearResponse.data
-  }, [selectedOutstandingPayments, outstandingPayments, calculateSettlementValues, paymentMethod])
+  }, [selectedOutstandingPayments, outstandingPayments, calculateSettlementValues, paymentMethod, selectedRetailer, notes])
 
   const normalizeCartItemForPrint = useCallback((item) => {
     const parseNumber = (value) => {
@@ -1298,7 +1360,7 @@ function WarehouseBillingPage() {
     setShowSearchResults(false); setManualInput(''); setBarcodeInput(''); setSearchQuery(''); setSelectedCategory('all')
   }
 
-  const refreshOutstandingPayments = () => {
+  const refreshOutstandingPayments = (phone, name, retailerId) => {
     setSettlementPaymentAmount(''); setSettlementCreditAmount(''); setIsSettlementPartial(false); setIsSettlementFullyCredit(false)
     setOutstandingPayments([]); setSelectedOutstandingPayments([])
     if (currentTab) {
@@ -1306,6 +1368,9 @@ function WarehouseBillingPage() {
         outstandingPayments: [], selectedOutstandingPayments: [], settlementPaymentAmount: '',
         settlementCreditAmount: '', isSettlementPartial: false, isSettlementFullyCredit: false, showSettlementOptions: false
       })
+    }
+    if (phone?.trim().length >= 3 || name?.trim().length >= 3) {
+      searchOutstandingPayments(phone?.trim() || '', name?.trim() || '', retailerId ?? null)
     }
   }
 
@@ -1405,7 +1470,7 @@ function WarehouseBillingPage() {
                 cashierName: user?.name || user?.username || 'Warehouse Keeper',
                 customerName: settlementSale.customer_name || retailerNameDisplay, customerPhone: settlementSale.customer_phone || retailerPhoneDisplay,
                 items: [], subtotal: 0, tax: 0, discount: 0, invoiceTotal: 0,
-                oldBalance: Math.round(Math.abs(ba)), total: Math.round(parseFloat(settlementSale.total || 0)),
+                total: Math.round(parseFloat(settlementSale.total || 0)),
                 paymentMethod: settlementSale.payment_method || paymentMethod || 'CASH',
                 paymentAmount: Math.round(spv), creditAmount: Math.round(scv), remainingBalance: Math.round(scv), change: 0, notes: '',
                 footerMessage: isCredit ? 'Credit refund processed!' : 'Thank you for your payment!'
@@ -1413,8 +1478,11 @@ function WarehouseBillingPage() {
               setCompletedSaleData({ sale: settlementSale, printData: spd, isSaved: true })
               setSaleConfirmDialog(true)
             }
+            const refPhone = selectedRetailer?.phone || customerPhone
+            const refName = selectedRetailer?.name || customerName
+            const refRid = selectedRetailer?.id ?? null
             clearAllPOSState()
-            setTimeout(() => refreshOutstandingPayments(), 2000)
+            setTimeout(() => refreshOutstandingPayments(refPhone, refName, refRid), 500)
           } catch (error) { alert(`❌ Error processing settlement: ${error.message}`) }
           return
         } else { alert('❌ Cart is empty and no outstanding payments selected.'); return }
@@ -1465,7 +1533,6 @@ const pd = buildPrintData({
     tax             : printableTax,
     discount        : printableDiscount,
     invoiceTotal    : printableInvoiceTotal,
-    oldBalance      : Math.round(outstandingTotal || 0),
     paymentAmount   : Math.round(finalPaymentAmount),
     creditAmount    : Math.round(finalCreditAmount),
     remainingBalance: Math.round(finalCreditAmount),
@@ -1494,8 +1561,11 @@ const pd = buildPrintData({
 })
         setCompletedSaleData({ sale, printData: pd, retailerInfo, isSaved: true })
         setSaleConfirmDialog(true)
+        const refPhoneAfterSale = selectedRetailer?.phone || customerPhone
+        const refNameAfterSale = selectedRetailer?.name || customerName
+        const refRidAfterSale = selectedRetailer?.id ?? null
         clearAllPOSState()
-        setTimeout(() => refreshOutstandingPayments(), 2000)
+        setTimeout(() => refreshOutstandingPayments(refPhoneAfterSale, refNameAfterSale, refRidAfterSale), 500)
       } else if (createWarehouseSale.rejected.match(result)) {
         const error = result.payload || result.error
         showToast(error?.message || 'Sale failed. Please try again.', 'error')
@@ -1938,6 +2008,27 @@ const pd = buildPrintData({
                         ))}
                       </Box>
 
+                      <Tooltip title="Open full settlement page with this customer pre-filled">
+                        <Button
+                          variant="text"
+                          size="small"
+                          startIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+                          onClick={() => {
+                            const phone = selectedRetailer?.phone || customerPhone || ''
+                            const name = selectedRetailer?.name || customerName || ''
+                            const id = selectedRetailer?.id || null
+                            const params = new URLSearchParams()
+                            if (phone) params.append('phone', phone)
+                            if (name) params.append('name', name)
+                            if (id) params.append('retailerId', id)
+                            router.push(`/dashboard/settlements?${params.toString()}`)
+                          }}
+                          sx={{ fontSize: '0.72rem', color: 'text.secondary', whiteSpace: 'nowrap' }}
+                        >
+                          Open Settlement Page
+                        </Button>
+                      </Tooltip>
+
                       {/* Pay Now input — only for partial */}
                       {isSettlementPartial && (
                         <>
@@ -2096,6 +2187,7 @@ const pd = buildPrintData({
                         onAddRow={handleAddRow}
                         isLast={index === cartWithPlaceholder.length - 1}
                         autoFocusItem={index === newRowIndex || (index === 0 && currentCart.length === 0)}
+                        fetchLastCustomerItemPrice={fetchLastCustomerItemPrice}
                       />
                     ))}
                   </TableBody>

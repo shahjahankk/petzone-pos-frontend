@@ -1,5 +1,25 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
+import { pickTransactionBalance, pickTransactionOldBalance } from '../../../utils/ledgerFinance'
+
+function isLedgerRow(transaction) {
+  return transaction?.ledger_entry_id != null || transaction?.ledgerEntryId != null
+}
+
+/** Excel / PDF-friendly: ledger nulls stay blank; legacy keeps numeric fallbacks. */
+function excelOldBalanceCell(transaction) {
+  const o = pickTransactionOldBalance(transaction)
+  if (o !== null) return o.toFixed(2)
+  if (isLedgerRow(transaction)) return ''
+  return parseFloat(transaction.old_balance ?? 0).toFixed(2)
+}
+
+function excelBalanceCell(transaction) {
+  const b = pickTransactionBalance(transaction)
+  if (b !== null) return b.toFixed(2)
+  if (isLedgerRow(transaction)) return ''
+  return parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0).toFixed(2)
+}
 
 // Async thunks
 export const fetchCustomerLedger = createAsyncThunk(
@@ -37,7 +57,7 @@ export const exportCustomerLedger = createAsyncThunk(
       if (params.startDate) queryParams.append('startDate', params.startDate)
       if (params.endDate) queryParams.append('endDate', params.endDate)
       if (params.format) queryParams.append('format', params.format)
-      if (params.detailed) queryParams.append('detailed', params.detailed)
+      if (params.detailed) queryParams.append('detailed', 'true')
       
       const url = `/customer-ledger/${customerId}/export?${queryParams.toString()}`
       console.log('Export API URL:', url)
@@ -99,10 +119,13 @@ export const exportCustomerLedger = createAsyncThunk(
             if (params.detailed === 'true') {
               transactions.forEach((transaction) => {
                 const amount = parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0)
-                const oldBalance = parseFloat(transaction.old_balance ?? 0)
-                const totalAmountDue = parseFloat(transaction.total_amount ?? (oldBalance + amount))
+                const oldPick = pickTransactionOldBalance(transaction)
+                const oldBalanceNum = oldPick !== null ? oldPick : parseFloat(transaction.old_balance ?? 0)
+                const totalAmountDue = parseFloat(
+                  transaction.total_amount ?? (Number.isFinite(oldBalanceNum) ? oldBalanceNum + amount : amount)
+                )
                 const payment = parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0)
-                const balance = parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0)
+                const balanceStr = excelBalanceCell(transaction)
 
                 if (transaction.items && transaction.items.length > 0) {
                   transaction.items.forEach((item) => {
@@ -117,12 +140,12 @@ export const exportCustomerLedger = createAsyncThunk(
                       'Discount': parseFloat(item.discount || 0).toFixed(2),
                       'Item Total': parseFloat(item.item_total || item.total || 0).toFixed(2),
                       'Amount': amount.toFixed(2),
-                      'Old Balance': oldBalance.toFixed(2),
+                      'Old Balance': excelOldBalanceCell(transaction),
                       'Total Amount Due': totalAmountDue.toFixed(2),
                       'Payment': payment.toFixed(2),
                       'Payment Method': transaction.payment_method || 'N/A',
                       'Payment Status': transaction.payment_status || 'N/A',
-                      'Balance': balance.toFixed(2)
+                      'Balance': balanceStr
                     })
                   })
                 } else {
@@ -137,12 +160,12 @@ export const exportCustomerLedger = createAsyncThunk(
                     'Discount': '0.00',
                     'Item Total': '0.00',
                     'Amount': amount.toFixed(2),
-                    'Old Balance': oldBalance.toFixed(2),
+                    'Old Balance': excelOldBalanceCell(transaction),
                     'Total Amount Due': totalAmountDue.toFixed(2),
                     'Payment': payment.toFixed(2),
                     'Payment Method': transaction.payment_method || 'N/A',
                     'Payment Status': transaction.payment_status || 'N/A',
-                    'Balance': balance.toFixed(2)
+                    'Balance': balanceStr
                   })
                 }
               })
@@ -152,12 +175,12 @@ export const exportCustomerLedger = createAsyncThunk(
                 'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
                 'Invoice #': transaction.invoice_no || 'N/A',
                 'Amount': parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0).toFixed(2),
-                'Old Balance': parseFloat(transaction.old_balance ?? 0).toFixed(2),
+                'Old Balance': excelOldBalanceCell(transaction),
                 'Total Amount': parseFloat(transaction.total_amount ?? transaction.total ?? 0).toFixed(2),
                 'Payment': parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0).toFixed(2),
                 'Payment Method': transaction.payment_method || 'N/A',
                 'Payment Status': transaction.payment_status || 'N/A',
-                'Balance': parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0).toFixed(2)
+                'Balance': excelBalanceCell(transaction)
               }))
             }
 
@@ -172,12 +195,12 @@ export const exportCustomerLedger = createAsyncThunk(
               'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
               'Invoice #': transaction.invoice_no || 'N/A',
               'Amount': parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0).toFixed(2),
-              'Old Balance': parseFloat(transaction.old_balance ?? 0).toFixed(2),
+              'Old Balance': excelOldBalanceCell(transaction),
               'Total Amount': parseFloat(transaction.total_amount ?? transaction.total ?? 0).toFixed(2),
               'Payment': parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0).toFixed(2),
               'Payment Method': transaction.payment_method || 'N/A',
               'Payment Status': transaction.payment_status || 'N/A',
-              'Balance': parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0).toFixed(2)
+              'Balance': excelBalanceCell(transaction)
             }))
 
             const allSheet = XLSX.utils.json_to_sheet(allRows)
@@ -218,10 +241,13 @@ export const exportCustomerLedger = createAsyncThunk(
           
           sortedTransactions.forEach(transaction => {
             const amount = parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0)
-            const oldBalance = parseFloat(transaction.old_balance ?? 0)
-            const totalAmountDue = parseFloat(transaction.total_amount ?? (oldBalance + amount))
+            const oldPick = pickTransactionOldBalance(transaction)
+            const oldBalanceNum = oldPick !== null ? oldPick : parseFloat(transaction.old_balance ?? 0)
+            const totalAmountDue = parseFloat(
+              transaction.total_amount ?? (Number.isFinite(oldBalanceNum) ? oldBalanceNum + amount : amount)
+            )
             const payment = parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0)
-            const balance = parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0)
+            const balanceStr = excelBalanceCell(transaction)
 
             if (transaction.items && transaction.items.length > 0) {
               transaction.items.forEach(item => {
@@ -235,12 +261,12 @@ export const exportCustomerLedger = createAsyncThunk(
                   'Discount': parseFloat(item.discount || 0).toFixed(2),
                   'Item Total': parseFloat(item.item_total || item.total || 0).toFixed(2),
                   'Amount': amount.toFixed(2),
-                  'Old Balance': oldBalance.toFixed(2),
+                  'Old Balance': excelOldBalanceCell(transaction),
                   'Total Amount Due': totalAmountDue.toFixed(2),
                   'Payment': payment.toFixed(2),
                   'Payment Method': transaction.payment_method || 'N/A',
                   'Payment Status': transaction.payment_status || 'N/A',
-                  'Balance': balance.toFixed(2)
+                  'Balance': balanceStr
                 })
               })
             } else {
@@ -254,12 +280,12 @@ export const exportCustomerLedger = createAsyncThunk(
                 'Discount': '0.00',
                 'Item Total': '0.00',
                 'Amount': amount.toFixed(2),
-                'Old Balance': oldBalance.toFixed(2),
+                'Old Balance': excelOldBalanceCell(transaction),
                 'Total Amount Due': totalAmountDue.toFixed(2),
                 'Payment': payment.toFixed(2),
                 'Payment Method': transaction.payment_method || 'N/A',
                 'Payment Status': transaction.payment_status || 'N/A',
-                'Balance': balance.toFixed(2)
+                'Balance': balanceStr
               })
             }
           })
@@ -274,18 +300,26 @@ export const exportCustomerLedger = createAsyncThunk(
             return dateA - dateB
           })
           
-          excelData = sortedTransactions.map(transaction => ({
-            'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
-            'Invoice #': transaction.invoice_no || 'N/A',
-            'Amount': parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0).toFixed(2),
-            'Old Balance': parseFloat(transaction.old_balance ?? 0).toFixed(2),
-            'Total Amount Due': parseFloat(transaction.total_amount ?? ((parseFloat(transaction.old_balance ?? 0)) + parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0))).toFixed(2),
-            'Payment': parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0).toFixed(2),
-            'Payment Method': transaction.payment_method || 'N/A',
-            'Payment Status': transaction.payment_status || 'N/A',
-            'Status': transaction.status || transaction.payment_status_display || 'N/A',
-            'Balance': parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0).toFixed(2)
-          }))
+          excelData = sortedTransactions.map(transaction => {
+            const amount = parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0)
+            const oldPick = pickTransactionOldBalance(transaction)
+            const oldNum = oldPick !== null ? oldPick : parseFloat(transaction.old_balance ?? 0)
+            const totalDue = parseFloat(
+              transaction.total_amount ?? (Number.isFinite(oldNum) ? oldNum + amount : amount)
+            )
+            return {
+              'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+              'Invoice #': transaction.invoice_no || 'N/A',
+              'Amount': amount.toFixed(2),
+              'Old Balance': excelOldBalanceCell(transaction),
+              'Total Amount Due': totalDue.toFixed(2),
+              'Payment': parseFloat(transaction.corrected_paid ?? transaction.paid_amount ?? transaction.payment_amount ?? 0).toFixed(2),
+              'Payment Method': transaction.payment_method || 'N/A',
+              'Payment Status': transaction.payment_status || 'N/A',
+              'Status': transaction.status || transaction.payment_status_display || 'N/A',
+              'Balance': excelBalanceCell(transaction)
+            }
+          })
         }
         
         const workbook = XLSX.utils.book_new()
@@ -376,7 +410,7 @@ const customerLedgerSlice = createSlice({
           responseData.transactions = responseData.transactions.map((transaction, index) => {
             let old_balance = transaction.old_balance
             
-            if (old_balance === undefined || old_balance === null) {
+            if (!isLedgerRow(transaction) && (old_balance === undefined || old_balance === null)) {
               if (index === 0) {
                 old_balance = 0
               } else {
@@ -407,7 +441,7 @@ const customerLedgerSlice = createSlice({
               group.transactions = group.transactions.map((transaction, index) => {
                 let old_balance = transaction.old_balance
                 
-                if (old_balance === undefined || old_balance === null) {
+                if (!isLedgerRow(transaction) && (old_balance === undefined || old_balance === null)) {
                   if (index === 0) {
                     old_balance = 0
                   } else {

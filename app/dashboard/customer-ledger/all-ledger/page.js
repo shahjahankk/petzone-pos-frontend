@@ -11,6 +11,8 @@ import { FilterList as FilterIcon, Refresh as RefreshIcon, Download as DownloadI
 import {
   fetchCustomerLedger, exportCustomerLedger, clearError
 } from '../../../store/slices/customerLedgerSlice'
+import { pickTransactionBalance, pickTransactionOldBalance, formatMoneyOrDash } from '../../../../utils/ledgerFinance'
+import { formatLedgerDate, formatLedgerDateTime, isLedgerBackdated, ledgerInvoiceDateCellTooltip } from '../../../../utils/ledgerUxDates'
 
 function AllLedgerContent() {
   const dispatch = useDispatch()
@@ -25,6 +27,8 @@ const loadAllLedger = useCallback(() => {
   }))
 }, [dispatch, filters, page])
 
+// Intentionally paginate-only auto-load; filters apply via handleApplyFilters.
+// eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => { loadAllLedger() }, [page])
 
 const handleApplyFilters = () => {
@@ -58,7 +62,8 @@ const handleApplyFilters = () => {
   }
 
   const getStatus = (t) => {
-    const bal = parseFloat(t.running_balance || t.balance || 0)
+    const balPick = pickTransactionBalance(t)
+    const bal = balPick !== null ? balPick : parseFloat(t.running_balance || t.balance || 0)
     if (t.payment_method === 'FULLY_CREDIT' && t.payment_type !== 'OUTSTANDING_SETTLEMENT') return { label: 'Credit', color: '#ef4444', bg: '#fef2f2' }
     if (bal <= 0.01) return { label: 'Paid', color: '#16a34a', bg: '#f0fdf4' }
     if (t.payment_status === 'PARTIAL') return { label: 'Partial', color: '#d97706', bg: '#fffbeb' }
@@ -90,15 +95,9 @@ const handleApplyFilters = () => {
 const sortTransactionsAsc = (transactions) => {
   if (!transactions || transactions.length === 0) return []
   return [...transactions].sort((a, b) => {
-    const dayA = String(a.transaction_date || a.created_at || '').substring(0, 10)
-    const dayB = String(b.transaction_date || b.created_at || '').substring(0, 10)
-    if (dayA !== dayB) return dayA < dayB ? -1 : 1
-    // Same day — sort by invoice number
-    const invoiceA = a.invoice_no || ''
-    const invoiceB = b.invoice_no || ''
-    const numA = parseInt(invoiceA.replace(/\D/g, '') || '0', 10)
-    const numB = parseInt(invoiceB.replace(/\D/g, '') || '0', 10)
-    if (numA !== numB) return numA - numB
+    const ta = new Date(a.postedAt || a.created_at || 0).getTime()
+    const tb = new Date(b.postedAt || b.created_at || 0).getTime()
+    if (ta !== tb) return ta - tb
     return (a.transaction_id || 0) - (b.transaction_id || 0)
   })
 }
@@ -172,6 +171,11 @@ const sortTransactionsAsc = (transactions) => {
                 Apply Filters
               </Button>
             </Grid>
+            <Grid item xs={12}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                Start/End control which rows are loaded. (Backdated) on a line means invoice day ≠ posting day — not whether these filters are empty.
+              </Typography>
+            </Grid>
           </Grid>
         </Paper>
 
@@ -215,9 +219,11 @@ const sortTransactionsAsc = (transactions) => {
             paid:   acc.paid   + getPaid(t),
           }), { amount: 0, paid: 0 })
 
-          const lastBalance = transactions.length > 0
-            ? parseFloat(transactions[transactions.length - 1]?.running_balance || transactions[transactions.length - 1]?.balance || 0)
-            : 0
+          const lastTx = transactions.length > 0 ? transactions[transactions.length - 1] : null
+          const lastPick = lastTx ? pickTransactionBalance(lastTx) : null
+          const lastBalance = lastPick !== null
+            ? lastPick
+            : (lastTx ? parseFloat(lastTx.running_balance || lastTx.balance || 0) : 0)
 
           return (
             <Paper key={group.customer?.key || gIdx} sx={{ mb: 3, borderRadius: 2, overflow: 'hidden' }} elevation={0} variant="outlined">
@@ -241,7 +247,7 @@ const sortTransactionsAsc = (transactions) => {
                   <TableHead>
                     <TableRow>
                       {/* CHANGE 1: Added 'Notes' to the headers array */}
-                      {['#', 'Date', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance', 'Notes'].map(h => (
+                      {['#', 'Invoice Date', 'Posted On', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance', 'Notes'].map(h => (
                         <TableCell key={h} sx={H}>{h}</TableCell>
                       ))}
                     </TableRow>
@@ -249,10 +255,10 @@ const sortTransactionsAsc = (transactions) => {
                   <TableBody>
                     {transactions.map((t, tIdx) => {
                       const amount   = parseFloat(t.amount || t.subtotal || 0)
-                      const oldBal   = parseFloat(t.old_balance || 0)
                       const totalAmt = parseFloat(t.total_amount || 0)
                       const paid     = getPaid(t)
-                      const balance  = parseFloat(t.running_balance || t.balance || 0)
+                      const balPick  = pickTransactionBalance(t)
+                      const balanceForColor = balPick !== null ? balPick : parseFloat(t.running_balance || t.balance || 0)
                       const isReturn = t.transaction_type === 'RETURN'
                       const txType   = getTxType(t)
                       const status   = getStatus(t)
@@ -266,7 +272,25 @@ const sortTransactionsAsc = (transactions) => {
                             {tIdx + 1}
                           </TableCell>
 
-                          <TableCell sx={{ ...C, whiteSpace: 'nowrap' }}>{formatDate(t.transaction_date)}</TableCell>
+                          <TableCell sx={{ ...C, whiteSpace: 'nowrap' }}>
+                            <Tooltip title={ledgerInvoiceDateCellTooltip(t)}>
+                              <span>
+                                {isLedgerBackdated(t) ? (
+                                  <Typography component="span" sx={{ color: '#f57c00', fontWeight: 600, fontSize: '0.78rem' }}>
+                                    {formatLedgerDate(t.invoiceDate || t.transaction_date)} (Backdated)
+                                  </Typography>
+                                ) : (
+                                  formatLedgerDate(t.invoiceDate || t.transaction_date)
+                                )}
+                              </span>
+                            </Tooltip>
+                          </TableCell>
+
+                          <TableCell sx={{ ...C, whiteSpace: 'nowrap', color: '#64748b', fontSize: '0.72rem' }}>
+                            <Tooltip title={`Posted on ${formatLedgerDateTime(t.postedAt || t.created_at)}`}>
+                              <span>{formatLedgerDateTime(t.postedAt || t.created_at)}</span>
+                            </Tooltip>
+                          </TableCell>
 
                           <TableCell sx={{ ...C, fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {isReturn && <span style={{ color: '#ef4444', marginRight: 4 }}>↩</span>}
@@ -277,7 +301,7 @@ const sortTransactionsAsc = (transactions) => {
 
                           <TableCell sx={{ ...C, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(amount)}</TableCell>
 
-                          <TableCell sx={{ ...C, textAlign: 'right', color: '#f59e0b', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatCurrency(oldBal)}</TableCell>
+                          <TableCell sx={{ ...C, textAlign: 'right', color: '#f59e0b', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatMoneyOrDash(pickTransactionOldBalance(t), formatCurrency)}</TableCell>
 
                           <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#3b82f6', whiteSpace: 'nowrap' }}>{formatCurrency(totalAmt)}</TableCell>
 
@@ -297,8 +321,8 @@ const sortTransactionsAsc = (transactions) => {
                             </Box>
                           </TableCell>
 
-                          <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: balance > 0 ? '#ef4444' : balance < 0 ? '#22c55e' : '#64748b' }}>
-                            {formatCurrency(balance)}
+                          <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: balanceForColor > 0 ? '#ef4444' : balanceForColor < 0 ? '#22c55e' : '#64748b' }}>
+                            {formatMoneyOrDash(balPick, formatCurrency)}
                           </TableCell>
 
                           {/* CHANGE 2: New Notes cell */}
@@ -325,7 +349,7 @@ const sortTransactionsAsc = (transactions) => {
                     {/* Per-customer total row */}
                     <TableRow sx={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #cbd5e1' }}>
                       <TableCell sx={{ ...C, fontWeight: 700, color: '#1e293b', fontSize: '0.8rem' }} />
-                      <TableCell colSpan={3} sx={{ ...C, fontWeight: 700, color: '#1e293b', fontSize: '0.8rem' }}>
+                      <TableCell colSpan={4} sx={{ ...C, fontWeight: 700, color: '#1e293b', fontSize: '0.8rem' }}>
                         {group.customer?.name || 'Total'}
                       </TableCell>
                       <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700 }}>{formatCurrency(custTotals.amount)}</TableCell>
@@ -363,7 +387,7 @@ const sortTransactionsAsc = (transactions) => {
               <Table size="small">
                 <TableBody>
                   <TableRow sx={{ backgroundColor: '#f8fafc' }}>
-                    <TableCell colSpan={4} sx={{ ...C, fontWeight: 700, color: '#475569' }}>
+                    <TableCell colSpan={5} sx={{ ...C, fontWeight: 700, color: '#475569' }}>
                       {grandTotals.totalTransactions} Transactions across {uniqueCount} Customers
                     </TableCell>
                     <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>

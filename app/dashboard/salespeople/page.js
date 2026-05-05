@@ -59,6 +59,7 @@ import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import PermissionCheck from '../../../components/auth/PermissionCheck'
 import api from '../../../utils/axios'
+import { formatSaleBalanceForReport } from '../../../utils/ledgerFinance'
 import SalespersonForm from '../../../components/salesperson/SalespersonForm'
 
 const SalespeoplePage = () => {
@@ -543,7 +544,7 @@ const SalespeoplePage = () => {
         parseFloat(sale.total || 0).toFixed(2),
         parseFloat(sale.payment_amount || 0).toFixed(2),
         parseFloat(sale.credit_amount || 0).toFixed(2),
-        parseFloat(sale.running_balance || 0).toFixed(2),
+        formatSaleBalanceForReport(sale, { empty: '' }),
         sale.payment_method || 'Cash',
         sale.payment_status || 'N/A',
         sale.username || sale.created_by || 'Unknown'
@@ -607,7 +608,7 @@ const SalespeoplePage = () => {
           'Total': parseFloat(sale.total || 0).toFixed(2),
           'Payment': parseFloat(sale.payment_amount || 0).toFixed(2),
           'Credit': parseFloat(sale.credit_amount || 0).toFixed(2),
-          'Balance': parseFloat(sale.running_balance || 0).toFixed(2),
+          'Balance': formatSaleBalanceForReport(sale, { empty: '' }),
           'Payment Method': sale.payment_method || 'Cash',
           'Payment Status': sale.payment_status || 'N/A',
           'Created By': sale.username || sale.created_by || 'Unknown'

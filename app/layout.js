@@ -12,6 +12,9 @@ export const metadata = {
   title: 'Petzone Frontend',
   description: 'A modern POS frontend built with Next.js 14',
   manifest: '/manifest.json',
+}
+
+export const viewport = {
   themeColor: '#6b46c1',
 }
 

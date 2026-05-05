@@ -204,6 +204,14 @@ export const menuConfig = [
         roles: ['ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER'],
         order: 6,
       },
+      {
+        id: 'settlements-bilty',
+        label: 'Settlements & Bilty',
+        icon: <AccountBalance />,
+        path: '/dashboard/settlements',
+        roles: ['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'],
+        order: 7,
+      },
     ],
   },
 
