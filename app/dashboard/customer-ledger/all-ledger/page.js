@@ -5,7 +5,7 @@ import {
   Box, Typography, TextField, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, Chip, IconButton,
   Tooltip, FormControl, InputLabel, Select, MenuItem, Grid,
-  Alert, CircularProgress, Pagination
+  Alert, CircularProgress
 } from '@mui/material'
 import { FilterList as FilterIcon, Refresh as RefreshIcon, Download as DownloadIcon } from '@mui/icons-material'
 import {
@@ -18,25 +18,20 @@ function AllLedgerContent() {
   const dispatch = useDispatch()
   const { currentCustomerLedger, loading, error } = useSelector((state) => state.customerLedger)
   const [filters, setFilters] = useState({ startDate: '', endDate: '', transactionType: 'all' })
-  const [page, setPage] = useState(1)
 
 const loadAllLedger = useCallback(() => {
   dispatch(fetchCustomerLedger({
     customerId: '__all__',
-    params: { ...filters, detailed: 'true', limit: 10, offset: (page - 1) * 10 }
+    params: { ...filters, detailed: 'true', limit: 1000, offset: 0 }
   }))
-}, [dispatch, filters, page])
+}, [dispatch, filters])
 
-// Intentionally paginate-only auto-load; filters apply via handleApplyFilters.
+// Initial load once; filters are applied via the button.
 // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => { loadAllLedger() }, [page])
+useEffect(() => { loadAllLedger() }, [])
 
 const handleApplyFilters = () => {
-  if (page === 1) {
-    loadAllLedger() // page didn't change so effect won't fire, call manually
-  } else {
-    setPage(1) // page change will trigger the effect
-  }
+  loadAllLedger()
 }
 
   const handleExport = (format = 'pdf', detailed = false) =>
@@ -103,7 +98,6 @@ const sortTransactionsAsc = (transactions) => {
 }
 
   const groups = currentCustomerLedger?.groupedLedgers || []
-  const totalRecords = currentCustomerLedger?.pagination?.total || 0
   const uniqueCount = currentCustomerLedger?.customer?.unique_customers ?? groups.length
 
   const grandTotals = groups.reduce((acc, g) => {
@@ -246,7 +240,6 @@ const sortTransactionsAsc = (transactions) => {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {/* CHANGE 1: Added 'Notes' to the headers array */}
                       {['#', 'Invoice Date', 'Posted On', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance', 'Notes'].map(h => (
                         <TableCell key={h} sx={H}>{h}</TableCell>
                       ))}
@@ -325,7 +318,6 @@ const sortTransactionsAsc = (transactions) => {
                             {formatMoneyOrDash(balPick, formatCurrency)}
                           </TableCell>
 
-                          {/* CHANGE 2: New Notes cell */}
                           <TableCell sx={{ ...C, minWidth: 140, maxWidth: 220 }}>
                             {t.notes && (
                               <Typography sx={{ fontSize: '0.73rem', color: '#475569', lineHeight: 1.5 }}>
@@ -366,7 +358,6 @@ const sortTransactionsAsc = (transactions) => {
                       <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: lastBalance > 0 ? '#ef4444' : '#16a34a' }}>
                         {formatCurrency(lastBalance)}
                       </TableCell>
-                      {/* CHANGE 3: Empty Notes cell to keep columns aligned */}
                       <TableCell sx={C} />
                     </TableRow>
 
@@ -414,7 +405,6 @@ const sortTransactionsAsc = (transactions) => {
                       <Typography variant="caption" display="block" sx={{ fontSize: '0.63rem', color: '#94a3b8' }}>OUTSTANDING</Typography>
                       {formatCurrency(grandTotals.outstandingBalance)}
                     </TableCell>
-                    {/* CHANGE 4: Empty Notes cell to keep columns aligned */}
                     <TableCell sx={C} />
                   </TableRow>
                 </TableBody>
@@ -423,13 +413,6 @@ const sortTransactionsAsc = (transactions) => {
           </Paper>
         )}
 
-        {/* Pagination */}
-        {totalRecords > 10 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <Pagination count={Math.ceil(totalRecords / 10)} page={page} color="primary"
-              onChange={(e, p) => { setPage(p) }} />
-          </Box>
-        )}
 
       </Box>
     </Box>
