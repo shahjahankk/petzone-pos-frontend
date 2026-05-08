@@ -43,7 +43,9 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Store as StoreIcon,
+  Business as BusinessIcon
 } from '@mui/icons-material'
 import withAuth from '../../../components/auth/withAuth.js'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
@@ -1246,27 +1248,19 @@ const canEditInventory = useMemo(() => {
             ) : (
               <>
               
-              <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 320px)', border: '1px solid #e5e7eb' }}>
-                <Table
-                  stickyHeader
-                  size="small"
-                  sx={{
-                    minWidth: 1320,
-                    '& .MuiTableCell-root': { fontSize: '0.8rem', py: 0.9, borderBottom: '1px solid #eef2f7' },
-                    '& .MuiTableRow-root:hover': { backgroundColor: '#f8fafc' }
-                  }}
-                >
+              <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 320px)' }}>
+                <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.8rem', py: 0.5 } }}>
                     <TableHead>
                      <TableRow sx={{
-                      '& .MuiTableCell-head': {
-                        backgroundColor: '#ffffff',
-                        color: '#334155',
-                        fontWeight: 700,
-                        fontSize: '0.78rem',
-                        borderBottom: '2px solid #e2e8f0',
-                        whiteSpace: 'nowrap',
-                      }
-                    }}>
+      '& .MuiTableCell-head': {
+        backgroundColor: '#f3f4f6',
+        color: '#374151',
+        fontWeight: 700,
+        fontSize: '0.78rem',
+        borderBottom: '2px solid #d1d5db',
+        whiteSpace: 'nowrap',
+      }
+    }}>
                       <TableCell>Name</TableCell>
                       <TableCell>Category</TableCell>
                       <TableCell>Unit</TableCell>
@@ -1289,30 +1283,78 @@ const canEditInventory = useMemo(() => {
                     {displayInventory.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.name}</TableCell>
-                        <TableCell sx={{ color: '#475569' }}>{item.category || '-'}</TableCell>
-                        <TableCell sx={{ color: '#475569' }}>{item.unit || '-'}</TableCell>
+                        <TableCell>
+                          <Chip label={item.category} size="small" />
+                        </TableCell>
+                        <TableCell>{item.unit}</TableCell>
                         <TableCell align="right">{parseFloat(item.costPrice || 0).toFixed(2)}</TableCell>
                         <TableCell align="right">{parseFloat(item.sellingPrice || 0).toFixed(2)}</TableCell>
-                        <TableCell align="right" sx={{
-                          color:
-                            item.currentStock < 0 ? 'error.main'
-                            : item.currentStock === 0 ? 'error.main'
-                            : item.currentStock <= item.minStockLevel ? 'warning.main'
-                            : 'success.main',
-                          fontWeight: 700
-                        }}>
-                          {item.currentStock || 0}
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.currentStock || 0} 
+                            size="small" 
+                            color={
+                              item.currentStock < 0 ? 'error' :
+                              item.currentStock === 0 ? 'error' :
+                              item.currentStock <= item.minStockLevel ? 'warning' : 'success'
+                            }
+                            variant="outlined"
+                          />
                         </TableCell>
-                        <TableCell align="right" sx={{ color: '#334155' }}>{item.totalSold || 0}</TableCell>
-                        <TableCell align="right" sx={{ color: '#334155' }}>{item.totalReturned || 0}</TableCell>
-                        <TableCell align="right" sx={{ color: '#334155' }}>{item.totalPurchased || 0}</TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.totalSold || 0} 
+                            size="small" 
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.totalReturned || 0} 
+                            size="small" 
+                            color="warning"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.totalPurchased || 0} 
+                            size="small" 
+                            color="success"
+                            variant="outlined"
+                          />
+                        </TableCell>
                         <TableCell align="right">{item.minStockLevel}</TableCell>
                         <TableCell align="right">{item.maxStockLevel}</TableCell>
-                        <TableCell sx={{ whiteSpace: 'nowrap', color: '#1e293b', fontWeight: 600 }}>{getScopeDisplayName(item)}</TableCell>
                         <TableCell>
-                          <Typography variant="body2" color={item.supplierName ? 'text.primary' : 'text.secondary'}>
-                            {item.supplierName || '-'}
-                          </Typography>
+                          <Chip 
+                            icon={item.scopeType === 'BRANCH' ? <StoreIcon /> : <BusinessIcon />}
+                            label={getScopeDisplayName(item)} 
+                            size="small" 
+                            color={item.scopeType === 'BRANCH' ? 'primary' : 'secondary'}
+                            variant="filled"
+                            sx={{ 
+                              fontWeight: 'bold',
+                              maxWidth: '200px',
+                              '& .MuiChip-label': {
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {item.supplierName ? (
+                            <Chip 
+                              label={item.supplierName} 
+                              size="small" 
+                              color="info"
+                              variant="outlined"
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">-</Typography>
+                          )}
                         </TableCell>
                         <TableCell>
                           {item.purchaseDate ? (
