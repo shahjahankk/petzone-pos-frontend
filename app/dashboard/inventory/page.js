@@ -20,6 +20,12 @@ import {
   Tooltip,
   Card,
   CardContent,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Alert,
   CircularProgress,
   Pagination,
@@ -945,33 +951,6 @@ const canEditInventory = useMemo(() => {
     }
   }
 
-  const formatMoney = (value) => {
-    const n = parseFloat(value || 0)
-    return Number.isFinite(n) ? n.toFixed(2) : '0.00'
-  }
-
-  const formatQty = (value) => {
-    const n = parseFloat(value || 0)
-    return Number.isFinite(n) ? n : 0
-  }
-
-  const inventoryGridColumns = 'minmax(220px,2fr) minmax(120px,1fr) minmax(80px,0.7fr) minmax(110px,0.9fr) minmax(110px,0.9fr) minmax(110px,0.8fr) minmax(90px,0.7fr) minmax(90px,0.7fr) minmax(100px,0.8fr) minmax(90px,0.7fr) minmax(90px,0.7fr) minmax(180px,1.3fr) minmax(84px,0.7fr)'
-  const inventoryHeaders = [
-    'Name',
-    'Category',
-    'Unit',
-    'Cost Price',
-    'Selling Price',
-    'Current Stock',
-    'Sold',
-    'Returned',
-    'Purchased',
-    'Min Stock',
-    'Max Stock',
-    'Scope',
-    'Actions',
-  ]
-
   return (
     <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
       <DashboardLayout>
@@ -1269,130 +1248,163 @@ const canEditInventory = useMemo(() => {
             ) : (
               <>
               
-              <Paper
-                variant="outlined"
-                sx={{
-                  maxHeight: 'calc(100vh - 320px)',
-                  overflow: 'auto',
-                  borderRadius: 2,
-                  borderColor: '#dbe3ee'
-                }}
-              >
-                <Box
-                  sx={{
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 3,
-                    display: 'grid',
-                    gridTemplateColumns: inventoryGridColumns,
-                    gap: 1,
-                    px: 1.5,
-                    py: 1,
-                    background: 'linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)',
-                    borderBottom: '1px solid #dbe3ee'
-                  }}
-                >
-                  {inventoryHeaders.map((header) => (
-                    <Typography
-                      key={header}
-                      sx={{
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        color: '#334155',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {header}
-                    </Typography>
-                  ))}
-                </Box>
-
-                {displayInventory.map((item) => (
-                  <Box
-                    key={item.id}
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: inventoryGridColumns,
-                      gap: 1,
-                      px: 1.5,
-                      py: 1,
-                      alignItems: 'center',
-                      borderBottom: '1px solid #eef2f7',
-                      '&:hover': { backgroundColor: '#f8fafc' }
-                    }}
-                  >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }} noWrap>
-                        {item.name}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.7rem', color: '#64748b' }} noWrap>
-                        {item.supplierName || 'No supplier'}
-                      </Typography>
-                    </Box>
-
-                    <Chip label={item.category || '-'} size="small" variant="outlined" />
-                    <Typography sx={{ fontSize: '0.78rem', color: '#334155' }}>{item.unit || '-'}</Typography>
-                    <Typography sx={{ fontSize: '0.78rem', textAlign: 'right', fontWeight: 600 }}>{formatMoney(item.costPrice)}</Typography>
-                    <Typography sx={{ fontSize: '0.78rem', textAlign: 'right', fontWeight: 700, color: '#0f766e' }}>{formatMoney(item.sellingPrice)}</Typography>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <Chip
-                        label={formatQty(item.currentStock)}
-                        size="small"
-                        color={
-                          item.currentStock < 0 ? 'error' :
-                          item.currentStock === 0 ? 'error' :
-                          item.currentStock <= item.minStockLevel ? 'warning' : 'success'
-                        }
-                        variant="outlined"
-                      />
-                    </Box>
-
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <Chip label={formatQty(item.totalSold)} size="small" color="primary" variant="outlined" />
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <Chip label={formatQty(item.totalReturned)} size="small" color="warning" variant="outlined" />
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <Chip label={formatQty(item.totalPurchased)} size="small" color="success" variant="outlined" />
-                    </Box>
-
-                    <Typography sx={{ fontSize: '0.78rem', textAlign: 'right', color: '#475569' }}>{formatQty(item.minStockLevel)}</Typography>
-                    <Typography sx={{ fontSize: '0.78rem', textAlign: 'right', color: '#475569' }}>{formatQty(item.maxStockLevel)}</Typography>
-
-                    <Chip
-                      icon={item.scopeType === 'BRANCH' ? <StoreIcon /> : <BusinessIcon />}
-                      label={getScopeDisplayName(item)}
-                      size="small"
-                      color={item.scopeType === 'BRANCH' ? 'primary' : 'secondary'}
-                      variant="filled"
-                      sx={{
-                        fontWeight: 700,
-                        maxWidth: '180px',
-                        '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' }
-                      }}
-                    />
-
-                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-start' }}>
-                      {canEditInventory && (
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => handleEdit(item)} color="primary">
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {user?.role === 'ADMIN' && (
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => handleDeleteClick(item)} color="error">
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Box>
-                  </Box>
-                ))}
-              </Paper>
+              <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 320px)' }}>
+                <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.8rem', py: 0.5 } }}>
+                    <TableHead>
+                     <TableRow sx={{
+      '& .MuiTableCell-head': {
+        backgroundColor: '#f3f4f6',
+        color: '#374151',
+        fontWeight: 700,
+        fontSize: '0.78rem',
+        borderBottom: '2px solid #d1d5db',
+        whiteSpace: 'nowrap',
+      }
+    }}>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Category</TableCell>
+                      <TableCell>Unit</TableCell>
+                      <TableCell align="right">Cost Price</TableCell>
+                      <TableCell align="right">Selling Price</TableCell>
+                      <TableCell align="right">Current Stock</TableCell>
+                      <TableCell align="right">Sold</TableCell>
+                      <TableCell align="right">Returned</TableCell>
+                      <TableCell align="right">Purchased</TableCell>
+                      <TableCell align="right">Min Stock</TableCell>
+                      <TableCell align="right">Max Stock</TableCell>
+                      <TableCell>Scope</TableCell>
+                      <TableCell>Supplier</TableCell>
+                      <TableCell>Purchase Date</TableCell>
+                      <TableCell align="right">Purchase Price</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {displayInventory.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.name}</TableCell>
+                        <TableCell>
+                          <Chip label={item.category} size="small" />
+                        </TableCell>
+                        <TableCell>{item.unit}</TableCell>
+                        <TableCell align="right">{parseFloat(item.costPrice || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">{parseFloat(item.sellingPrice || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.currentStock || 0} 
+                            size="small" 
+                            color={
+                              item.currentStock < 0 ? 'error' :
+                              item.currentStock === 0 ? 'error' :
+                              item.currentStock <= item.minStockLevel ? 'warning' : 'success'
+                            }
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.totalSold || 0} 
+                            size="small" 
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.totalReturned || 0} 
+                            size="small" 
+                            color="warning"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={item.totalPurchased || 0} 
+                            size="small" 
+                            color="success"
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">{item.minStockLevel}</TableCell>
+                        <TableCell align="right">{item.maxStockLevel}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            icon={item.scopeType === 'BRANCH' ? <StoreIcon /> : <BusinessIcon />}
+                            label={getScopeDisplayName(item)} 
+                            size="small" 
+                            color={item.scopeType === 'BRANCH' ? 'primary' : 'secondary'}
+                            variant="filled"
+                            sx={{ 
+                              fontWeight: 'bold',
+                              maxWidth: '200px',
+                              '& .MuiChip-label': {
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {item.supplierName ? (
+                            <Chip 
+                              label={item.supplierName} 
+                              size="small" 
+                              color="info"
+                              variant="outlined"
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">-</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {item.purchaseDate ? (
+                            <Typography variant="body2">
+                              {new Date(item.purchaseDate).toLocaleDateString()}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">-</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="right">
+                          {item.purchasePrice ? (
+                            <Typography variant="body2" fontWeight="medium">
+                              {parseFloat(item.purchasePrice).toFixed(2)}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">-</Typography>
+                          )}
+                        </TableCell>
+<TableCell>
+  <Box sx={{ display: 'flex', gap: 0.5 }}>
+    {canEditInventory && (
+      <Tooltip title="Edit">
+        <IconButton
+          size="small"
+          onClick={() => handleEdit(item)}
+          color="primary"
+        >
+          <EditIcon />
+        </IconButton>
+      </Tooltip>
+    )}
+    {user?.role === 'ADMIN' && (
+      <Tooltip title="Delete">
+        <IconButton
+          size="small"
+          onClick={() => handleDeleteClick(item)}
+          color="error"
+        >
+          <DeleteIcon />
+        </IconButton>
+      </Tooltip>
+    )}
+  </Box>
+</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
               </>
             )}
 
