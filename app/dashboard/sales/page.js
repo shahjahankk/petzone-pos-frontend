@@ -421,6 +421,18 @@ const SalesManagement = () => {
   const [endDate,             setEndDate]             = useState(null)
   const [page,                setPage]                = useState(1)
   const [rowsPerPage,         setRowsPerPage]         = useState(25)
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim())
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearchTerm])
 
   // Drawer / dialog state
   const [filterDrawerOpen,    setFilterDrawerOpen]    = useState(false)
@@ -503,6 +515,7 @@ const SalesManagement = () => {
 
       if (startDate) salesParams.startDate = startDate.toISOString().split('T')[0]
       if (endDate)   salesParams.endDate   = endDate.toISOString().split('T')[0]
+      if (debouncedSearchTerm) salesParams.search = debouncedSearchTerm
 
       salesParams.page  = page
       salesParams.limit = rowsPerPage
@@ -526,7 +539,7 @@ const SalesManagement = () => {
     if (user) dispatch(fetchInventory({ ...baseScopeParams }))
 
     return () => clearTimeout(timeoutId)
-  }, [dispatch, user, filters, startDate, endDate, baseScopeParams, scopeInfo, page, rowsPerPage, scopeSearch, initialized, isActualAdmin, isAdminMode])
+  }, [dispatch, user, filters, startDate, endDate, baseScopeParams, scopeInfo, page, rowsPerPage, scopeSearch, initialized, isActualAdmin, isAdminMode, debouncedSearchTerm])
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
   const handleFilterChange = (field, value) => {
@@ -560,13 +573,6 @@ const SalesManagement = () => {
 
   const getFilteredAndSortedSales = () => {
     let filtered = (sales || []).filter(sale => {
-      if (searchTerm) {
-        const lower = searchTerm.toLowerCase()
-        const invoiceMatch  = sale.invoice_no?.toLowerCase().includes(lower)
-        const customerMatch = resolveCustomerName(sale).toLowerCase().includes(lower)
-        if (!invoiceMatch && !customerMatch) return false
-      }
-
       if (paymentMethodFilter !== 'all') {
         const pm          = sale.paymentMethod || sale.payment_method
         const ps          = sale.paymentStatus || sale.payment_status
