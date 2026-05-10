@@ -320,6 +320,10 @@ function POSTerminal() {
   const lastScanTimeRef = useRef(0)
   const hydratingTabIdRef = useRef(null)
   const isCompletingSaleRef = useRef(false)
+  const makeSaleIdempotencyKey = () =>
+    typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
 
   const currentTab = useMemo(() => {
     return tabs.find(tab => tab.id === activeTabId) || null
@@ -1407,6 +1411,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
   }
 
   const handlePayment = async () => {
+    if (isProcessingSaleOnly || isCompletingSaleRef.current) return
+    isCompletingSaleRef.current = true
+    setIsProcessingSaleOnly(true)
     try {
       if (!user) { alert('❌ User not authenticated. Please login again.'); return }
 
@@ -1497,10 +1504,10 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         saleDate: saleDate || null
       }
 
-      const result = await dispatch(createSale(saleData))
+      const result = await dispatch(createSale({ ...saleData, __idempotencyKey: makeSaleIdempotencyKey() }))
 
       if (createSale.fulfilled.match(result)) {
-        const sale = result.payload
+        const sale = result.payload?.data ?? result.payload
         const isCashPayment = (paymentMethod || 'CASH').toUpperCase() === 'CASH'
         const shouldClearOutstanding = (currentCart.length === 0 && showSettlementOptions) ||
           (isCashPayment && !isFullyCredit && !isBalancePayment && selectedOutstandingPayments.length > 0 && finalPaymentAmount > 0)
@@ -1542,6 +1549,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }
     } catch (error) {
       alert(`❌ Payment processing error: ${error.message}`)
+    } finally {
+      setIsProcessingSaleOnly(false)
+      isCompletingSaleRef.current = false
     }
   }
 
@@ -1790,7 +1800,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         showSettlementOptions: pendingShowSettlement
       } = pendingSaleData
 
-      const result = await dispatch(createSale(saleData))
+      const result = await dispatch(createSale({ ...saleData, __idempotencyKey: makeSaleIdempotencyKey() }))
 
       if (createSale.fulfilled.match(result)) {
         const sale = result.payload.data || result.payload
@@ -2517,7 +2527,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         }))
       }
 
-      const result = await dispatch(createSale(saleData))
+      const result = await dispatch(createSale({ ...saleData, __idempotencyKey: makeSaleIdempotencyKey() }))
 
       if (createSale.fulfilled.match(result)) {
         const sale = result.payload.data || result.payload

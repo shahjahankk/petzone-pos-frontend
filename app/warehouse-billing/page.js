@@ -1431,6 +1431,7 @@ function WarehouseBillingPage() {
   const handleCompleteSale = async () => {
     if (isCompletingSaleRef.current) return
     isCompletingSaleRef.current = true
+    setIsProcessingSaleOnly(true)
 
     try {
       if (user.role === 'ADMIN' && !isAdminMode) { alert('Please select a branch or warehouse from the Admin Dashboard to simulate a role before making sales.'); return }
@@ -1511,7 +1512,11 @@ function WarehouseBillingPage() {
       })
       if (!salePayloadInfo) return
       const { payload: saleData, retailerInfo } = salePayloadInfo
-      const result = await dispatch(createWarehouseSale(saleData))
+      const idempotencyKey =
+        typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
+          ? globalThis.crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+      const result = await dispatch(createWarehouseSale({ ...saleData, __idempotencyKey: idempotencyKey }))
 
       if (createWarehouseSale.fulfilled.match(result)) {
         const sale = result.payload?.data || result.payload

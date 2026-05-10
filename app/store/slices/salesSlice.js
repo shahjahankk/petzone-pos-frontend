@@ -47,9 +47,15 @@ export const createSale = createAsyncThunk(
   async (saleData, { rejectWithValue, getState }) => {
     try {
       // ❌ REMOVED scope validation - now handled by axios headers
-      console.log('[SalesSlice] createSale - Request data:', saleData)
+      const { __idempotencyKey, ...body } = saleData || {}
+      console.log('[SalesSlice] createSale - Request data:', body)
 
-      const response = await api.post('/sales', saleData)
+      const headers = {}
+      if (__idempotencyKey && typeof __idempotencyKey === 'string') {
+        headers['Idempotency-Key'] = __idempotencyKey
+      }
+
+      const response = await api.post('/sales', body, { headers })
 
       if (response.data.success) {
         return response.data
@@ -81,9 +87,15 @@ export const createWarehouseSale = createAsyncThunk(
   async (saleData, { rejectWithValue, getState }) => {
     try {
       // ❌ REMOVED scope validation - now handled by axios headers
-      console.log('[SalesSlice] createWarehouseSale - Request data:', saleData)
+      const { __idempotencyKey, ...body } = saleData || {}
+      console.log('[SalesSlice] createWarehouseSale - Request data:', body)
 
-      const response = await api.post('/warehouse-sales', saleData)
+      const headers = {}
+      if (__idempotencyKey && typeof __idempotencyKey === 'string') {
+        headers['Idempotency-Key'] = __idempotencyKey
+      }
+
+      const response = await api.post('/warehouse-sales', body, { headers })
       return response.data
     } catch (error) {
       const status = error.response?.status
