@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { healthChecker, performanceMonitor, errorTracker, logger } from '../../../utils/monitoring'
-import envConfig from '../../../config/environment'
-
 // Health check endpoint
 export async function GET() {
   try {
@@ -13,7 +11,7 @@ export async function GET() {
       status: healthStatus.status,
       timestamp: new Date().toISOString(),
       version: process.env.npm_package_version || 'unknown',
-      environment: envConfig.getConfig().NODE_ENV,
+      environment: process.env.NODE_ENV || 'development',
       uptime: healthStatus.uptime,
       checks: healthStatus.checks,
       metrics: {
@@ -66,19 +64,15 @@ export async function POST() {
       status: healthStatus.status,
       timestamp: new Date().toISOString(),
       version: process.env.npm_package_version || 'unknown',
-      environment: envConfig.getConfig().NODE_ENV,
+      environment: process.env.NODE_ENV || 'development',
       uptime: healthStatus.uptime,
       checks: healthStatus.checks,
       metrics,
       recentErrors,
       recentLogs,
       configuration: {
-        apiUrl: envConfig.getApiUrl(),
-        logLevel: envConfig.getLogLevel(),
-        enableAnalytics: envConfig.shouldEnableAnalytics(),
-        enableSentry: envConfig.shouldEnableSentry(),
-        cacheTTL: envConfig.getCacheTTL(),
-        pollingInterval: envConfig.getPollingInterval()
+        apiUrl: process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || null,
+        nodeEnv: process.env.NODE_ENV || 'development'
       }
     }
 

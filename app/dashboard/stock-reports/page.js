@@ -354,23 +354,13 @@ function StockReportsPage() {
       }
       title = 'Stock Transaction Reports'
     } else if (activeTab === 1) {
-      // Stock Summary data
-      exportData = stockSummary?.data || []
-      headers = ['Item', 'Current Stock', 'Min Level', 'Max Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Total Purchased', 'Total Sold', 'Total Returned', 'Total Adjusted', 'Net Change']
-      fieldMapping = {
-        'Item': 'itemName',
-        'Current Stock': 'currentStock',
-        'Min Level': 'minStockLevel',
-        'Max Level': 'maxStockLevel',
-        'Cost Price': 'costPrice',
-        'Selling Price': 'sellingPrice',
-        'Stock Value': 'currentStockValue',
-        'Total Purchased': 'totalPurchased',
-        'Total Sold': 'totalSold',
-        'Total Returned': 'totalReturned',
-        'Total Adjusted': 'totalAdjusted',
-        'Net Change': 'netChange'
-      }
+      const agg = stockSummary?.data
+      const flat = agg && typeof agg === 'object' && !Array.isArray(agg)
+        ? Object.entries(agg).map(([k, v]) => ({ Metric: k, Value: v }))
+        : []
+      exportData = flat
+      headers = ['Metric', 'Value']
+      fieldMapping = { Metric: 'Metric', Value: 'Value' }
       title = 'Stock Summary Report'
     } else {
       // Statistics data - properly format the nested data
@@ -464,9 +454,11 @@ function StockReportsPage() {
       headers = ['Date & Time', 'Product', 'Transaction Type', 'Quantity Change', 'Previous Stock', 'Available Stock', 'Unit Price', 'Total Value', 'Price Change', 'User', 'Scope']
       filename = 'stock-reports.xlsx'
     } else if (activeTab === 1) {
-      // Stock Summary data
-      exportData = stockSummary?.data || []
-      headers = ['Item', 'Current Stock', 'Min Level', 'Max Level', 'Cost Price', 'Selling Price', 'Stock Value', 'Total Purchased', 'Total Sold', 'Total Returned', 'Total Adjusted', 'Net Change']
+      const agg = stockSummary?.data
+      exportData = agg && typeof agg === 'object' && !Array.isArray(agg)
+        ? Object.entries(agg).map(([k, v]) => ({ field: k, value: v }))
+        : []
+      headers = ['field', 'value']
       filename = 'stock-summary.xlsx'
     } else {
       // Statistics data - flatten for export
@@ -681,99 +673,64 @@ function StockReportsPage() {
     </TableContainer>
   )
 
-  // Render stock summary table
-  const renderStockSummaryTable = () => (
-    <TableContainer component={Paper} sx={{ mt: 2 }}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Item</TableCell>
-            <TableCell>Current Stock</TableCell>
-            <TableCell>Total Purchased</TableCell>
-            <TableCell>Total Sold</TableCell>
-            <TableCell>Total Returned</TableCell>
-            <TableCell>Net Change</TableCell>
-            <TableCell>Stock Value</TableCell>
-            <TableCell>Status</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {(Array.isArray(stockSummary?.data) ? stockSummary.data : []).map((summary) => {
-            // Ensure all values are numbers with proper defaults
-            const totalPurchased = parseFloat(summary.totalPurchased || 0)
-            const totalSold = parseFloat(summary.totalSold || 0)
-            const totalReturned = parseFloat(summary.totalReturned || 0)
-            const totalAdjusted = parseFloat(summary.totalAdjusted || 0)
-            const totalTransferredIn = parseFloat(summary.totalTransferredIn || 0)
-            const totalTransferredOut = parseFloat(summary.totalTransferredOut || 0)
-            
-            const netChange = totalPurchased - totalSold + totalReturned + totalAdjusted + totalTransferredIn - totalTransferredOut
-            const stockStatus = summary.currentStock <= summary.minStockLevel ? 'low' : 
-                               summary.currentStock >= summary.maxStockLevel ? 'high' : 'normal'
-            
-            return (
-              <TableRow key={summary.id} hover>
-                <TableCell>
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium">
-                      {summary.itemName}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {summary.itemCategory}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Typography fontWeight="medium">
-                    {summary.currentStock}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography color="success.main">
-                    {totalPurchased.toFixed(2)}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography color="primary.main">
-                    {totalSold.toFixed(2)}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography color="warning.main">
-                    {totalReturned.toFixed(2)}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography color={netChange >= 0 ? 'success.main' : 'error.main'}>
-                    {netChange >= 0 ? '+' : ''}{netChange.toFixed(2)}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  {parseFloat(summary.currentStockValue || 0).toFixed(2)}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={stockStatus.toUpperCase()}
-                    color={stockStatus === 'low' ? 'error' : stockStatus === 'high' ? 'warning' : 'success'}
-                    size="small"
-                    variant="outlined"
-                  />
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  )
+  // Stock summary tab — API returns one aggregate object (not per-item rows)
+  const renderStockSummaryTable = () => {
+    const agg = stockSummary?.data
+    if (!agg || typeof agg !== 'object') {
+      return (
+        <Paper sx={{ p: 3, mt: 2 }}>
+          <Typography color="text.secondary">No summary data. Try Refresh.</Typography>
+        </Paper>
+      )
+    }
+    if (Array.isArray(agg)) {
+      return (
+        <Paper sx={{ p: 3, mt: 2 }}>
+          <Typography color="text.secondary">Unexpected summary shape.</Typography>
+        </Paper>
+      )
+    }
+
+    const n = (v) => Number(v ?? 0)
+    const fmt = (v) => n(v).toLocaleString(undefined, { maximumFractionDigits: 2 })
+
+    const cards = [
+      { label: 'SKU count', value: fmt(agg.totalItems), color: 'primary.main' },
+      { label: 'Total on-hand qty', value: fmt(agg.totalStock), color: 'success.main' },
+      { label: 'Stock value (cost)', value: fmt(agg.totalValue), color: 'info.main' },
+      { label: 'In stock (OK)', value: fmt(agg.inStock), color: 'success.main' },
+      { label: 'Low stock', value: fmt(agg.lowStock), color: 'warning.main' },
+      { label: 'Out of stock (≤0)', value: fmt(agg.outOfStock), color: 'error.main' },
+      { label: 'Zero on-hand', value: fmt(agg.zeroStock), color: 'text.secondary' },
+      { label: 'Negative qty rows', value: fmt(agg.negativeStock), color: 'error.main' },
+      { label: 'Total negative qty', value: fmt(agg.totalNegativeQuantity), color: 'error.main' },
+    ]
+
+    return (
+      <Grid container spacing={2} sx={{ mt: 1 }}>
+        {cards.map((c) => (
+          <Grid item xs={12} sm={6} md={4} key={c.label}>
+            <Card variant="outlined">
+              <CardContent sx={{ py: 2 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  {c.label}
+                </Typography>
+                <Typography variant="h5" fontWeight={700} sx={{ color: c.color }}>
+                  {c.value}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    )
+  }
 
   // Render statistics
   const renderStatistics = () => {
     if (!stockStatistics) return null
 
-    console.log('[StockReports] stockStatistics:', stockStatistics)
     const { overall, transactionTypes, topItems, dailyActivity } = stockStatistics || {}
-    console.log('[StockReports] transactionTypes:', transactionTypes, 'topItems:', topItems)
 
     return (
       <Grid container spacing={3} sx={{ mt: 2 }}>

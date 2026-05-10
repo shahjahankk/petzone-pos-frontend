@@ -1,23 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
+import { useEffect, useState, useCallback } from 'react'
 import { useTheme } from '@mui/material/styles'
 import {
   Box, Card, CardContent, Grid, Typography, Paper, Button,
-  Alert, FormControl, InputLabel, Select, MenuItem, TextField,
-  Chip, Table, TableBody, TableCell, TableContainer, TableHead,
-  TableRow, Menu
+  Alert, Chip, Table, TableBody, TableCell, TableContainer, TableHead,
+  TableRow, Menu,
 } from '@mui/material'
-import { Refresh, FilterList, Download, Inventory, Warning, TrendingUp, Assessment } from '@mui/icons-material'
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { Refresh, Download, Inventory, Warning, TrendingUp, Assessment } from '@mui/icons-material'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts'
-import { fetchInventoryReports } from '../../../store/slices/reportsSlice'
 import RouteGuard from '../../../../components/auth/RouteGuard'
 import api from '../../../../utils/axios'
 
@@ -25,49 +19,31 @@ const PIE_COLORS = ['#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4
 const accent = '#14b8a6'
 
 export default function InventoryReportsPage() {
-  const dispatch = useDispatch()
   const theme = useTheme()
-  const isDark = theme.palette.mode === 'dark'
 
-  // fetchInventoryReports hits /stock-reports (transaction rows, not summary)
-  // /reports/inventory returns the summary data we need — call it directly
-  const { isLoading: reduxLoading } = useSelector((s) => s.reports)
   const [statistics, setStatistics] = useState({})
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState(null)
-  const isLoading = reduxLoading || loading
+  const isLoading = loading
   const [exportAnchor, setExportAnchor] = useState(null)
-  const [filters, setFilters] = useState({
-    warehouse: 'all', category: 'all', status: 'all',
-    dateFrom: new Date(Date.now() - 30 * 86400000),
-    dateTo: new Date(),
-  })
+
+  // Backend scopes data by role (warehouse / branch); query filters are not applied server-side yet.
+  const loadInventory = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await api.get('/reports/inventory')
+      setStatistics(res.data?.data || {})
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load inventory data')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    const loadInventory = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const params = new URLSearchParams()
-        if (filters.warehouse && filters.warehouse !== 'all') params.append('warehouse', filters.warehouse)
-        if (filters.category  && filters.category  !== 'all') params.append('category',  filters.category)
-        if (filters.status    && filters.status    !== 'all') params.append('status',    filters.status)
-        const startDate = filters.dateFrom instanceof Date ? filters.dateFrom.toISOString().split('T')[0] : filters.dateFrom
-        const endDate   = filters.dateTo   instanceof Date ? filters.dateTo.toISOString().split('T')[0]   : filters.dateTo
-        if (startDate) params.append('startDate', startDate)
-        if (endDate)   params.append('endDate',   endDate)
-
-        // /reports/inventory returns: { summary, lowStockItems, topSellingItems, movementData }
-        const res = await api.get(`/reports/inventory?${params.toString()}`)
-        setStatistics(res.data?.data || {})
-      } catch (err) {
-        setError(err?.response?.data?.message || 'Failed to load inventory data')
-      } finally {
-        setLoading(false)
-      }
-    }
     loadInventory()
-  }, [filters])
+  }, [loadInventory])
 
   const textMuted  = theme.palette.text.secondary
   const divider    = theme.palette.divider
@@ -124,11 +100,8 @@ export default function InventoryReportsPage() {
     setExportAnchor(null)
   }
 
-  const categories = ['Food','Accessories','Medicine','Litters','Toys','Grooming','Bedding','Collars & Leashes','Bowls & Feeders','Health & Wellness','Other']
-
   return (
-    <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER']}>
-      <LocalizationProvider dateAdapter={AdapterDateFns}>
+    <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
         <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', p: 3, width: '100%' }}>
 
           {/* Header */}
@@ -151,7 +124,7 @@ export default function InventoryReportsPage() {
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5 }}>
-              <Button onClick={() => dispatch(fetchInventoryReports(filters))} disabled={isLoading}
+              <Button onClick={() => loadInventory()} disabled={isLoading}
                 startIcon={<Refresh />} variant="outlined">
                 Refresh
               </Button>
@@ -167,50 +140,10 @@ export default function InventoryReportsPage() {
           </Box>
 
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-          {/* Filters */}
-          <Paper variant="outlined" sx={{ p: 2.5, mb: 3, borderRadius: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-              <FilterList sx={{ color: accent, fontSize: 18 }} />
-              <Typography fontWeight={600} fontSize="0.875rem">Filters</Typography>
-            </Box>
-            <Grid container spacing={2}>
-              {[
-                { field: 'warehouse', label: 'Warehouse', options: [{ v: 'all', l: 'All Warehouses' }, { v: 'main', l: 'Main' }] },
-                { field: 'status',    label: 'Status',    options: [{ v: 'all', l: 'All' }, { v: 'in-stock', l: 'In Stock' }, { v: 'low-stock', l: 'Low Stock' }, { v: 'out-of-stock', l: 'Out of Stock' }] },
-              ].map(({ field, label, options }) => (
-                <Grid item xs={12} sm={6} md={2} key={field}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>{label}</InputLabel>
-                    <Select value={filters[field]} onChange={(e) => setFilters(p => ({ ...p, [field]: e.target.value }))} label={label}>
-                      {options.map(o => <MenuItem key={o.v} value={o.v}>{o.l}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              ))}
-              <Grid item xs={12} sm={6} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Category</InputLabel>
-                  <Select value={filters.category} onChange={(e) => setFilters(p => ({ ...p, category: e.target.value }))} label="Category">
-                    <MenuItem value="all">All Categories</MenuItem>
-                    {categories.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <DatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
-                  onChange={(d) => setFilters(p => ({ ...p, dateFrom: d }))}
-                  slots={{ textField: TextField }}
-                  slotProps={{ textField: { fullWidth: true, size: 'small' } }} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <DatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
-                  onChange={(d) => setFilters(p => ({ ...p, dateTo: d }))}
-                  slots={{ textField: TextField }}
-                  slotProps={{ textField: { fullWidth: true, size: 'small' } }} />
-              </Grid>
-            </Grid>
-          </Paper>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Figures reflect your role: admins see all locations; warehouse users see their warehouse; cashiers see branch scope where applicable.
+            Movement uses the last 7 days; top sellers use the last 30 days.
+          </Alert>
 
           {/* Summary Cards */}
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
@@ -351,8 +284,12 @@ export default function InventoryReportsPage() {
                       ) : topSellingItems.map((row, i) => (
                         <TableRow key={i} hover>
                           <TableCell>{row.name || row.itemName}</TableCell>
-                          <TableCell align="right" sx={{ color: accent, fontWeight: 700 }}>{row.totalSold || row.quantity_sold || 0}</TableCell>
-                          <TableCell align="right" sx={{ color: 'success.main', fontWeight: 700 }}>{Number(row.totalRevenue || 0).toLocaleString()}</TableCell>
+                          <TableCell align="right" sx={{ color: accent, fontWeight: 700 }}>
+                            {Number(row.sold ?? row.totalSold ?? row.quantity_sold ?? 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell align="right" sx={{ color: 'success.main', fontWeight: 700 }}>
+                            {Number(row.revenue ?? row.totalRevenue ?? 0).toLocaleString()}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -363,7 +300,6 @@ export default function InventoryReportsPage() {
           </Grid>
 
         </Box>
-      </LocalizationProvider>
     </RouteGuard>
   )
 }

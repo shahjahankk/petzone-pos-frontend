@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { performanceMonitor, logger } from '../../../utils/monitoring'
-import envConfig from '../../../config/environment'
-
 // Status endpoint for basic application status
 export async function GET() {
   try {
@@ -11,7 +9,7 @@ export async function GET() {
       status: 'running',
       timestamp: new Date().toISOString(),
       version: process.env.npm_package_version || 'unknown',
-      environment: envConfig.getConfig().NODE_ENV,
+      environment: process.env.NODE_ENV || 'development',
       uptime: Date.now() - metrics.startTime,
       basicMetrics: {
         pageLoads: metrics.pageLoads,
