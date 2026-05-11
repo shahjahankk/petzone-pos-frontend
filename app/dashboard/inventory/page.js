@@ -1267,7 +1267,11 @@ const canEditInventory = useMemo(() => {
                       <TableCell align="right">Cost Price</TableCell>
                       <TableCell align="right">Selling Price</TableCell>
                       <TableCell align="right">Current Stock</TableCell>
-                      <TableCell align="right">Sold</TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Net sold = Gross sold - Returned - Restocked">
+                          <span>Net Sold</span>
+                        </Tooltip>
+                      </TableCell>
                       <TableCell align="right">Returned</TableCell>
                       <TableCell align="right">Purchased</TableCell>
                       <TableCell align="right">Min Stock</TableCell>
@@ -1302,12 +1306,14 @@ const canEditInventory = useMemo(() => {
                           />
                         </TableCell>
                         <TableCell align="right">
-                          <Chip 
-                            label={item.totalSold || 0} 
-                            size="small" 
-                            color="primary"
-                            variant="outlined"
-                          />
+                          <Tooltip title={`Gross: ${Number(item.totalSold || 0).toLocaleString()} | Restocked: ${Number(item.totalRestocked || 0).toLocaleString()} | Returned: ${Number(item.totalReturned || 0).toLocaleString()}`}>
+                            <Chip 
+                              label={Number(item.netSold ?? item.totalSold ?? 0).toLocaleString()} 
+                              size="small" 
+                              color="primary"
+                              variant="outlined"
+                            />
+                          </Tooltip>
                         </TableCell>
                         <TableCell align="right">
                           <Chip 
