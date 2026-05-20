@@ -163,7 +163,7 @@ function LedgerEntriesTab() {
 
   // Memoize filter params to prevent infinite loops
   const filterParams = useMemo(() => {
-    const params = {}
+    const params = { limit: 2000, offset: 0 }
     if (filters.accountId) params.ledgerId = filters.accountId
     if (filters.type) params.type = filters.type
     if (filters.startDate) params.startDate = filters.startDate

@@ -579,25 +579,9 @@ const ReturnsPage = () => {
   }
 
   const handleUpdate = async () => {
-    if (!returnForm.saleId) { showToast('Please select an invoice first', 'warning'); return }
-    if (!returnForm.reason || returnForm.reason.trim() === '') { showToast('Please enter a return reason', 'warning'); return }
-
-    const validItems = returnForm.items.filter(item =>
-      item.productName && item.productName.trim() !== '' &&
-      item.quantity    && parseFloat(item.quantity)    > 0 &&
-      item.refundAmount && parseFloat(item.refundAmount) > 0
-    )
-    if (validItems.length === 0) { showToast('Please add at least one item to return', 'warning'); return }
-
     const updateData = {
-      saleId: parseInt(returnForm.saleId),
-      reason: returnForm.reason.trim(),
-      notes:  returnForm.notes || '',
-      items:  validItems.map(item => ({
-        productName:  item.productName.trim(),
-        quantity:     parseFloat(item.quantity),
-        refundAmount: parseFloat(item.refundAmount)
-      }))
+      notes: returnForm.notes || '',
+      status: editingEntity?.status || 'COMPLETED',
     }
 
     const result = await dispatch(updateReturn({ id: editingEntity.id, data: updateData }))
@@ -656,41 +640,31 @@ const ReturnsPage = () => {
     return active
   }
 
-  // Filter and sort returns
-  const getFilteredAndSortedReturns = () => {
-    let filtered = (returns || []).filter(returnItem => {
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase()
-        const saleIdMatch = (returnItem.original_sale_id || returnItem.sale_id)?.toString().includes(searchLower)
-        const reasonMatch = returnItem.reason?.toLowerCase().includes(searchLower)
-        const notesMatch  = returnItem.notes?.toLowerCase().includes(searchLower)
-        if (!saleIdMatch && !reasonMatch && !notesMatch) return false
-      }
-      if (reasonFilter !== 'all' && returnItem.reason !== reasonFilter) return false
-      return true
-    })
+  // Server returns paginated rows; sort current page only (search/reason sent to API)
+  const paginatedReturns = [...(returns || [])].sort((a, b) => {
+    let aValue, bValue
+    switch (sortBy) {
+      case 'sale_id':
+        aValue = a.original_sale_id || a.sale_id || 0
+        bValue = b.original_sale_id || b.sale_id || 0
+        break
+      case 'reason':
+        aValue = a.reason || ''
+        bValue = b.reason || ''
+        break
+      case 'total_refund':
+        aValue = parseFloat(a.total_refund || 0)
+        bValue = parseFloat(b.total_refund || 0)
+        break
+      default:
+        aValue = new Date(a.created_at || a.createdAt || 0)
+        bValue = new Date(b.created_at || b.createdAt || 0)
+    }
+    return sortOrder === 'asc' ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1)
+  })
 
-    filtered.sort((a, b) => {
-      let aValue, bValue
-      switch (sortBy) {
-        case 'sale_id':      aValue = a.sale_id || 0;                       bValue = b.sale_id || 0;                       break
-        case 'reason':       aValue = a.reason  || '';                      bValue = b.reason  || '';                      break
-        case 'total_refund': aValue = parseFloat(a.total_refund || 0);      bValue = parseFloat(b.total_refund || 0);      break
-        default:             aValue = new Date(a.created_at || a.createdAt || 0); bValue = new Date(b.created_at || b.createdAt || 0); break
-      }
-      return sortOrder === 'asc' ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1)
-    })
-
-    return filtered
-  }
-
-  // Pagination logic (client-side slicing with server total fallback)
-  const filteredReturns = getFilteredAndSortedReturns()
-  const totalItems      = totalReturnsCount || filteredReturns.length
-  const totalPages      = Math.max(1, Math.ceil(totalItems / rowsPerPage))
-  const startIndex      = Math.max(0, (page - 1) * rowsPerPage)
-  const endIndex        = startIndex + rowsPerPage
-  const paginatedReturns = filteredReturns.slice(startIndex, endIndex)
+  const totalItems = totalReturnsCount || paginatedReturns.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
 
   // Ensure current page is within bounds when filters change
   useEffect(() => {
@@ -974,15 +948,6 @@ const ReturnsPage = () => {
                                     }}
                                   >
                                     <Edit />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Delete">
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={() => { setEntityToDelete(returnItem); setOpenDeleteDialog(true) }}
-                                  >
-                                    <Delete />
                                   </IconButton>
                                 </Tooltip>
                               </Box>

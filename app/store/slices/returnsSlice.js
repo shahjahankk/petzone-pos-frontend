@@ -134,9 +134,10 @@ const returnsSlice = createSlice({
       })
       .addCase(updateReturn.fulfilled, (state, action) => {
         state.loading = false
-        const index = state.data.findIndex(returnItem => returnItem.id === action.payload.id)
-        if (index !== -1) {
-          state.data[index] = action.payload
+        const updated = action.payload?.data || action.payload
+        const index = state.data.findIndex((returnItem) => returnItem.id === updated?.id)
+        if (index !== -1 && updated) {
+          state.data[index] = { ...state.data[index], ...updated }
         }
         state.error = null
       })

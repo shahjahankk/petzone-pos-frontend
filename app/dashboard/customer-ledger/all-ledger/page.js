@@ -22,7 +22,7 @@ function AllLedgerContent() {
 const loadAllLedger = useCallback(() => {
   dispatch(fetchCustomerLedger({
     customerId: '__all__',
-    params: { ...filters, detailed: 'true', limit: 1000, offset: 0 }
+    params: { ...filters, detailed: 'true', limit: 5000, offset: 0 }
   }))
 }, [dispatch, filters])
 

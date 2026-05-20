@@ -244,7 +244,13 @@ const loadCustomerLedger = useCallback((customerId) => {
 
   dispatch(fetchCustomerLedger({
     customerId,
-    params: { ...ledgerFilters, ...scopeParams, limit: 50, offset: (ledgerPage - 1) * 50 }
+    params: {
+      ...ledgerFilters,
+      ...scopeParams,
+      detailed: 'true',
+      limit: 2000,
+      offset: (ledgerPage - 1) * 2000,
+    },
   }))
 }, [dispatch, ledgerFilters, ledgerPage, isAdminMode, urlParams, user])
 

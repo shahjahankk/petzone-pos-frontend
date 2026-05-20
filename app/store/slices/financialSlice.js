@@ -203,9 +203,8 @@ export const fetchSalesSummary = createAsyncThunk(
   'financial/fetchSalesSummary',
   async (filters = {}, { rejectWithValue }) => {
     try {
-      // If there's a dedicated endpoint, replace this with an API call.
-      // For now return an empty-but-shaped payload so UI components render.
-      return { success: true, data: { totals: {}, dailySales: [], salesByPaymentMethod: [] } }
+      const response = await api.get('/dashboard/summary', { params: filters })
+      return response.data
     } catch (error) {
       return rejectWithValue(handleApiError(error))
     }

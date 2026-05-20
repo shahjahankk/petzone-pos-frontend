@@ -624,7 +624,7 @@ const SalesManagement = () => {
   const totalPages  = Math.max(1, Math.ceil(totalItems / rowsPerPage))
   const startIndex  = (page - 1) * rowsPerPage
   const endIndex    = startIndex + rowsPerPage
-  const paginatedSales = allFilteredSales
+  const paginatedSales = allFilteredSales.slice(startIndex, endIndex)
 
   const handlePageChange       = (event, newPage) => setPage(newPage)
   const handleRowsPerPageChange = (event) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(1) }
@@ -748,7 +748,9 @@ const SalesManagement = () => {
       : ['ID', 'Date', 'Time', 'Invoice #', 'Customer', 'Subtotal', 'Tax', 'Discount', 'Total', 'Payment', 'Credit', 'Balance', 'Payment Method', 'Payment Type', 'Payment Status', 'Returns', 'Notes', 'Created By']
 
     const rows = salesData.map(sale => {
-      const returns = salesReturns?.filter(r => r.sale_id === sale.id) || []
+      const returns = salesReturns?.filter(r =>
+        (r.original_sale_id ?? r.sale_id) === sale.id
+      ) || []
       const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
       const d = new Date(sale.created_at)
       return [
@@ -785,7 +787,9 @@ const SalesManagement = () => {
       const hasWarehouse = salesData.some(s => (s.scope_type || s.scopeType) === 'WAREHOUSE')
 
       const excelData = salesData.map(sale => {
-        const returns = salesReturns?.filter(r => r.sale_id === sale.id) || []
+        const returns = salesReturns?.filter(r =>
+        (r.original_sale_id ?? r.sale_id) === sale.id
+      ) || []
         const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
         const d = new Date(sale.created_at)
         return {
@@ -891,7 +895,9 @@ const SalesManagement = () => {
             </thead>
             <tbody>
               ${salesData.map(sale => {
-                const returns = salesReturns?.filter(r => r.sale_id === sale.id) || []
+                const returns = salesReturns?.filter(r =>
+        (r.original_sale_id ?? r.sale_id) === sale.id
+      ) || []
                 const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
                 const d = new Date(sale.created_at)
                 return `
