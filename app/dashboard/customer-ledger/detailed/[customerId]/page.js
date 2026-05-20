@@ -165,6 +165,32 @@ const DetailedCustomerLedgerPage = () => {
     return num.toFixed(2)
   }
 
+  const renderNotes = (transaction) => {
+    const hasNotes = transaction.notes && String(transaction.notes).trim()
+    const hasReturn = transaction.return_reason && String(transaction.return_reason).trim()
+    if (!hasNotes && !hasReturn) {
+      return (
+        <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'text.disabled', fontStyle: 'italic' }}>
+          —
+        </Typography>
+      )
+    }
+    return (
+      <Box sx={{ fontSize: '0.75rem', lineHeight: 1.4 }}>
+        {hasNotes && (
+          <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+            {transaction.notes}
+          </Typography>
+        )}
+        {hasReturn && (
+          <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'error.main', fontStyle: 'italic' }}>
+            ↩ {transaction.return_reason}
+          </Typography>
+        )}
+      </Box>
+    )
+  }
+
   const getPaymentStatusColor = (status) => {
     switch (status) {
       case 'COMPLETED': return 'success'
@@ -361,7 +387,7 @@ const transactions = (
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        {['Invoice Date','Posted On','Invoice','Items','Amount','Old Balance','Total Amount',
+                        {['Invoice Date','Posted On','Invoice','Notes','Items','Amount','Old Balance','Total Amount',
                           'Payment','Payment Method','Payment Type','Status','Balance'].map(h => (
                           <TableCell key={h} sx={{ fontWeight: 'bold', textAlign: ['Amount','Old Balance','Total Amount','Payment','Balance'].includes(h) ? 'right' : 'left' }}>
                             {h}
@@ -395,6 +421,9 @@ const transactions = (
                             <Typography variant="body2" fontWeight="medium">
                               {transaction.invoice_no || 'N/A'}
                             </Typography>
+                          </TableCell>
+                          <TableCell sx={{ minWidth: 120, maxWidth: 220, verticalAlign: 'top' }}>
+                            {renderNotes(transaction)}
                           </TableCell>
                           <TableCell>
                             <Box sx={{ fontSize: '0.75rem', lineHeight: 1.3 }}>
@@ -468,7 +497,7 @@ const transactions = (
                         backgroundColor: '#f5f5f5', borderTop: '2px solid #ccc',
                         '& .MuiTableCell-root': { fontWeight: 'bold', fontSize: '0.875rem', py: 2 }
                       }}>
-                        <TableCell colSpan={3}>GRAND TOTAL</TableCell>
+                        <TableCell colSpan={5}>GRAND TOTAL</TableCell>
                         <TableCell align="right">{formatCurrency(summaryStats.totalAmount)}</TableCell>
                         <TableCell align="right">—</TableCell>
                         <TableCell align="right">
@@ -486,7 +515,7 @@ const transactions = (
 
                       {/* Status Summary Row */}
                       <TableRow sx={{ backgroundColor: '#fafafa', '& .MuiTableCell-root': { fontSize: '0.813rem', py: 1.5 } }}>
-                        <TableCell colSpan={3}>
+                        <TableCell colSpan={4}>
                           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                             <Typography variant="body2" component="span" sx={{ fontWeight: 'bold' }}>Summary:</Typography>
                             {[
@@ -499,7 +528,7 @@ const transactions = (
                             ))}
                           </Box>
                         </TableCell>
-                        <TableCell colSpan={8} align="right">
+                        <TableCell colSpan={9} align="right">
                           <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
                             Last Updated: {new Date().toLocaleString()}
                           </Typography>

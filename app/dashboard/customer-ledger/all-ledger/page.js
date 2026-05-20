@@ -65,6 +65,28 @@ const handleApplyFilters = () => {
     return { label: 'Credit', color: '#ef4444', bg: '#fef2f2' }
   }
 
+  const renderNotes = (t) => {
+    const hasNotes = t.notes && String(t.notes).trim()
+    const hasReturn = t.return_reason && String(t.return_reason).trim()
+    if (!hasNotes && !hasReturn) {
+      return <Typography sx={{ fontSize: '0.73rem', color: '#cbd5e1' }}>—</Typography>
+    }
+    return (
+      <Box>
+        {hasNotes && (
+          <Typography sx={{ fontSize: '0.73rem', color: '#475569', lineHeight: 1.5 }}>
+            {t.notes}
+          </Typography>
+        )}
+        {hasReturn && (
+          <Typography sx={{ fontSize: '0.73rem', color: '#ef4444', fontStyle: 'italic', lineHeight: 1.5 }}>
+            ↩ {t.return_reason}
+          </Typography>
+        )}
+      </Box>
+    )
+  }
+
   const renderItems = (items) => {
     if (!items || items.length === 0) return <Typography sx={{ fontSize: '0.73rem', color: '#94a3b8', fontStyle: 'italic' }}>No items</Typography>
     return items.map((item, i) => {
@@ -240,7 +262,7 @@ const sortTransactionsAsc = (transactions) => {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      {['#', 'Invoice Date', 'Posted On', 'Invoice', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance', 'Notes'].map(h => (
+                      {['#', 'Invoice Date', 'Posted On', 'Invoice', 'Notes', 'Items', 'Amount', 'Old Balance', 'Total Amount', 'Payment', 'Method', 'Transaction Type', 'Status', 'Balance'].map(h => (
                         <TableCell key={h} sx={H}>{h}</TableCell>
                       ))}
                     </TableRow>
@@ -290,6 +312,8 @@ const sortTransactionsAsc = (transactions) => {
                             {t.invoice_no}
                           </TableCell>
 
+                          <TableCell sx={{ ...C, minWidth: 120, maxWidth: 220 }}>{renderNotes(t)}</TableCell>
+
                           <TableCell sx={{ ...C, minWidth: 180, maxWidth: 260 }}>{renderItems(t.items)}</TableCell>
 
                           <TableCell sx={{ ...C, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(amount)}</TableCell>
@@ -318,22 +342,6 @@ const sortTransactionsAsc = (transactions) => {
                             {formatMoneyOrDash(balPick, formatCurrency)}
                           </TableCell>
 
-                          <TableCell sx={{ ...C, minWidth: 140, maxWidth: 220 }}>
-                            {t.notes && (
-                              <Typography sx={{ fontSize: '0.73rem', color: '#475569', lineHeight: 1.5 }}>
-                                {t.notes}
-                              </Typography>
-                            )}
-                            {t.return_reason && (
-                              <Typography sx={{ fontSize: '0.73rem', color: '#ef4444', fontStyle: 'italic', lineHeight: 1.5 }}>
-                                ↩ {t.return_reason}
-                              </Typography>
-                            )}
-                            {!t.notes && !t.return_reason && (
-                              <Typography sx={{ fontSize: '0.73rem', color: '#cbd5e1' }}>—</Typography>
-                            )}
-                          </TableCell>
-
                         </TableRow>
                       )
                     })}
@@ -344,6 +352,7 @@ const sortTransactionsAsc = (transactions) => {
                       <TableCell colSpan={4} sx={{ ...C, fontWeight: 700, color: '#1e293b', fontSize: '0.8rem' }}>
                         {group.customer?.name || 'Total'}
                       </TableCell>
+                      <TableCell sx={{ ...C, color: '#94a3b8' }}>—</TableCell>
                       <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700 }}>{formatCurrency(custTotals.amount)}</TableCell>
                       <TableCell sx={{ ...C, textAlign: 'right', color: '#94a3b8' }}>—</TableCell>
                       <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#3b82f6' }}>{formatCurrency(gs.totalAmount)}</TableCell>
@@ -358,7 +367,6 @@ const sortTransactionsAsc = (transactions) => {
                       <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: lastBalance > 0 ? '#ef4444' : '#16a34a' }}>
                         {formatCurrency(lastBalance)}
                       </TableCell>
-                      <TableCell sx={C} />
                     </TableRow>
 
                   </TableBody>
@@ -378,7 +386,7 @@ const sortTransactionsAsc = (transactions) => {
               <Table size="small">
                 <TableBody>
                   <TableRow sx={{ backgroundColor: '#f8fafc' }}>
-                    <TableCell colSpan={5} sx={{ ...C, fontWeight: 700, color: '#475569' }}>
+                    <TableCell colSpan={6} sx={{ ...C, fontWeight: 700, color: '#475569' }}>
                       {grandTotals.totalTransactions} Transactions across {uniqueCount} Customers
                     </TableCell>
                     <TableCell sx={{ ...C, textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
@@ -405,7 +413,6 @@ const sortTransactionsAsc = (transactions) => {
                       <Typography variant="caption" display="block" sx={{ fontSize: '0.63rem', color: '#94a3b8' }}>OUTSTANDING</Typography>
                       {formatCurrency(grandTotals.outstandingBalance)}
                     </TableCell>
-                    <TableCell sx={C} />
                   </TableRow>
                 </TableBody>
               </Table>
