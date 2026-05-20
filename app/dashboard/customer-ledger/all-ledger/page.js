@@ -88,15 +88,32 @@ const handleApplyFilters = () => {
   }
 
   const renderItems = (items) => {
-    if (!items || items.length === 0) return <Typography sx={{ fontSize: '0.73rem', color: '#94a3b8', fontStyle: 'italic' }}>No items</Typography>
+    if (!items || items.length === 0) {
+      return <Typography sx={{ fontSize: '0.73rem', color: '#94a3b8', fontStyle: 'italic' }}>No items</Typography>
+    }
     return items.map((item, i) => {
+      const isFallback = String(item.item_name || item.name || '').includes('not stored') ||
+        String(item.item_name || '').includes('settlement') ||
+        String(item.item_name || '').includes('Return / refund')
       const name = item.item_name || item.name || 'Unknown'
       const qty = parseFloat(item.quantity || 0)
       const price = parseFloat(item.unit_price || 0)
       const total = parseFloat(item.total || item.refund_amount || (qty * price) || 0)
       return (
-        <Typography key={i} sx={{ fontSize: '0.73rem', color: '#374151', lineHeight: 1.7 }}>
-          {name} ({qty}x) @ {formatCurrency(price)} = <strong>{formatCurrency(total)}</strong>
+        <Typography
+          key={i}
+          sx={{
+            fontSize: '0.73rem',
+            color: isFallback ? '#64748b' : '#374151',
+            fontStyle: isFallback ? 'italic' : 'normal',
+            lineHeight: 1.7,
+          }}
+        >
+          {isFallback ? (
+            <>{name} = <strong>{formatCurrency(total)}</strong></>
+          ) : (
+            <>{name} ({qty}x) @ {formatCurrency(price)} = <strong>{formatCurrency(total)}</strong></>
+          )}
         </Typography>
       )
     })

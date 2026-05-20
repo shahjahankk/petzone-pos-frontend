@@ -64,11 +64,11 @@ const DetailedCustomerLedgerPage = () => {
   })
 
   const loadDetailedLedger = useCallback(async () => {
+    setTransactionsWithItems([])
     try {
-      // ✅ FIX: pass phone (decodedIdentifier) — backend matches on customer_phone exactly
       const result = await dispatch(fetchCustomerLedger({ 
         customerId: decodedIdentifier,
-        params: { detailed: 'true', limit: 1000 }
+        params: { detailed: 'true', limit: 2000 }
       })).unwrap()
       
       console.log('🔍 FRONTEND: Received ledger data:', result)
@@ -433,9 +433,23 @@ const transactions = (
                                   const quantity  = parseFloat(item.quantity ?? 0)
                                   const unitPrice = parseFloat(item.unitPrice ?? item.unit_price ?? 0)
                                   const total     = parseFloat(item.total ?? (quantity * unitPrice))
+                                  const isFallback = String(itemName).includes('not stored') ||
+                                    String(itemName).includes('settlement') ||
+                                    String(itemName).includes('Return / refund')
                                   return (
-                                    <Box key={i} sx={{ mb: 0.5, pb: 0.5, borderBottom: '1px solid #f0f0f0' }}>
-                                      {itemName} ({quantity}x) @ {formatCurrency(unitPrice)} = {formatCurrency(total)}
+                                    <Box
+                                      key={i}
+                                      sx={{
+                                        mb: 0.5,
+                                        pb: 0.5,
+                                        borderBottom: '1px solid #f0f0f0',
+                                        color: isFallback ? 'text.secondary' : 'inherit',
+                                        fontStyle: isFallback ? 'italic' : 'normal',
+                                      }}
+                                    >
+                                      {isFallback
+                                        ? `${itemName} = ${formatCurrency(total)}`
+                                        : `${itemName} (${quantity}x) @ ${formatCurrency(unitPrice)} = ${formatCurrency(total)}`}
                                     </Box>
                                   )
                                 })
