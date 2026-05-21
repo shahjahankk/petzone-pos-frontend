@@ -155,6 +155,8 @@ const acquireSerialPort = async () => {
   return cachedSerialPort
 }
 
+const EMPTY_CART_ROW = { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 }
+
 const createEmptyTabState = (overrides = {}) => ({
   cart: [],
   customerName: '',
@@ -686,6 +688,10 @@ function WarehouseBillingPage() {
     return currentTab?.cart || []
   }, [currentTab])
 
+  const cartWithPlaceholder = useMemo(() => {
+    return currentCart.length > 0 ? currentCart : [EMPTY_CART_ROW]
+  }, [currentCart])
+
   const updateCurrentTab = useCallback((updates) => {
     setTabs(prev => prev.map(tab =>
       tab.id === activeTabId
@@ -831,6 +837,10 @@ function WarehouseBillingPage() {
   }, [retailersError, currentCart, updateCurrentTabCart, fetchLastCustomerItemPrice])
 
   const handleRowUpdate = useCallback((index, updates) => {
+    if (currentCart.length === 0) {
+      updateCurrentTab({ cart: [{ ...EMPTY_CART_ROW, ...updates }] })
+      return
+    }
     const newCart = currentCart.map((item, i) => (i === index ? { ...item, ...updates } : item))
     updateCurrentTab({ cart: newCart })
   }, [currentCart, updateCurrentTab])
@@ -841,7 +851,7 @@ function WarehouseBillingPage() {
   }, [currentCart, updateCurrentTab])
 
   const handleAddRow = useCallback(() => {
-    const newCart = [...currentCart, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 }]
+    const newCart = [...currentCart, { ...EMPTY_CART_ROW }]
     updateCurrentTab({ cart: newCart })
     setNewRowIndex(currentCart.length)
   }, [currentCart, updateCurrentTab])
