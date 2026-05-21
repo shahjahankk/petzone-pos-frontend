@@ -1228,6 +1228,10 @@ function WarehouseBillingPage() {
           const response = await api.get('/salespeople/warehouse-billing')
           if (response.data.success) setSalespeople(response.data.data)
         } catch (error) { return }
+      }
+    }
+
+    const loadCompanyInfo = async () => {
       const normalizedScopeType = typeof user.scopeType === 'string' ? user.scopeType.toUpperCase() : null
       const branchId = user.branchId || (normalizedScopeType === 'BRANCH' ? user.scopeId : null)
       const warehouseId = user.warehouseId || (normalizedScopeType === 'WAREHOUSE' ? user.scopeId : null)
@@ -1251,6 +1255,7 @@ function WarehouseBillingPage() {
         setCompanyInfo(fallbackInfo)
       } catch (error) { setCompanyInfo(fallbackInfo) }
     }
+    loadSalespeople()
     loadCompanyInfo()
   }, [user])
 
@@ -1446,7 +1451,53 @@ function WarehouseBillingPage() {
         const sale = result.payload?.data || result.payload
         if (selectedOutstandingPayments.length > 0) {
           const shouldClear = (currentCart.length === 0 && showSettlementOptions) || (paymentMethodValue === 'CASH' && selectedOutstandingPayments.length > 0 && finalPaymentAmount > 0)
-          if (shouldClear) { try { await settleOutstandingPayments() } catch (error) { isCompletingSaleRef.current = false }
+          if (shouldClear) { try { await settleOutstandingPayments() } catch (error) { isCompletingSaleRef.current = false } }
+        }
+        const printItems = (currentCart || []).map(item => ({
+          name: item.name || 'Item', sku: item.sku || '',
+          quantity: item.quantity || 1,
+          unitPrice: Math.round(Number(item.customPrice ?? item.unitPrice ?? item.price) || 0),
+          discount: Math.round(Number(item.discount) || 0),
+          total: Math.round((Number(item.customPrice ?? item.unitPrice ?? item.price) * (item.quantity || 1)) - (Number(item.discount) || 0))
+        }))
+        const pd = {
+          type: 'receipt', title: 'SALES RECEIPT',
+          companyName: companyInfo.name, companyAddress: companyInfo.address,
+          companyPhone: companyInfo.phone, companyEmail: companyInfo.email, logoUrl: companyInfo.logoUrl,
+          receiptNumber: sale.invoice_no || `INV-${Date.now()}`,
+          date: new Date(sale.created_at || Date.now()).toLocaleDateString(),
+          time: new Date(sale.created_at || Date.now()).toLocaleTimeString(),
+          cashierName: user?.name || user?.username || 'Warehouse Keeper',
+          customerName: selectedRetailer?.name || customerName || 'Walk-in',
+          customerPhone: selectedRetailer?.phone || customerPhone || '',
+          items: printItems,
+          subtotal: Math.round(parseFloat(sale.subtotal || 0)),
+          tax: Math.round(parseFloat(sale.tax || 0)),
+          discount: Math.round(parseFloat(sale.discount || 0)),
+          total: Math.round(parseFloat(sale.total || 0)),
+          paymentMethod: paymentMethodValue || paymentMethod || 'CASH',
+          paymentAmount: Math.round(finalPaymentAmount),
+          creditAmount: Math.round(finalCreditAmount),
+          remainingBalance: Math.round(finalCreditAmount),
+          change: 0, notes: notes || '',
+          footerMessage: 'Thank you for your purchase!'
+        }
+        setCompletedSaleData({ sale, printData: pd, isSaved: true })
+        setSaleConfirmDialog(true)
+        const clearPhone = selectedRetailer?.phone || customerPhone
+        const clearName = selectedRetailer?.name || customerName
+        const clearRid = selectedRetailer?.id ?? null
+        clearAllPOSState()
+        if (clearPhone || clearName) setTimeout(() => refreshOutstandingPayments(clearPhone, clearName, clearRid), 500)
+      } else {
+        alert('❌ Sale could not be saved. Please try again.')
+      }
+    } catch (error) {
+      alert(`❌ Error completing sale: ${error.message}`)
+    } finally {
+      isCompletingSaleRef.current = false
+      setIsProcessingSaleOnly(false)
+    }
   }
 
   const checkPrinterStatus = async () => {

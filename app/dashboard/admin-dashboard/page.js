@@ -322,6 +322,18 @@ const AdminDashboardPage = () => {
       }))
       setIsSimulationActive(true)
     } catch (e) {}
+  }
+
+  return (
+    <DashboardLayout>
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h4" fontWeight={700}>Admin Simulation Panel</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Simulate and manage scope access for branches and warehouses
+            </Typography>
+          </Box>
         </Box>
 
         {/* ── Active simulation banner ────────────────────────────────────── */}

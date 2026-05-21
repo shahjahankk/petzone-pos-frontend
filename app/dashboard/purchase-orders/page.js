@@ -749,7 +749,19 @@ function PurchaseOrdersPage() {
       })
       setSelectedRows([])
       setEditDialogOpen(true)
-    } catch (e) { setSubmitError(null); setFormDialogOpen(true) }}>Create Order</Button>
+    } catch (e) {}
+  }
+
+  return (
+    <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
+      <DashboardLayout>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h4" fontWeight={700}>Purchase Orders</Typography>
+          </Box>
+          <Box>
+            <Button variant="contained" color="primary" startIcon={<AddIcon />}
+              onClick={() => { setSubmitError(null); setFormDialogOpen(true) }}>Create Order</Button>
           </Box>
         </Box>
 
