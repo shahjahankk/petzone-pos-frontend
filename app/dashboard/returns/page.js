@@ -659,6 +659,8 @@ const ReturnsPage = () => {
 
   const totalItems = totalReturnsCount || paginatedReturns.length
   const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage))
+  const startIndex = totalItems === 0 ? 0 : (page - 1) * rowsPerPage
+  const endIndex = startIndex + paginatedReturns.length
 
   // Ensure current page is within bounds when filters change
   useEffect(() => {

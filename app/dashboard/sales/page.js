@@ -629,6 +629,8 @@ const SalesManagement = () => {
   const totalItems  = salesPagination?.total ?? allFilteredSales.length
   const totalPages  = Math.max(1, Math.ceil(totalItems / rowsPerPage))
   const paginatedSales = allFilteredSales
+  const startIndex = totalItems === 0 ? 0 : (page - 1) * rowsPerPage
+  const endIndex = startIndex + paginatedSales.length
 
   const handlePageChange       = (event, newPage) => setPage(newPage)
   const handleRowsPerPageChange = (event) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(1) }

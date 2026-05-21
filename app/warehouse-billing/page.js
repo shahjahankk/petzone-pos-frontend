@@ -678,18 +678,123 @@ function WarehouseBillingPage() {
   const hydratingTabIdRef = useRef(null)
   const isCompletingSaleRef = useRef(false)
 
+  const currentTab = useMemo(() => {
+    return tabs.find(tab => tab.id === activeTabId) || null
+  }, [tabs, activeTabId])
+
+  const currentCart = useMemo(() => {
+    return currentTab?.cart || []
+  }, [currentTab])
+
+  const updateCurrentTab = useCallback((updates) => {
+    setTabs(prev => prev.map(tab =>
+      tab.id === activeTabId
+        ? { ...tab, ...updates, modifiedAt: new Date() }
+        : tab
+    ))
+  }, [activeTabId])
+
+  const applyTabState = useCallback((tab) => {
+    if (!tab) return
+    hydratingTabIdRef.current = tab.id
+    setCustomerName(tab.customerName || '')
+    setCustomerPhone(tab.customerPhone || '')
+    setSelectedRetailer(tab.selectedRetailer || null)
+    setPaymentMethod(tab.paymentMethod || '')
+    setPaymentAmount(tab.paymentAmount || '')
+    setCreditAmount(tab.creditAmount || '')
+    setIsPartialPayment(!!tab.isPartialPayment)
+    setIsFullyCredit(!!tab.isFullyCredit)
+    setIsBalancePayment(!!tab.isBalancePayment)
+    setOutstandingPayments(tab.outstandingPayments || [])
+    setSelectedOutstandingPayments(tab.selectedOutstandingPayments || [])
+    setSettlementPaymentAmount(tab.settlementPaymentAmount || '')
+    setSettlementCreditAmount(tab.settlementCreditAmount || '')
+    setIsSettlementPartial(!!tab.isSettlementPartial)
+    setIsSettlementFullyCredit(!!tab.isSettlementFullyCredit)
+    setShowSettlementOptions(!!tab.showSettlementOptions)
+    setTaxRate(tab.taxRate || 0)
+    setTotalDiscount(tab.totalDiscount || 0)
+    setNotes(tab.notes || '')
+    setSaleDate(tab.saleDate || '')
+  }, [])
+
   useEffect(() => {
-    if (!user) return
-    const fetchParams = {}
-    if (user.role === 'WAREHOUSE_KEEPER' && user.warehouseId) {
-      fetchParams.warehouseId = user.warehouseId
-    } else if (scopeInfo?.scopeType === 'WAREHOUSE' && scopeInfo.scopeId) {
-      fetchParams.warehouseId = scopeInfo.scopeId
-    } else if (urlParams?.scope === 'warehouse' && urlParams.id) {
-      fetchParams.warehouseId = urlParams.id
+    if (!currentTab) return
+    if (hydratingTabIdRef.current === currentTab.id) {
+      hydratingTabIdRef.current = null
+      return
     }
-    dispatch(fetchRetailers(fetchParams))
-  }, [dispatch, scopeInfo, urlParams, user])
+
+    const updates = {
+      customerName,
+      customerPhone,
+      selectedRetailer,
+      paymentMethod,
+      paymentAmount,
+      creditAmount,
+      isPartialPayment,
+      isFullyCredit,
+      isBalancePayment,
+      outstandingPayments,
+      selectedOutstandingPayments,
+      settlementPaymentAmount,
+      settlementCreditAmount,
+      isSettlementPartial,
+      isSettlementFullyCredit,
+      showSettlementOptions,
+      taxRate,
+      totalDiscount,
+      notes,
+      saleDate
+    }
+
+    const hasChanges = Object.entries(updates).some(([key, value]) => {
+      const currentValue = currentTab[key]
+      if (Array.isArray(value) && Array.isArray(currentValue)) {
+        if (currentValue === value) return false
+        if (currentValue.length !== value.length) return true
+        for (let i = 0; i < value.length; i += 1) {
+          if (currentValue[i] !== value[i]) return true
+        }
+        return false
+      }
+      return currentValue !== value
+    })
+
+    if (hasChanges) updateCurrentTab(updates)
+  }, [
+    currentTab,
+    customerName, customerPhone, selectedRetailer, paymentMethod, paymentAmount, creditAmount,
+    isPartialPayment, isFullyCredit, isBalancePayment,
+    outstandingPayments, selectedOutstandingPayments,
+    settlementPaymentAmount, settlementCreditAmount,
+    isSettlementPartial, isSettlementFullyCredit, showSettlementOptions,
+    taxRate, totalDiscount, notes, saleDate, updateCurrentTab
+  ])
+
+  const fetchLastCustomerItemPrice = useCallback(async (inventoryItemId) => {
+    if (!inventoryItemId) return null
+    try {
+      const params = new URLSearchParams({ inventoryItemId: String(inventoryItemId) })
+      if (selectedRetailer?.id != null && selectedRetailer.id !== '') {
+        params.append('retailerId', String(selectedRetailer.id))
+      } else if (retailerDisplayPhone) {
+        params.append('customerPhone', retailerDisplayPhone)
+      } else if (retailerDisplayName) {
+        params.append('customerName', retailerDisplayName)
+      } else {
+        return null
+      }
+      const response = await api.get(`/warehouse-sales/last-price?${params.toString()}`)
+      if (response.data?.success) return response.data.data
+    } catch (_) { /* no last-price hint */ }
+    return null
+  }, [selectedRetailer, retailerDisplayPhone, retailerDisplayName])
+
+  const updateCurrentTabCart = useCallback((newCart) => {
+    updateCurrentTab({ cart: newCart })
+  }, [updateCurrentTab])
 
   useEffect(() => {
     if (retailersError) {
@@ -698,11 +803,16 @@ function WarehouseBillingPage() {
   }, [retailersError])
 
   const addToCart = useCallback(async (product) => {
+    if (retailersError) return
     let newCart
-    if (retailersError) {
-      // skip adding to cart while retailers are in error state
+    const existingItem = currentCart.find(item => item.id === product.id)
+    if (existingItem) {
+      newCart = currentCart.map(item =>
+        item.id === product.id
+          ? { ...item, quantity: (item.quantity || 0) + 1 }
+          : item
+      )
     } else {
-      // Unit price field = inventory selling price; last sale shown as caption only
       const customPrice = Number(product.sellingPrice ?? product.price) || 0
       let lastPriceHint = null
       const hint = await fetchLastCustomerItemPrice(product.id)
@@ -719,6 +829,35 @@ function WarehouseBillingPage() {
     }
     updateCurrentTabCart(newCart)
   }, [retailersError, currentCart, updateCurrentTabCart, fetchLastCustomerItemPrice])
+
+  const handleRowUpdate = useCallback((index, updates) => {
+    const newCart = currentCart.map((item, i) => (i === index ? { ...item, ...updates } : item))
+    updateCurrentTab({ cart: newCart })
+  }, [currentCart, updateCurrentTab])
+
+  const handleRowRemove = useCallback((index) => {
+    const newCart = currentCart.filter((_, i) => i !== index)
+    updateCurrentTab({ cart: newCart })
+  }, [currentCart, updateCurrentTab])
+
+  const handleAddRow = useCallback(() => {
+    const newCart = [...currentCart, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 }]
+    updateCurrentTab({ cart: newCart })
+    setNewRowIndex(currentCart.length)
+  }, [currentCart, updateCurrentTab])
+
+  useEffect(() => {
+    if (!user) return
+    const fetchParams = {}
+    if (user.role === 'WAREHOUSE_KEEPER' && user.warehouseId) {
+      fetchParams.warehouseId = user.warehouseId
+    } else if (scopeInfo?.scopeType === 'WAREHOUSE' && scopeInfo.scopeId) {
+      fetchParams.warehouseId = scopeInfo.scopeId
+    } else if (urlParams?.scope === 'warehouse' && urlParams.id) {
+      fetchParams.warehouseId = urlParams.id
+    }
+    dispatch(fetchRetailers(fetchParams))
+  }, [dispatch, scopeInfo, urlParams, user])
 
   const buildWarehouseSalePayload = useCallback(({
     billAmount: inputBillAmount,
@@ -892,34 +1031,10 @@ function WarehouseBillingPage() {
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
     setTabCounter(prev => prev + 1)
+    applyTabState(newTab)
     setOutstandingPayments([])
     setSelectedOutstandingPayments([])
-    setSettlementPaymentAmount('')
-    setSettlementCreditAmount('')
-    setIsSettlementPartial(false)
-    setIsSettlementFullyCredit(false)
-    setShowSettlementOptions(false)
-    setCustomerName(newTab.customerName)
-    setCustomerPhone(newTab.customerPhone)
-    setSelectedRetailer(newTab.selectedRetailer)
-    setPaymentMethod(newTab.paymentMethod)
-    setPaymentAmount(newTab.paymentAmount)
-    setCreditAmount(newTab.creditAmount)
-    setIsPartialPayment(newTab.isPartialPayment)
-    setIsFullyCredit(newTab.isFullyCredit)
-    setIsBalancePayment(newTab.isBalancePayment)
-    setOutstandingPayments(newTab.outstandingPayments)
-    setSelectedOutstandingPayments(newTab.selectedOutstandingPayments)
-    setSettlementPaymentAmount(newTab.settlementPaymentAmount)
-    setSettlementCreditAmount(newTab.settlementCreditAmount)
-    setIsSettlementPartial(newTab.isSettlementPartial)
-    setIsSettlementFullyCredit(newTab.isSettlementFullyCredit)
-    setShowSettlementOptions(newTab.showSettlementOptions)
-    setTaxRate(newTab.taxRate)
-    setTotalDiscount(newTab.totalDiscount)
-    setNotes(newTab.notes)
-    setSaleDate(newTab.saleDate || '')
-  }, [tabCounter])
+  }, [tabCounter, applyTabState])
 
   const loadAvailablePrinters = useCallback(async () => {
     try {
@@ -1035,6 +1150,8 @@ function WarehouseBillingPage() {
   }
 
   const switchToTab = (tabId) => {
+    const tab = tabs.find(t => t.id === tabId)
+    if (tab) applyTabState(tab)
     setActiveTabId(tabId)
     setBarcodeInput('')
     setManualInput('')
