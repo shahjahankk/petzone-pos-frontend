@@ -92,13 +92,6 @@ import buildPrintData from '../../utils/buildPrintData'
   // Initialize form data when sale changes
   useEffect(() => {
     if (sale) {
-      console.log('[EditableInvoiceForm] Sale data received:', {
-        id: sale.id,
-        payment_method: sale.paymentMethod,
-        payment_status: sale.paymentStatus,
-        credit_amount: sale.creditAmount,
-        credit_status: sale.creditStatus
-      });
       
       const originalTax = parseFloat(sale.tax) || 0
       const hasTax = originalTax > 0
@@ -141,7 +134,6 @@ import buildPrintData from '../../utils/buildPrintData'
         hasTax: hasTax
       };
       
-      console.log('[EditableInvoiceForm] Form data being set:', formData);
       setFormData(formData);
         
         // Initialize inventory changes tracking
@@ -239,7 +231,6 @@ import buildPrintData from '../../utils/buildPrintData'
           }
         }
       } catch (err) {
-        console.error('[EditableInvoiceForm] Failed to load company info:', err)
         // leave companyInfo as {} — buildPrintData will use its own fallback
       }
     }
@@ -438,7 +429,6 @@ const handleRemoveItem = (itemId) => {
 
     // Add empty row to table
     const handleAddEmptyRow = () => {
-        console.log('Add Row button clicked - adding empty row to table')
         
         const emptyItem = {
         id: `temp_${Date.now()}`,
@@ -531,9 +521,6 @@ const handleRemoveItem = (itemId) => {
             setError(response.data.message || 'Failed to update sale')
         }
         } catch (err) {
-        console.error('Error updating sale:', err)
-        console.error('Error response:', err.response?.data)
-        console.error('Error status:', err.response?.status)
         
         if (err.response?.data?.errors) {
             // Handle validation errors
@@ -664,7 +651,6 @@ const handleRemoveItem = (itemId) => {
                     <Select
                         value={formData.paymentMethod}
                         onChange={(e) => {
-                          console.log('[EditableInvoiceForm] Payment method changed to:', e.target.value);
                           handleFieldChange('paymentMethod', e.target.value);
                         }}
                     >

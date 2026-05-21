@@ -78,7 +78,6 @@ const ExcelUploadDialog = ({
     errors: {}
   }
 
-
   const handleFileSelect = (event) => {
     const selectedFile = event.target.files[0]
     if (selectedFile) {
@@ -148,7 +147,6 @@ const ExcelUploadDialog = ({
         onSuccess(response.data)
       }
     } catch (error) {
-      console.error('Upload error:', error)
       setError(error.response?.data?.message || 'Upload failed. Please try again.')
       setUploading(false)
     }
@@ -169,7 +167,6 @@ const ExcelUploadDialog = ({
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch (error) {
-      console.error('Template download error:', error)
       setError('Failed to download template. Please try again.')
     }
   }
@@ -491,5 +488,4 @@ const ExcelUploadDialog = ({
 }
 
 export default ExcelUploadDialog
-
 

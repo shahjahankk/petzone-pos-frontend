@@ -27,7 +27,7 @@ import RouteGuard from '../../../components/auth/RouteGuard'
 import PermissionCheck from '../../../components/auth/PermissionCheck'
 import ConfirmationDialog from '../../../components/crud/ConfirmationDialog'
 import { useSalesPolling } from '../../../hooks/usePolling'
-import { fetchSales, deleteSale, fetchSalesReturns, createSalesReturn, getSale } from '../../store/slices/salesSlice'
+import { fetchSales, deleteSale, fetchSalesReturns, createSalesReturn, getSale, fetchSalesSummary } from '../../store/slices/salesSlice'
 import { fetchInventory } from '../../store/slices/inventorySlice'
 import { fetchBranchSettings, fetchBranches } from '../../store/slices/branchesSlice'
 import { fetchWarehouses, fetchWarehouseSettings } from '../../store/slices/warehousesSlice'
@@ -509,6 +509,7 @@ const SalesManagement = () => {
 
       dispatch(fetchSales(salesParams))
       dispatch(fetchSalesReturns(salesParams))
+      dispatch(fetchSalesSummary(salesParams))
     }, 500)
 
     // Only fetch branches/warehouses for unscoped admin (global view)
@@ -579,7 +580,8 @@ const SalesManagement = () => {
       }
 
       if (statusFilter !== 'all') {
-        if (sale.status?.toLowerCase() !== statusFilter.toLowerCase()) return false
+        const ps = (sale.payment_status || sale.paymentStatus || sale.status || '').toLowerCase()
+        if (ps !== statusFilter.toLowerCase()) return false
       }
 
       if (scopeTypeFilter !== 'all') {
@@ -619,12 +621,14 @@ const SalesManagement = () => {
     return filtered
   }
 
+  // Pagination is server-driven (page/limit sent on every fetch).
+  // Client-side filter/sort operates only on the current server page.
+  // Do NOT re-slice here — that would hide rows on page 2+ since the server already
+  // returned only `rowsPerPage` rows.
   const allFilteredSales = getFilteredAndSortedSales()
   const totalItems  = salesPagination?.total ?? allFilteredSales.length
   const totalPages  = Math.max(1, Math.ceil(totalItems / rowsPerPage))
-  const startIndex  = (page - 1) * rowsPerPage
-  const endIndex    = startIndex + rowsPerPage
-  const paginatedSales = allFilteredSales.slice(startIndex, endIndex)
+  const paginatedSales = allFilteredSales
 
   const handlePageChange       = (event, newPage) => setPage(newPage)
   const handleRowsPerPageChange = (event) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(1) }

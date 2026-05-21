@@ -10,7 +10,6 @@ export default function GlobalError({ error, reset }) {
     if (error) {
       try {
         // Basic console log for debugging (serverless environments will pick this up)
-        console.error('[GlobalError] ', error)
       } catch (e) {}
     }
   }, [error])

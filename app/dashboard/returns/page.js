@@ -335,7 +335,6 @@ const ReturnsPage = () => {
         setReturnDetails(returnItem)
       }
     } catch (error) {
-      console.error('Error fetching return details:', error)
       setReturnDetails(returnItem)
     } finally {
       setLoadingDetails(false)
@@ -427,17 +426,14 @@ const ReturnsPage = () => {
               setSelectedReturn(detailsResponse.data.data)
             }
           } catch (detailsError) {
-            console.error('Error refreshing return details:', detailsError)
           }
         }
 
         setRestockDialog(false)
         setSelectedItemForRestock(null)
         setRestockQuantity(0)
-        console.log('Restock successful:', response.data.data)
       }
     } catch (error) {
-      console.error('Error restocking item:', error)
     } finally {
       setRestockLoading(false)
     }
@@ -460,7 +456,6 @@ const ReturnsPage = () => {
       const response = await api.get(`/sales/products/search?q=${encodeURIComponent(query)}&limit=10`)
       setProductSearchResults(prev => ({ ...prev, [itemIndex]: response.data.data || [] }))
     } catch (error) {
-      console.error('Error searching products:', error)
       setProductSearchResults(prev => ({ ...prev, [itemIndex]: [] }))
     } finally {
       setProductSearchLoading(prev => ({ ...prev, [itemIndex]: false }))
@@ -489,7 +484,6 @@ const ReturnsPage = () => {
         showToast('Invoice not found. Please check the invoice number.', 'warning')
       }
     } catch (error) {
-      console.error('Error searching invoice:', error)
       setInvoiceItems([])
       setSelectedInvoice(null)
       showToast('Error searching for invoice. Please try again.', 'error')
@@ -685,7 +679,6 @@ const ReturnsPage = () => {
       }, 0)
       return { total, totalAmount }
     } catch (error) {
-      console.error('Error calculating return stats:', error)
       return { total: 0, totalAmount: 0 }
     }
   }

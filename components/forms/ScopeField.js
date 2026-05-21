@@ -57,7 +57,6 @@ const ScopeField = ({
           .unwrap()
           .catch((err) => {
             setError('Failed to load branches')
-            console.error('Error loading branches:', err)
           })
           .finally(() => {
             setLoading(false)
@@ -67,7 +66,6 @@ const ScopeField = ({
           .unwrap()
           .catch((err) => {
             setError('Failed to load warehouses')
-            console.error('Error loading warehouses:', err)
           })
           .finally(() => {
             setLoading(false)

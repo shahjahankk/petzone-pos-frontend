@@ -146,7 +146,6 @@ function InventoryPage() {
         dispatch(fetchInventory())
       }
     } catch (error) {
-      console.error('Error creating inventory item:', error)
     }
   }
 
@@ -158,7 +157,6 @@ function InventoryPage() {
         dispatch(fetchInventory())
       }
     } catch (error) {
-      console.error('Error updating inventory item:', error)
     }
   }
 
@@ -170,7 +168,6 @@ function InventoryPage() {
         dispatch(fetchInventory())
       }
     } catch (error) {
-      console.error('Error deleting inventory item:', error)
     }
   }
 

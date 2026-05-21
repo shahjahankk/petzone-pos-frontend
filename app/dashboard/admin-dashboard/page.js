@@ -321,74 +321,7 @@ const AdminDashboardPage = () => {
         scopeId:   selectedScope,
       }))
       setIsSimulationActive(true)
-    } catch (e) { console.error(e) }
-  }
-
-  const handleClearSimulation = () => {
-    sessionStorage.removeItem('adminSimulation')
-    setSelectedScope('')
-    setSelectedScopeType('')
-    setSelectedScopeData(null)
-    setIsSimulationActive(false)
-  }
-
-  const handleNavigate = (item, scopeType, scopeId, scopeData) => {
-    // Special actions — open in new tab
-    if (item.action === 'pos') {
-      window.open(`/pos/terminal?role=cashier&scope=branch&id=${scopeId}`, '_blank')
-      return
-    }
-    if (item.action === 'warehouse_billing') {
-      window.open(`/warehouse-billing?role=warehouse_keeper&scope=warehouse&id=${scopeId}`, '_blank')
-      return
-    }
-
-    if (item.path) {
-      // Admin-only shortcuts (scopeType is null) — navigate directly, no scope params
-      if (!scopeType || !scopeId) {
-        router.push(item.path)
-        return
-      }
-      // Scoped modules — append simulation URL params so the target page picks them up
-      // All pages fixed with admin simulation read ?role=...&scope=...&id=...
-      const role  = scopeType === 'BRANCH' ? 'cashier' : 'warehouse_keeper'
-      const scope = scopeType.toLowerCase()                // 'branch' | 'warehouse'
-      const sep   = item.path.includes('?') ? '&' : '?'
-      router.push(`${item.path}${sep}role=${role}&scope=${scope}&id=${scopeId}`)
-    }
-  }
-
-  const scopeColor = selectedScopeType === 'BRANCH' ? 'primary' : 'secondary'
-
-  return (
-    <DashboardLayout>
-      <RouteGuard allowedRoles={['ADMIN']} />
-      <PermissionCheck permission="admin_dashboard" />
-
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
-
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: .5 }}>
-              <AdminIcon color="primary" sx={{ fontSize: 32 }} />
-              <Typography variant="h4" sx={{ fontWeight: 800 }}>Admin Dashboard</Typography>
-            </Box>
-            <Typography variant="body2" color="text.secondary">
-              Select a branch or warehouse then activate simulation to access its modules
-            </Typography>
-          </Box>
-          {isSimulationActive && (
-            <Chip
-              icon={<SimulateIcon />}
-              label={`Simulating: ${selectedScopeData?.name || selectedScopeType}`}
-              color={scopeColor}
-              variant="filled"
-              onDelete={handleClearSimulation}
-              deleteIcon={<ClearIcon />}
-              sx={{ fontWeight: 700, fontSize: '.88rem', py: .5 }}
-            />
-          )}
+    } catch (e) {}
         </Box>
 
         {/* ── Active simulation banner ────────────────────────────────────── */}

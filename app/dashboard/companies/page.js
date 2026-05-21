@@ -313,7 +313,6 @@ function CompaniesPage() {
         URL.revokeObjectURL(downloadUrl)
       }
     } catch (error) {
-      console.error('Error exporting companies:', error)
       alert(error?.message || 'Failed to export companies')
     }
   }
@@ -519,8 +518,6 @@ function CompaniesPage() {
         }
       })
 
-      console.log('🔧 Company data being sent:', companyData)
-      console.log('🔧 User role:', user?.role, 'Warehouse ID:', user?.warehouseId, 'Branch ID:', user?.branchId)
 
       if (editingCompany) {
         const result = await dispatch(updateCompany({ id: editingCompany.id, data: companyData }))
@@ -541,7 +538,6 @@ function CompaniesPage() {
         error.inner.forEach(err => { errors[err.path] = err.message })
         setFormErrors(errors)
       } else {
-        console.error('Error saving company:', error)
       }
     } finally {
       setIsSubmitting(false)
@@ -557,7 +553,6 @@ function CompaniesPage() {
           dispatch(fetchCompanies())
         }
       } catch (error) {
-        console.error('Error deleting company:', error)
       }
     }
   }

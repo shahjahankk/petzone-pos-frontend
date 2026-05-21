@@ -62,16 +62,17 @@ const DetailedCustomerLedgerPage = () => {
     pendingTransactions: 0,
     partialTransactions: 0
   })
+  const [loadError, setLoadError] = useState(null)
 
   const loadDetailedLedger = useCallback(async () => {
     setTransactionsWithItems([])
+    setLoadError(null)
     try {
       const result = await dispatch(fetchCustomerLedger({ 
         customerId: decodedIdentifier,
         params: { detailed: 'true', limit: 2000 }
       })).unwrap()
       
-      console.log('🔍 FRONTEND: Received ledger data:', result)
       
       if (result.success && result.data) {
         const txWithItems = result.data.transactions || []
@@ -104,7 +105,7 @@ const DetailedCustomerLedgerPage = () => {
         setTransactionsWithItems(txWithItems)
       }
     } catch (error) {
-      console.error('Error loading detailed ledger:', error)
+      setLoadError(error?.message || 'Failed to load ledger. Please try again.')
     }
   }, [dispatch, decodedIdentifier, displayName])
 
@@ -258,11 +259,12 @@ const DetailedCustomerLedgerPage = () => {
     )
   }
 
-  if (error) {
+  if (error || loadError) {
     return (
       <DashboardLayout>
         <Box sx={{ p: 3 }}>
-          <Alert severity="error">{error}</Alert>
+          <Alert severity="error">{error || loadError}</Alert>
+          <Button sx={{ mt: 2 }} variant="outlined" onClick={loadDetailedLedger}>Retry</Button>
         </Box>
       </DashboardLayout>
     )

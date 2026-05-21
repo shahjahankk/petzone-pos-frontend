@@ -50,7 +50,6 @@ export const exportCustomerLedger = createAsyncThunk(
   'customerLedger/exportCustomerLedger',
   async ({ customerId, params = {} }, { rejectWithValue }) => {
     try {
-      console.log('Exporting customer ledger:', { customerId, params })
       const queryParams = new URLSearchParams()
       if (params.startDate) queryParams.append('startDate', params.startDate)
       if (params.endDate) queryParams.append('endDate', params.endDate)
@@ -58,9 +57,7 @@ export const exportCustomerLedger = createAsyncThunk(
       if (params.detailed) queryParams.append('detailed', 'true')
       
       const url = `/customer-ledger/${customerId}/export?${queryParams.toString()}`
-      console.log('Export API URL:', url)
       const response = await api.get(url)
-      console.log('Export API response:', response.data)
       
       // Handle HTML content for PDF generation
       if (params.format === 'pdf') {
@@ -380,13 +377,6 @@ const customerLedgerSlice = createSlice({
       state.pagination.ledger = { ...state.pagination.ledger, ...action.payload }
     },
     debugState: (state) => {
-      console.log('🔍 CUSTOMER LEDGER STATE DEBUG:', {
-        customers: state.customers,
-        currentCustomerLedger: state.currentCustomerLedger,
-        loading: state.loading,
-        error: state.error,
-        pagination: state.pagination
-      })
     }
   },
   extraReducers: (builder) => {

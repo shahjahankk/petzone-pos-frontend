@@ -38,7 +38,6 @@ const setAuthMessage = (message) => {
   try {
     sessionStorage.setItem(AUTH_MESSAGE_KEY, message)
   } catch (storageError) {
-    console.warn('Unable to persist auth message', storageError)
   }
 }
 
@@ -52,7 +51,6 @@ const forceLogout = (
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
   } catch (storageError) {
-    console.warn('Unable to clear auth storage', storageError)
   }
 
   // Reject any queued requests waiting on a refresh
@@ -205,20 +203,7 @@ api.interceptors.response.use(
     // Enhanced error logging
     if (error.response) {
       try {
-        console.error('Response Error:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          url: error.config?.url,
-          method: error.config?.method,
-          data: error.response.data || 'Empty response data'
-        })
       } catch (logError) {
-        console.error('Response Error (simplified):', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          url: error.config?.url,
-          method: error.config?.method
-        })
       }
       
       // If response data is empty, provide a more helpful error message

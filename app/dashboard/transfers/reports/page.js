@@ -140,7 +140,6 @@ const TransferReportsPage = () => {
         setReportData(response.data.data)
       }
     } catch (err) {
-      console.error('Error loading report data:', err)
       setError(err.response?.data?.message || 'Failed to load report data')
     } finally {
       setLoading(false)

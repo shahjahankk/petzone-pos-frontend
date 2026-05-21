@@ -692,82 +692,7 @@ function WarehouseBillingPage() {
   }, [dispatch, scopeInfo, urlParams, user])
 
   useEffect(() => {
-    if (retailersError) console.error('[WAREHOUSE] Failed to load retailers:', retailersError)
-  }, [retailersError])
-
-  const currentTab = useMemo(() => tabs.find(tab => tab.id === activeTabId) || null, [tabs, activeTabId])
-  const currentCart = useMemo(() => currentTab?.cart || [], [currentTab])
-
-  const updateCurrentTabCart = useCallback((newCart) => {
-    setTabs(prev => prev.map(tab =>
-      tab.id === activeTabId ? { ...tab, cart: newCart, modifiedAt: new Date() } : tab
-    ))
-  }, [activeTabId])
-
-  const updateCurrentTab = useCallback((updates) => {
-    setTabs(prev => prev.map(tab =>
-      tab.id === activeTabId ? { ...tab, ...updates, modifiedAt: new Date() } : tab
-    ))
-  }, [activeTabId])
-
-  const cartWithPlaceholder = useMemo(() => {
-    const hasEmptyRow = currentCart.length === 0 || currentCart[currentCart.length - 1]?.id
-    return hasEmptyRow
-      ? [...currentCart, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 }]
-      : currentCart
-  }, [currentCart])
-
-  const handleRowUpdate = useCallback((rowIndex, updates) => {
-    const actualCart = [...currentCart]
-    if (rowIndex >= actualCart.length) {
-      if (updates.id) {
-        const newItem = { ...updates }
-        updateCurrentTabCart([...actualCart, newItem])
-        setNewRowIndex(actualCart.length)
-      }
-    } else {
-      const updated = actualCart.map((item, i) => i === rowIndex ? { ...item, ...updates } : item)
-      updateCurrentTabCart(updated)
-    }
-  }, [currentCart, updateCurrentTabCart])
-
-  const handleRowRemove = useCallback((rowIndex) => {
-    const newCart = currentCart.filter((_, i) => i !== rowIndex)
-    updateCurrentTabCart(newCart)
-  }, [currentCart, updateCurrentTabCart])
-
-  const handleAddRow = useCallback(() => {
-    setNewRowIndex(currentCart.length)
-  }, [currentCart.length])
-
-  const fetchLastCustomerItemPrice = useCallback(async (inventoryItemId) => {
-    if (!inventoryItemId) return null
-    const rid = selectedRetailer?.id
-    const phone = (customerPhone || '').trim()
-    const name = (customerName || '').trim()
-    const hasRetailer = rid !== undefined && rid !== null && rid !== ''
-    if (!hasRetailer && !phone && !name) return null
-    try {
-      const params = { inventoryItemId }
-      if (hasRetailer) params.retailerId = rid
-      else if (phone) params.customerPhone = phone
-      else if (name) params.customerName = name
-      else return null
-      const { data } = await api.get('/warehouse-sales/last-price', { params })
-      if (data?.success && data?.data && data.data.lastPrice != null) return data.data
-      return null
-    } catch {
-      return null
-    }
-  }, [selectedRetailer, customerPhone, customerName])
-
-  const addToCart = useCallback(async (product) => {
-    const existingItem = currentCart.find(item => item.id === product.id)
-    let newCart
-    if (existingItem) {
-      newCart = currentCart.map(item =>
-        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-      )
+    if (retailersError)
     } else {
       // Unit price field = inventory selling price; last sale shown as caption only
       const customPrice = Number(product.sellingPrice ?? product.price) || 0
@@ -1294,16 +1219,7 @@ function WarehouseBillingPage() {
         try {
           const response = await api.get('/salespeople/warehouse-billing')
           if (response.data.success) setSalespeople(response.data.data)
-        } catch (error) { console.error('Error loading salespeople:', error) }
-      }
-    }
-    loadSalespeople()
-  }, [user])
-
-  useEffect(() => {
-    const loadCompanyInfo = async () => {
-      const fallbackInfo = { ...DEFAULT_COMPANY_INFO }
-      if (!user) { setCompanyInfo(fallbackInfo); return }
+        } catch (error) { return }
       const normalizedScopeType = typeof user.scopeType === 'string' ? user.scopeType.toUpperCase() : null
       const branchId = user.branchId || (normalizedScopeType === 'BRANCH' ? user.scopeId : null)
       const warehouseId = user.warehouseId || (normalizedScopeType === 'WAREHOUSE' ? user.scopeId : null)
@@ -1522,63 +1438,7 @@ function WarehouseBillingPage() {
         const sale = result.payload?.data || result.payload
         if (selectedOutstandingPayments.length > 0) {
           const shouldClear = (currentCart.length === 0 && showSettlementOptions) || (paymentMethodValue === 'CASH' && selectedOutstandingPayments.length > 0 && finalPaymentAmount > 0)
-          if (shouldClear) { try { await settleOutstandingPayments() } catch (error) { console.error('[WAREHOUSE] Error settling outstanding:', error) } }
-        }
-        const printableItems = currentCart.map(normalizeCartItemForPrint)
-        const printableSubtotal = Math.round(Math.max(0, subtotal))
-        const printableTax = Math.round(Math.max(0, tax))
-        const printableDiscount = Math.round(Math.max(0, totalDiscount))
-        const printableInvoiceTotal = Math.max(0, (printableSubtotal + printableTax) - printableDiscount)
-const pd = buildPrintData({
-  sale: {
-    invoice_no      : sale.invoice_no,
-    id              : sale.id,
-    created_at      : sale.created_at || new Date().toISOString(),
-    scope_type      : 'WAREHOUSE',
-    customerInfo    : { id: retailerInfo.id, name: retailerInfo.name || 'Walk-in Retailer', phone: retailerInfo.phone || '' },
-    subtotal        : printableSubtotal,
-    tax             : printableTax,
-    discount        : printableDiscount,
-    invoiceTotal    : printableInvoiceTotal,
-    paymentAmount   : Math.round(finalPaymentAmount),
-    creditAmount    : Math.round(finalCreditAmount),
-    remainingBalance: Math.round(finalCreditAmount),
-    change          : isPartialPayment ? 0 : Math.round(Math.max(0, (parseFloat(paymentAmount) || total) - total)),
-    paymentMethod   : paymentMethodValue,
-    paymentType     : paymentTypeValue,
-    paymentStatus   : finalPaymentStatus,
-    notes           : isPartialPayment ? `Partial Payment - Credit: ${Math.round(finalCreditAmount)}` : '',
-    created_by      : user?.name || user?.username || 'Warehouse Keeper',
-    warehouseName   : user?.warehouseName || scopeInfo?.scopeName || '',
-  },
-  companyInfo: {
-    name   : companyInfo.name    || DEFAULT_COMPANY_INFO.name,
-    address: companyInfo.address || DEFAULT_COMPANY_INFO.address,
-    phone  : companyInfo.phone   || DEFAULT_COMPANY_INFO.phone,
-    email  : companyInfo.email   || DEFAULT_COMPANY_INFO.email,
-    logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
-  },
-  user,
-  overrides: {
-    items        : printableItems,
-    footerMessage: 'Thank you for choosing PetZone!',
-    type         : 'warehouse',
-    title        : 'SALES RECEIPT',
-  },
-})
-        setCompletedSaleData({ sale, printData: pd, retailerInfo, isSaved: true })
-        setSaleConfirmDialog(true)
-        const refPhoneAfterSale = selectedRetailer?.phone || customerPhone
-        const refNameAfterSale = selectedRetailer?.name || customerName
-        const refRidAfterSale = selectedRetailer?.id ?? null
-        clearAllPOSState()
-        setTimeout(() => refreshOutstandingPayments(refPhoneAfterSale, refNameAfterSale, refRidAfterSale), 500)
-      } else if (createWarehouseSale.rejected.match(result)) {
-        const error = result.payload || result.error
-        showToast(error?.message || 'Sale failed. Please try again.', 'error')
-      }
-    } catch (error) { alert(`❌ Sale failed: ${error.message || 'Unknown error'}`) }
-    finally { setIsProcessingSaleOnly(false); isCompletingSaleRef.current = false }
+          if (shouldClear) { try { await settleOutstandingPayments() } catch (error) { isCompletingSaleRef.current = false }
   }
 
   const checkPrinterStatus = async () => {

@@ -67,7 +67,6 @@ const DailyReportsPage = () => {
       }
     }
     
-    console.log('🔍 Loading daily reports for date:', selectedDate.toISOString().split('T')[0])
     dispatch(fetchSalesReports(params))
   }, [dispatch, filters])
 
@@ -138,14 +137,6 @@ const DailyReportsPage = () => {
   }
 
   // Debug logging to see what data we have
-  console.log('🔍 Daily Reports Data:', {
-    salesReports,
-    dailyData,
-    transactionDetails,
-    shiftSummary,
-    isLoading,
-    error
-  })
 
   const handleExport = async () => {
     try {
@@ -189,7 +180,6 @@ const DailyReportsPage = () => {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
     } catch (error) {
-      console.error('Export error:', error)
       alert('Failed to export daily report. Please try again.')
     }
   }

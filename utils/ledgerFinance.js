@@ -23,9 +23,8 @@ export function pickTransactionBalance(transaction) {
   const b = transaction.balance ?? transaction.running_balance ?? transaction.runningBalance
   const n = numOrNull(b)
   if (n !== null) return n
-  if (transaction.ledger_entry_id != null || transaction.ledgerEntryId != null) {
-    return 0
-  }
+  // Do NOT return 0 as a fallback — 0.00 balance looks like "settled" to users
+  // but is actually "unknown".  Callers will show '—' via formatMoneyOrDash.
   return null
 }
 

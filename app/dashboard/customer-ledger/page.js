@@ -242,6 +242,9 @@ const loadCustomerLedger = useCallback((customerId) => {
     scopeParams.scopeId   = String(user.warehouseId)
   }
 
+  // Load up to 2000 rows for the customer in one request; the dialog
+  // paginates client-side.  Never send a non-zero offset here — that would
+  // skip records when ledgerPage advances past the dialog's own page size.
   dispatch(fetchCustomerLedger({
     customerId,
     params: {
@@ -249,7 +252,7 @@ const loadCustomerLedger = useCallback((customerId) => {
       ...scopeParams,
       detailed: 'true',
       limit: 2000,
-      offset: (ledgerPage - 1) * 2000,
+      offset: 0,
     },
   }))
 }, [dispatch, ledgerFilters, ledgerPage, isAdminMode, urlParams, user])
@@ -398,7 +401,6 @@ const loadCustomerLedger = useCallback((customerId) => {
         window.open(`https://web.whatsapp.com/send?text=${encodedMsg}`, '_blank')
       }, 500)
     } catch (err) {
-      console.error('WhatsApp share error:', err)
       alert(err?.response?.data?.message || 'Failed to prepare WhatsApp share')
     } finally {
       setWhatsappLoading(false)
@@ -555,7 +557,6 @@ const sorted = [...transactions].sort((a, b) => {
         alert('Failed to load transaction details')
       }
     } catch (error) {
-      console.error('Error loading transaction details:', error)
       alert('Failed to load transaction details')
     } finally {
       setLoadingSaleItems(false)

@@ -200,7 +200,6 @@ const CompanyDetailPage = () => {
         URL.revokeObjectURL(downloadUrl)
       }
     } catch (error) {
-      console.error('Error exporting company details:', error)
       alert(error?.message || 'Failed to export company details')
     }
   }
@@ -348,7 +347,6 @@ const CompanyDetailPage = () => {
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Purchase History')
       XLSX.writeFile(workbook, `company-${companyId}-purchase-history-${Date.now()}.xlsx`)
     } catch (historyExportError) {
-      console.error('Error exporting purchase history:', historyExportError)
       alert(historyExportError?.message || 'Failed to export purchase history')
     }
   }

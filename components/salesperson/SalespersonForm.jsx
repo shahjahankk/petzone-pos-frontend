@@ -33,8 +33,6 @@ const SalespersonForm = ({
   warehouses = [],
   userRole = 'ADMIN'
 }) => {
-  console.log('🔧 SalespersonForm props:', { open, salesperson: !!salesperson, warehousesLength: warehouses.length, userRole })
-  console.log('🔧 warehouses prop:', warehouses)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -73,40 +71,29 @@ const SalespersonForm = ({
 
   // Set warehouse ID for warehouse keepers
   useEffect(() => {
-    console.log('🔧 useEffect triggered:', { userRole, warehousesLength: warehouses.length, salesperson: !!salesperson })
-    console.log('🔧 warehouses data:', warehouses)
     
     if (userRole === 'WAREHOUSE_KEEPER' && warehouses.length > 0 && !salesperson) {
       // Only set warehouse ID for new salespeople, not when editing
-      console.log('🔧 Setting warehouse ID for warehouse keeper:', warehouses[0])
       setFormData(prev => {
         const newState = {
           ...prev,
           warehouseId: warehouses[0].id
         }
-        console.log('🔧 formData after setting warehouseId:', newState)
         return newState
       })
     } else {
-      console.log('🔧 useEffect conditions not met:', {
-        isWarehouseKeeper: userRole === 'WAREHOUSE_KEEPER',
-        hasWarehouses: warehouses.length > 0,
-        isNewSalesperson: !salesperson
-      })
     }
   }, [userRole, warehouses, salesperson])
 
   // Additional useEffect to handle form initialization when dialog opens
   useEffect(() => {
     if (open && userRole === 'WAREHOUSE_KEEPER' && warehouses.length > 0 && !salesperson) {
-      console.log('🔧 Dialog opened - setting warehouse ID:', warehouses[0])
       setFormData(prev => {
         if (!prev.warehouseId || prev.warehouseId === '') {
           const newState = {
             ...prev,
             warehouseId: warehouses[0].id
           }
-          console.log('🔧 formData updated on dialog open:', newState)
           return newState
         }
         return prev
@@ -122,7 +109,6 @@ const SalespersonForm = ({
   }
 
   const validateForm = () => {
-    console.log('🔍 Validating form data:', formData)
     if (!formData.name.trim()) {
       setError('Name is required')
       return false
@@ -133,20 +119,16 @@ const SalespersonForm = ({
     }
     // Check if warehouseId is valid (not empty, null, undefined, or empty string)
     if (!formData.warehouseId || formData.warehouseId === '' || formData.warehouseId === null || formData.warehouseId === undefined) {
-      console.log('❌ Warehouse validation failed. warehouseId:', formData.warehouseId)
       setError('Warehouse is required')
       return false
     }
-    console.log('✅ Form validation passed')
     return true
   }
 
   const handleSave = async () => {
-    console.log('🔍 handleSave called. Current formData:', formData)
     
     // Additional check for warehouse keepers
     if (userRole === 'WAREHOUSE_KEEPER' && (!formData.warehouseId || formData.warehouseId === '')) {
-      console.log('❌ Warehouse keeper form submitted without warehouse ID')
       setError('Warehouse is required. Please wait for the form to load completely.')
       return
     }
@@ -166,8 +148,6 @@ const SalespersonForm = ({
         status: formData.status
       }
       
-      console.log('🔧 API payload being sent:', payload)
-      console.log('🔧 warehouseId type:', typeof payload.warehouseId, 'value:', payload.warehouseId)
 
       let response
       if (salesperson) {
@@ -193,7 +173,6 @@ const SalespersonForm = ({
         setError(response.data.message || 'Failed to save salesperson')
       }
     } catch (err) {
-      console.error('Error saving salesperson:', err)
       setError(err.response?.data?.message || err.message || 'Failed to save salesperson')
     } finally {
       setLoading(false)

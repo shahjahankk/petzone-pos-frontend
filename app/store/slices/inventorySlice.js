@@ -61,12 +61,9 @@ export const createInventoryItem = createAsyncThunk(
   'inventory/createInventoryItem',
   async (itemData, { rejectWithValue }) => {
     try {
-      console.log('[inventorySlice] createInventoryItem - sending payload:', itemData)
       const response = await api.post('/inventory', itemData)
-      console.log('[inventorySlice] createInventoryItem - response:', response?.data)
       return response.data
     } catch (error) {
-      console.error('[inventorySlice] createInventoryItem - error:', error?.response?.data || error.message || error)
       const status = error.response?.status
       const apiMessage = error.response?.data?.message
       const apiError = error.response?.data?.error

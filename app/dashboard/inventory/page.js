@@ -144,7 +144,6 @@ const defaultCategories = [
   { value: 'Other', label: 'Other' },
 ]
 
-
 const getFields = (user, categoryOptions, isEdit = false) => {
   const categoryOpts = categoryOptions && categoryOptions.length > 0 ? categoryOptions : defaultCategories
   const baseFields = [
@@ -477,7 +476,6 @@ useEffect(() => {
               }))
             }
           } catch (err) {
-            console.warn('Failed to fetch branch name:', err)
           }
         } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
           try {
@@ -490,11 +488,9 @@ useEffect(() => {
               }))
             }
           } catch (err) {
-            console.warn('Failed to fetch warehouse name:', err)
           }
         }
       } catch (err) {
-        console.error('Failed to fetch scopes:', err)
       }
     }
     
@@ -517,7 +513,6 @@ useEffect(() => {
           setCategoriesFromApi(mapped)
         }
       } catch (err) {
-        console.warn('Failed to load categories, using defaults/inventory list', err?.message || err)
       }
     }
     fetchCategories()
@@ -633,7 +628,6 @@ useEffect(() => {
   if (!initialized) return  // ← wait for URL params to be read
   dispatch(fetchInventory(getFetchParams()))
 }, [dispatch, getFetchParams, initialized])
-
 
   const handleAdd = () => {
     const initialData = {}

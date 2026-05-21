@@ -13,14 +13,10 @@ export const fetchRetailers = createAsyncThunk(
       if (params.paymentTerms) queryParams.append('paymentTerms', params.paymentTerms)
       if (params.warehouseId) queryParams.append('warehouseId', params.warehouseId)
       
-      console.log('[Retailers Slice] Fetching retailers with params:', params)
-      console.log('[Retailers Slice] Query string:', queryParams.toString())
       
       const response = await api.get(`/retailers?${queryParams.toString()}`)
-      console.log('[Retailers Slice] API response:', response.data)
       return response.data
     } catch (error) {
-      console.error('[Retailers Slice] API error:', error)
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch retailers')
     }
   }
@@ -61,7 +57,6 @@ export const createRetailer = createAsyncThunk(
         notes: normalize(retailerData.notes),
         warehouseId: retailerData.warehouseId ?? null
       }
-      console.log('[retailersSlice:create] payload', payload)
       const response = await api.post('/retailers', payload)
       return response.data
     } catch (error) {
@@ -128,14 +123,11 @@ const retailersSlice = createSlice({
         state.error = null
       })
       .addCase(fetchRetailers.fulfilled, (state, action) => {
-        console.log('[Retailers Slice] fetchRetailers.fulfilled:', action.payload)
         state.loading = false
         state.data = action.payload.data || []
         state.error = null
-        console.log('[Retailers Slice] Updated state.data:', state.data)
       })
       .addCase(fetchRetailers.rejected, (state, action) => {
-        console.log('[Retailers Slice] fetchRetailers.rejected:', action.payload)
         state.loading = false
         state.error = action.payload
       })

@@ -89,7 +89,6 @@ const FinancialVouchersPage = () => {
       if (isNaN(date.getTime())) return 'N/A'
       return format(date, formatStr)
     } catch (error) {
-      console.warn('Invalid date:', dateString, error)
       return 'N/A'
     }
   }
@@ -101,7 +100,6 @@ const FinancialVouchersPage = () => {
       const response = await api.get('/branches')
       setBranches(response.data.data || [])
     } catch (error) {
-      console.error('Error fetching branches:', error)
       setBranches([])
     } finally {
       setLoadingBranches(false)
@@ -115,7 +113,6 @@ const FinancialVouchersPage = () => {
       const response = await api.get('/warehouses')
       setWarehouses(response.data.data || [])
     } catch (error) {
-      console.error('Error fetching warehouses:', error)
       setWarehouses([])
     } finally {
       setLoadingWarehouses(false)
@@ -411,7 +408,6 @@ const FinancialVouchersPage = () => {
       setFormErrors({})
       // Don't call handleRefresh() here as the slice will update the state automatically
     } catch (error) {
-      console.error('Error submitting form:', error)
     } finally {
       setIsSubmitting(false)
     }
@@ -436,7 +432,6 @@ const FinancialVouchersPage = () => {
       setActionDialog({ open: false, action: '', voucher: null, notes: '', rejectionReason: '' })
       // Don't call handleRefresh() here as the slice will update the state automatically
     } catch (error) {
-      console.error('Error performing action:', error)
     }
   }
 
@@ -461,9 +456,6 @@ const FinancialVouchersPage = () => {
   const handleExport = async (exportFormat) => {
     setIsExporting(true)
     try {
-      console.log('Starting export with format:', exportFormat)
-      console.log('Report filters:', reportFilters)
-      console.log('Available vouchers:', vouchers?.length || 0)
       
       // Filter vouchers based on report filters
       let filteredVouchers = vouchers || []
@@ -522,8 +514,6 @@ const FinancialVouchersPage = () => {
       }
       filename += `-${format(new Date(), 'yyyy-MM-dd')}`
 
-      console.log('Filtered vouchers count:', filteredVouchers.length)
-      console.log('Generated filename:', filename)
 
       if (exportFormat === 'csv') {
         handleExportCSV(filteredVouchers, filename)
@@ -533,7 +523,6 @@ const FinancialVouchersPage = () => {
         handleExportPDF(filteredVouchers, filename)
       }
     } catch (error) {
-      console.error('Export error:', error)
     } finally {
       setIsExporting(false)
       handleExportClose()
@@ -542,7 +531,6 @@ const FinancialVouchersPage = () => {
 
   const handleExportCSV = (data, filename) => {
     try {
-      console.log('Exporting CSV with', data.length, 'records')
       const csvContent = [
         ['Date', 'Voucher #', 'Type', 'Amount', 'Scope', 'Status', 'Created By', 'Description'].join(','),
         ...data.map(voucher => [
@@ -566,15 +554,12 @@ const FinancialVouchersPage = () => {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      console.log('CSV export completed')
     } catch (error) {
-      console.error('CSV export error:', error)
     }
   }
 
   const handleExportExcel = (data, filename) => {
     try {
-      console.log('Exporting Excel with', data.length, 'records')
       // For Excel export, we'll create a CSV with Excel-compatible format
       const csvContent = [
         ['Date', 'Voucher #', 'Type', 'Amount', 'Scope', 'Status', 'Created By', 'Description'].join('\t'),
@@ -599,15 +584,12 @@ const FinancialVouchersPage = () => {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      console.log('Excel export completed')
     } catch (error) {
-      console.error('Excel export error:', error)
     }
   }
 
   const handleExportPDF = (data, filename) => {
     try {
-      console.log('Exporting PDF with', data.length, 'records')
       // Create a simple HTML table for PDF generation
       const htmlContent = `
         <!DOCTYPE html>
@@ -670,9 +652,7 @@ const FinancialVouchersPage = () => {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      console.log('PDF export completed')
     } catch (error) {
-      console.error('PDF export error:', error)
     }
   }
 

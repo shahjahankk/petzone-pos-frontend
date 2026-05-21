@@ -375,7 +375,6 @@ export default function DashboardPage() {
               }
             } catch (inventoryError) {
               // Silent fallback; keep previous values on failure
-              console.warn('Failed to fetch scoped inventory count:', inventoryError?.message || inventoryError)
             }
           }
 

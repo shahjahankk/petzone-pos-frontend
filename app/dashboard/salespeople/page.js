@@ -103,11 +103,6 @@ const SalespeoplePage = () => {
         }
       } else if (user?.role === 'WAREHOUSE_KEEPER') {
         // For warehouse keepers, set their warehouse
-        console.log('🔧 Setting warehouses for warehouse keeper:', {
-          id: user.warehouseId,
-          name: user.warehouseName,
-          code: user.warehouseCode
-        })
         setWarehouses([{
           id: user.warehouseId,
           name: user.warehouseName,
@@ -116,7 +111,6 @@ const SalespeoplePage = () => {
       }
 
     } catch (err) {
-      console.error('Error loading data:', err)
       setError(err.response?.data?.message || 'Failed to load data')
     } finally {
       setLoading(false)
@@ -129,7 +123,6 @@ const SalespeoplePage = () => {
 
   // Debug warehouses state changes
   useEffect(() => {
-    console.log('🔧 Warehouses state changed:', warehouses)
   }, [warehouses])
 
   const handleAddSalesperson = () => {
@@ -154,7 +147,6 @@ const SalespeoplePage = () => {
       setDeleteDialogOpen(false)
       setSalespersonToDelete(null)
     } catch (err) {
-      console.error('Error deleting salesperson:', err)
       setError(err.response?.data?.message || 'Failed to delete salesperson')
     }
   }
@@ -237,7 +229,6 @@ const SalespeoplePage = () => {
       const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
       return excelBuffer
     } catch (error) {
-      console.warn('XLSX library not available, falling back to CSV format:', error)
       return generateCSV(salespeopleData)
     }
   }
@@ -343,7 +334,6 @@ const SalespeoplePage = () => {
       const excelContent = await generateExcel(filteredSalespeople)
       downloadFile(excelContent, `salespeople-${new Date().toISOString().split('T')[0]}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     } catch (error) {
-      console.error('Error exporting to Excel:', error)
     }
     handleExportClose()
   }
@@ -378,7 +368,6 @@ const SalespeoplePage = () => {
         setSalespersonSales(response.data.data || [])
       }
     } catch (err) {
-      console.error('Error loading salesperson sales:', err)
       setError(err.response?.data?.message || 'Failed to load sales')
       setSalespersonSales([])
     } finally {
@@ -625,7 +614,6 @@ const SalespeoplePage = () => {
       const excelBuffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
       return excelBuffer
     } catch (error) {
-      console.warn('XLSX library not available, falling back to CSV format:', error)
       return generateSalesCSV(salesData)
     }
   }
@@ -854,7 +842,6 @@ const SalespeoplePage = () => {
         : `_${new Date().toISOString().split('T')[0]}`
       downloadFile(excelContent, `sales_${salespersonName}${dateSuffix}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     } catch (error) {
-      console.error('Error exporting to Excel:', error)
     }
     handleSalespersonExportClose()
   }

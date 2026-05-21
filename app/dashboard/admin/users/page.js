@@ -341,7 +341,6 @@ function AdminUsersPage() {
 
   const handleUpdate = (data) => {
     if (!crud.selectedEntity?.id) {
-      console.error('Cannot update: selectedEntity.id is missing')
       return
     }
     
@@ -367,7 +366,6 @@ function AdminUsersPage() {
 
   const handleDelete = () => {
     if (!crud.selectedEntity?.id) {
-      console.error('Cannot delete: selectedEntity.id is missing')
       return
     }
     

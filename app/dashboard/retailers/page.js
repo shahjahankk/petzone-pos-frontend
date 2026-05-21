@@ -315,7 +315,6 @@ const RetailersPage = () => {
         error.inner.forEach(err => { errors[err.path] = err.message })
         setFormErrors(errors)
       } else {
-        console.error('Error saving retailer:', error)
       }
     } finally {
       setIsSubmitting(false)
@@ -331,7 +330,6 @@ const RetailersPage = () => {
           handleRefresh()
         }
       } catch (error) {
-        console.error('Error deleting retailer:', error)
       }
     }
   }

@@ -719,7 +719,6 @@ function PurchaseOrdersPage() {
     } catch (e) {
       const msg = typeof e === 'string' ? e : (e?.message || 'Could not create purchase order')
       setSubmitError(msg)
-      console.error('Error creating purchase order:', e)
     } finally { setIsSubmitting(false) }
   }
 
@@ -750,115 +749,7 @@ function PurchaseOrdersPage() {
       })
       setSelectedRows([])
       setEditDialogOpen(true)
-    } catch (e) { console.error('Error loading order for edit:', e) }
-  }
-
-  const handleUpdateSubmit = async () => {
-    if (!await validateForm()) return
-    setSubmitError(null)
-    setIsSubmitting(true)
-    try {
-      await dispatch(updatePurchaseOrder({
-        id: editingOrder.id,
-        orderData: {
-          supplierId:       formData.supplierId,
-          orderDate:        formData.orderDate,
-          expectedDelivery: formData.expectedDelivery || null,
-          notes:            formData.notes,
-          items: formData.items.map(item => ({
-            ...item,
-            totalPrice: item.quantityOrdered * item.unitPrice,
-            inventoryItemId: item.inventoryItemId ?? null
-          }))
-        }
-      })).unwrap()
-      setEditDialogOpen(false)
-      resetForm()
-      setEditingOrder(null)
-      dispatch(fetchPurchaseOrders(filters))
-    } catch (e) {
-      const msg = typeof e === 'string' ? e : (e?.message || 'Could not update purchase order')
-      setSubmitError(msg)
-      console.error('Error updating purchase order:', e)
-    } finally { setIsSubmitting(false) }
-  }
-
-  const handleViewOrder = async (order) => {
-    try {
-      const r = await dispatch(fetchPurchaseOrder(order.id))
-      setSelectedOrder(r.payload.data)
-    } catch { setSelectedOrder(order) }
-    setViewDialogOpen(true)
-  }
-
-  const handleDeleteOrder = async () => {
-    if (!selectedOrder) return
-    try {
-      await dispatch(deletePurchaseOrder(selectedOrder.id))
-      setDeleteDialogOpen(false)
-      setSelectedOrder(null)
-      dispatch(fetchPurchaseOrders(filters))
-    } catch (e) { console.error(e) }
-  }
-
-  const handleStatusUpdate = async (orderId, newStatus) => {
-    try {
-      await dispatch(updatePurchaseOrderStatus({
-        id: orderId, status: newStatus,
-        actualDelivery: newStatus === 'COMPLETED' ? new Date().toISOString().split('T')[0] : null
-      }))
-      dispatch(fetchPurchaseOrders(filters))
-    } catch (e) { console.error(e) }
-  }
-
-const handlePageChange = (_, newPage) => {
-  dispatch(setFilters({ page: newPage }))
-}
-
-const handleLimitChange = (e) => {
-  dispatch(setFilters({ limit: parseInt(e.target.value), page: 1 }))
-}
-
-  // ── Shared props ──────────────────────────────────────────────────────────
-  const itemsTableProps = {
-    items: formData.items, formErrors, inventoryOptions, categoryOptions,
-    onItemChange: handleItemChange, onAddItemBelow: addItem,
-    onDeleteSelected: deleteSelectedRows, selectedRows,
-    onRowSelect: handleRowSelect, onSelectAll: handleSelectAll,
-    getItemSearchState, updateItemSearchState, handleItemSearchChange, handleItemSelect
-  }
-
-  const dialogPaperProps = { sx: { minHeight: '80vh', maxHeight: '90vh', width: '98vw', maxWidth: '1900px' } }
-const searchDebounceRef = useRef(null)
-
-const handleSearchChange = useCallback((e) => {
-  const val = e.target.value
-  dispatch(setFilters({ search: val, page: 1 }))
-  clearTimeout(searchDebounceRef.current)
-  searchDebounceRef.current = setTimeout(() => {
-    dispatch(fetchPurchaseOrders({ ...filters, search: val, page: 1 }))
-  }, 400)
-}, [dispatch, filters])
-  // ── Render ────────────────────────────────────────────────────────────────
-  return (
-    <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
-      <DashboardLayout>
-
-        {/* Admin simulation banner */}
-        {isAdminMode && scopeInfo && (
-          <Box sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', p: 1, textAlign: 'center', borderBottom: 1, borderColor: 'warning.main' }}>
-            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-              🔧 ADMIN MODE: Operating as {scopeInfo.scopeType === 'BRANCH' ? 'Cashier' : 'Warehouse Keeper'} for {scopeInfo.scopeName}
-            </Typography>
-          </Box>
-        )}
-
-        {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, mt: isAdminMode ? 1 : 0 }}>
-          <Typography variant="h4" fontWeight="bold">Purchase Orders</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => dispatch(fetchPurchaseOrders(filters))}>Refresh</Button>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => { resetForm(); setSubmitError(null); setFormDialogOpen(true) }}>Create Order</Button>
+    } catch (e) { setSubmitError(null); setFormDialogOpen(true) }}>Create Order</Button>
           </Box>
         </Box>
 

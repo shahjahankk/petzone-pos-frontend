@@ -231,7 +231,6 @@ const TransferManagementPage = () => {
       
       setAvailableItems(transformedItems)
     } catch (error) {
-      console.error('Error loading available items:', error)
       setAvailableItems([])
     }
   }, [])
@@ -242,7 +241,6 @@ const TransferManagementPage = () => {
       const response = await api.get('/branches')
       setAvailableBranches(response.data.data || [])
     } catch (error) {
-      console.error('Error loading branches:', error)
       setAvailableBranches([])
     }
   }, [])
@@ -250,7 +248,6 @@ const TransferManagementPage = () => {
   // Load available warehouses
   const loadAvailableWarehouses = useCallback(async () => {
     try {
-      console.log('🔍 Loading warehouses for role:', currentUserRole)
       
       // For warehouse keepers, we need to load ALL warehouses (not just their own)
       // because they need to select destination warehouses for transfers
@@ -258,10 +255,8 @@ const TransferManagementPage = () => {
       if (currentUserRole === 'WAREHOUSE_KEEPER') {
         // Use forTransfer parameter to get all warehouses
         response = await api.get('/warehouses?forTransfer=true')
-        console.log('🔍 Warehouse keeper warehouses response:', response.data)
       } else {
         response = await api.get('/warehouses')
-        console.log('🔍 Admin warehouses response:', response.data)
       }
       
       const warehouses = response.data.data || []
@@ -273,10 +268,8 @@ const TransferManagementPage = () => {
         id: warehouse.id || warehouse.warehouse_id
       }))
       
-      console.log('🔍 Transformed warehouses:', transformedWarehouses)
       setAvailableWarehouses(transformedWarehouses)
     } catch (error) {
-      console.error('Error loading warehouses:', error)
       setAvailableWarehouses([])
     }
   }, [currentUserRole])
@@ -352,7 +345,6 @@ const TransferManagementPage = () => {
         })
       }
     } catch (error) {
-      console.error('Error loading transfer settings:', error)
       // Set default settings based on role
       if (currentUserRole === 'CASHIER') {
         setTransferSettings({ allowBranchTransfers: false })
@@ -370,13 +362,6 @@ const TransferManagementPage = () => {
       setCreateLoading(true)
       setCreateError(null)
 
-      console.log('🔍 Transfer validation debug:', {
-        currentUserRole,
-        currentBranchId,
-        currentWarehouseId,
-        newTransfer,
-        transferSettings
-      })
 
       // Role-based validation
       if (currentUserRole === 'CASHIER') {
@@ -498,7 +483,6 @@ const TransferManagementPage = () => {
         }
       }
 
-      console.log('🔍 Sending transfer data:', transferData)
       const response = await api.post('/transfers', transferData)
       
       if (response.data.success) {
@@ -519,7 +503,6 @@ const TransferManagementPage = () => {
         loadStatistics()
       }
     } catch (error) {
-      console.error('Error creating transfer:', error)
       setCreateError(error.response?.data?.message || error.message || 'Failed to create transfer')
     } finally {
       setCreateLoading(false)
@@ -590,7 +573,6 @@ const TransferManagementPage = () => {
         setViewDialog(false)
       }
     } catch (err) {
-      console.error('Error updating transfer status:', err)
     }
   }
 
@@ -823,7 +805,6 @@ const TransferManagementPage = () => {
                         <IconButton
                           size="small"
                           onClick={async () => {
-                            console.log('🔍 Opening transfer details for:', transfer.id)
                             setSelectedTransfer(transfer)
                             setViewDialog(true)
                             
@@ -831,11 +812,9 @@ const TransferManagementPage = () => {
                             try {
                               const response = await api.get(`/transfers/${transfer.id}`)
                               if (response.data.success) {
-                                console.log('🔍 Transfer details loaded:', response.data.data)
                                 setSelectedTransfer(response.data.data)
                               }
                             } catch (error) {
-                              console.error('Error loading transfer details:', error)
                             }
                           }}
                         >

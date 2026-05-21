@@ -9,26 +9,12 @@ export const fetchSales = createAsyncThunk(
   async (params = {}, { rejectWithValue, getState }) => {
     try {
       // ❌ REMOVED scope validation - now handled by axios headers
-      console.log('[SalesSlice] fetchSales - Request params:', params)
 
       const response = await api.get('/sales', { params })
 
-      console.log('[SalesSlice] fetchSales - Response:', {
-        success: response.data?.success,
-        count: response.data?.count,
-        dataLength: response.data?.data?.length,
-        hasData: !!response.data?.data
-      })
 
       return response.data
     } catch (error) {
-      console.error('[SalesSlice] fetchSales - Error:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        params
-      })
 
       const status = error.response?.status
       const serverMsg = error.response?.data?.message || error.response?.data || null
@@ -48,7 +34,6 @@ export const createSale = createAsyncThunk(
     try {
       // ❌ REMOVED scope validation - now handled by axios headers
       const { __idempotencyKey, ...body } = saleData || {}
-      console.log('[SalesSlice] createSale - Request data:', body)
 
       const headers = {}
       if (__idempotencyKey && typeof __idempotencyKey === 'string') {
@@ -74,7 +59,6 @@ export const createSale = createAsyncThunk(
         return rejectWithValue({ message: permissionMessage, status })
       }
 
-      console.error('[SalesSlice] createSale error:', error)
 
       const errorMessage = apiMessage || error.message || defaultMessage
       return rejectWithValue({ message: errorMessage, status })
@@ -88,7 +72,6 @@ export const createWarehouseSale = createAsyncThunk(
     try {
       // ❌ REMOVED scope validation - now handled by axios headers
       const { __idempotencyKey, ...body } = saleData || {}
-      console.log('[SalesSlice] createWarehouseSale - Request data:', body)
 
       const headers = {}
       if (__idempotencyKey && typeof __idempotencyKey === 'string') {

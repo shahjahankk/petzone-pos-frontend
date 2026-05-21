@@ -234,7 +234,6 @@ function StockReportsPage() {
 
   // Handle export menu
   const handleExportMenuOpen = (event) => {
-    console.log('Export button clicked', event.currentTarget)
     setExportMenuAnchor(event.currentTarget)
   }
 
@@ -544,7 +543,6 @@ function StockReportsPage() {
         <TableBody>
           {(Array.isArray(inventoryReports?.data) ? inventoryReports.data : []).map((report) => {
             // Debug: Log the report data to see what fields are available
-            console.log('Stock report data:', report);
             return (
             <TableRow key={report.id} hover>
               <TableCell>
@@ -645,9 +643,6 @@ function StockReportsPage() {
                   <IconButton
                     size="small"
                     onClick={() => {
-                      console.log('Button clicked for report:', report);
-                      console.log('inventoryItemId value:', report.inventoryItemId);
-                      console.log('All report fields:', Object.keys(report));
                       
                       // Try multiple possible field names
                       const productId = report.inventoryItemId || report.inventory_item_id || report.itemId;
@@ -655,7 +650,6 @@ function StockReportsPage() {
                       if (productId) {
                         window.open(`/dashboard/stock-reports/product/${productId}`, '_blank');
                       } else {
-                        console.error('Inventory Item ID is undefined for report:', report);
                         alert('Product ID not available. Please refresh the page and try again.');
                       }
                     }}
@@ -1155,8 +1149,4 @@ function StockReportsPage() {
 }
 
 export default StockReportsPage
-
-
-
-
 

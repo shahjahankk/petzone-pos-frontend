@@ -25,13 +25,9 @@ export const fetchTransfers = createAsyncThunk(
       if (params.limit) queryParams.append('limit', params.limit)
       
       const url = `/transfers?${queryParams.toString()}`
-      console.log('🔍 Frontend API call:', url)
       const response = await api.get(url)
-      console.log('🔍 Frontend API response:', response.data)
       return response.data
     } catch (error) {
-      console.error('🔍 Frontend API error:', error)
-      console.error('🔍 Error response:', error.response?.data)
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch transfers')
     }
   }
@@ -190,11 +186,6 @@ const transfersSlice = createSlice({
         state.pagination = action.payload.pagination || state.pagination
         state.error = null
         
-        console.log('✅ Transfers loaded:', {
-          count: state.transfers.length,
-          data: state.transfers,
-          pagination: state.pagination
-        })
       })
       .addCase(fetchTransfers.rejected, (state, action) => {
         state.loading = false

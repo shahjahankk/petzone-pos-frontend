@@ -30,7 +30,6 @@ export const createBillingRecord = createAsyncThunk(
   async (billingData, { rejectWithValue }) => {
     try {
       // ❌ REMOVED scope validation - now handled by axios headers
-      console.log('[BillingSlice] createBillingRecord - Request data:', billingData)
 
       const response = await api.post('/billing', billingData)
       return response.data
@@ -55,7 +54,6 @@ export const updateBillingRecord = createAsyncThunk(
   async ({ id, data }, { rejectWithValue }) => {
     try {
       // ❌ REMOVED scope validation - now handled by axios headers
-      console.log('[BillingSlice] updateBillingRecord - Request data:', { id, data })
 
       const response = await api.put(`/billing/${id}`, data)
       return response.data
