@@ -692,7 +692,15 @@ function WarehouseBillingPage() {
   }, [dispatch, scopeInfo, urlParams, user])
 
   useEffect(() => {
-    if (retailersError)
+    if (retailersError) {
+      // retailers failed to load — error surfaced via loading state
+    }
+  }, [retailersError])
+
+  const addToCart = useCallback(async (product) => {
+    let newCart
+    if (retailersError) {
+      // skip adding to cart while retailers are in error state
     } else {
       // Unit price field = inventory selling price; last sale shown as caption only
       const customPrice = Number(product.sellingPrice ?? product.price) || 0
@@ -710,7 +718,7 @@ function WarehouseBillingPage() {
       }]
     }
     updateCurrentTabCart(newCart)
-  }, [currentCart, updateCurrentTabCart, fetchLastCustomerItemPrice])
+  }, [retailersError, currentCart, updateCurrentTabCart, fetchLastCustomerItemPrice])
 
   const buildWarehouseSalePayload = useCallback(({
     billAmount: inputBillAmount,
