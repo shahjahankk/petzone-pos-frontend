@@ -764,6 +764,101 @@ function PurchaseOrdersPage() {
     } catch (e) {}
   }
 
+  const handleViewOrder = async (order) => {
+    try {
+      const response = await dispatch(fetchPurchaseOrder(order.id))
+      setSelectedOrder(response.payload.data)
+      setViewDialogOpen(true)
+    } catch (e) {}
+  }
+
+  const handleStatusUpdate = async (orderId, status) => {
+    try {
+      await dispatch(updatePurchaseOrderStatus({ id: orderId, status })).unwrap()
+      dispatch(fetchPurchaseOrders(filters))
+    } catch (e) {}
+  }
+
+  const handleDeleteOrder = async () => {
+    if (!selectedOrder) return
+    try {
+      await dispatch(deletePurchaseOrder(selectedOrder.id)).unwrap()
+      setDeleteDialogOpen(false)
+      setSelectedOrder(null)
+      dispatch(fetchPurchaseOrders(filters))
+    } catch (e) {}
+  }
+
+  const handleUpdateSubmit = async () => {
+    if (!editingOrder) return
+    if (!await validateForm()) return
+    setSubmitError(null)
+    setIsSubmitting(true)
+    try {
+      await dispatch(updatePurchaseOrder({
+        id: editingOrder.id,
+        orderData: {
+          ...formData,
+          totalAmount,
+          items: formData.items.map(item => ({
+            ...item,
+            totalPrice: item.quantityOrdered * item.unitPrice,
+            inventoryItemId: item.inventoryItemId ?? null
+          }))
+        }
+      })).unwrap()
+      setEditDialogOpen(false)
+      resetForm()
+      dispatch(fetchPurchaseOrders(filters))
+    } catch (e) {
+      const msg = typeof e === 'string' ? e : (e?.message || 'Could not update purchase order')
+      setSubmitError(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const dialogPaperProps = useMemo(() => ({
+    sx: {
+      width: '96vw',
+      maxWidth: 1400,
+      maxHeight: '92vh',
+      borderRadius: 2,
+    },
+  }), [])
+
+  const itemsTableProps = useMemo(() => ({
+    items: formData.items,
+    formErrors,
+    inventoryOptions,
+    categoryOptions,
+    onItemChange: handleItemChange,
+    onAddItemBelow: addItem,
+    onDeleteSelected: deleteSelectedRows,
+    selectedRows,
+    onRowSelect: handleRowSelect,
+    onSelectAll: handleSelectAll,
+    getItemSearchState,
+    updateItemSearchState,
+    handleItemSearchChange,
+    handleItemSelect,
+  }), [
+    formData.items,
+    formErrors,
+    inventoryOptions,
+    categoryOptions,
+    handleItemChange,
+    addItem,
+    deleteSelectedRows,
+    selectedRows,
+    handleRowSelect,
+    handleSelectAll,
+    getItemSearchState,
+    updateItemSearchState,
+    handleItemSearchChange,
+    handleItemSelect,
+  ])
+
   return (
     <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER']}>
       <DashboardLayout>
