@@ -675,6 +675,18 @@ function PurchaseOrdersPage() {
     setSelectedRows(checked ? formData.items.map((_, i) => i) : [])
   , [formData.items])
 
+  const handleSearchChange = useCallback((e) => {
+    dispatch(setFilters({ search: e.target.value, page: 1 }))
+  }, [dispatch])
+
+  const handleLimitChange = useCallback((e) => {
+    dispatch(setFilters({ limit: Number(e.target.value), page: 1 }))
+  }, [dispatch])
+
+  const handlePageChange = useCallback((_event, newPage) => {
+    dispatch(setFilters({ page: newPage }))
+  }, [dispatch])
+
   const validateForm = useCallback(async () => {
     try {
       await purchaseOrderSchema.validate(formData, { abortEarly: false })

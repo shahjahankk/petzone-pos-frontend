@@ -36,6 +36,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import { 
   CloudUpload as UploadIcon,
+  FileDownload as DownloadIcon,
   Search as SearchIcon,
   Clear as ClearIcon,
   FilterList as FilterIcon,
@@ -386,6 +387,7 @@ useEffect(() => {
   const [formDialogOpen, setFormDialogOpen] = useState(false)
   const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false)
   const [excelUploadOpen, setExcelUploadOpen] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState(null)
   const [isEdit, setIsEdit] = useState(false)
   const [formSubmitting, setFormSubmitting] = useState(false)
@@ -671,6 +673,34 @@ useEffect(() => {
     // Clear cache and refresh
     dispatch(fetchInventory(getFetchParams()))
     setExcelUploadOpen(false)
+  }
+
+  const handleExportExcel = async () => {
+    setExportingExcel(true)
+    try {
+      const params = { ...getFetchParams() }
+      delete params.page
+      delete params.limit
+
+      const response = await api.get('/inventory/export-excel', {
+        params,
+        responseType: 'blob',
+      })
+
+      const dateStamp = new Date().toISOString().split('T')[0]
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `inventory-stock-by-location-${dateStamp}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export inventory Excel:', error)
+    } finally {
+      setExportingExcel(false)
+    }
   }
 
 const handleCreate = async (data) => {
@@ -966,6 +996,15 @@ const canEditInventory = useMemo(() => {
 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
   <Typography variant="h5">Inventory Management</Typography>
   <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+    <Button
+      variant="outlined"
+      startIcon={exportingExcel ? <CircularProgress size={16} /> : <DownloadIcon />}
+      onClick={handleExportExcel}
+      disabled={exportingExcel}
+      size="small"
+    >
+      Export to Excel
+    </Button>
     {canAddInventory && (
       <Button
         variant="outlined"
