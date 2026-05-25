@@ -354,13 +354,34 @@ function StockReportsPage() {
       }
       title = 'Stock Transaction Reports'
     } else if (activeTab === 1) {
-      const agg = stockSummary?.data
-      const flat = agg && typeof agg === 'object' && !Array.isArray(agg)
-        ? Object.entries(agg).map(([k, v]) => ({ Metric: k, Value: v }))
-        : []
-      exportData = flat
-      headers = ['Metric', 'Value']
-      fieldMapping = { Metric: 'Metric', Value: 'Value' }
+      const rows = Array.isArray(stockSummary?.data) ? stockSummary.data : []
+      exportData = rows.map((item) => ({
+        Product: item.itemName || item.name || '',
+        SKU: item.itemSku || item.sku || '',
+        Category: item.itemCategory || item.category || '',
+        'On Hand': item.currentStock ?? 0,
+        Purchased: item.totalPurchased ?? 0,
+        Sold: item.totalSold ?? 0,
+        Returned: item.totalReturned ?? 0,
+        Adjusted: item.totalAdjusted ?? 0,
+        'Cost Price': item.costPrice ?? 0,
+        'Stock Value': item.currentStockValue ?? 0,
+        Scope: item.branchName || item.warehouseName || item.scopeId || '',
+      }))
+      headers = ['Product', 'SKU', 'Category', 'On Hand', 'Purchased', 'Sold', 'Returned', 'Adjusted', 'Cost Price', 'Stock Value', 'Scope']
+      fieldMapping = {
+        Product: 'Product',
+        SKU: 'SKU',
+        Category: 'Category',
+        'On Hand': 'On Hand',
+        Purchased: 'Purchased',
+        Sold: 'Sold',
+        Returned: 'Returned',
+        Adjusted: 'Adjusted',
+        'Cost Price': 'Cost Price',
+        'Stock Value': 'Stock Value',
+        Scope: 'Scope',
+      }
       title = 'Stock Summary Report'
     } else {
       // Statistics data - properly format the nested data
@@ -454,11 +475,21 @@ function StockReportsPage() {
       headers = ['Date & Time', 'Product', 'Transaction Type', 'Quantity Change', 'Previous Stock', 'Available Stock', 'Unit Price', 'Total Value', 'Price Change', 'User', 'Scope']
       filename = 'stock-reports.xlsx'
     } else if (activeTab === 1) {
-      const agg = stockSummary?.data
-      exportData = agg && typeof agg === 'object' && !Array.isArray(agg)
-        ? Object.entries(agg).map(([k, v]) => ({ field: k, value: v }))
-        : []
-      headers = ['field', 'value']
+      const rows = Array.isArray(stockSummary?.data) ? stockSummary.data : []
+      exportData = rows.map((item) => ({
+        product: item.itemName || item.name || '',
+        sku: item.itemSku || item.sku || '',
+        category: item.itemCategory || item.category || '',
+        onHand: item.currentStock ?? 0,
+        purchased: item.totalPurchased ?? 0,
+        sold: item.totalSold ?? 0,
+        returned: item.totalReturned ?? 0,
+        adjusted: item.totalAdjusted ?? 0,
+        costPrice: item.costPrice ?? 0,
+        stockValue: item.currentStockValue ?? 0,
+        scope: item.branchName || item.warehouseName || item.scopeId || '',
+      }))
+      headers = ['product', 'sku', 'category', 'onHand', 'purchased', 'sold', 'returned', 'adjusted', 'costPrice', 'stockValue', 'scope']
       filename = 'stock-summary.xlsx'
     } else {
       // Statistics data - flatten for export
@@ -668,56 +699,158 @@ function StockReportsPage() {
     </TableContainer>
   )
 
-  // Stock summary tab — API returns one aggregate object (not per-item rows)
+  // Stock summary tab — API returns paginated per-item rows
   const renderStockSummaryTable = () => {
-    const agg = stockSummary?.data
-    if (!agg || typeof agg !== 'object') {
+    const rows = stockSummary?.data
+
+    if (!rows) {
       return (
         <Paper sx={{ p: 3, mt: 2 }}>
           <Typography color="text.secondary">No summary data. Try Refresh.</Typography>
         </Paper>
       )
     }
-    if (Array.isArray(agg)) {
+
+    // Optional aggregate payload (legacy / alternate endpoint)
+    if (!Array.isArray(rows) && typeof rows === 'object') {
+      const agg = rows
+      const n = (v) => Number(v ?? 0)
+      const fmt = (v) => n(v).toLocaleString(undefined, { maximumFractionDigits: 2 })
+      const cards = [
+        { label: 'SKU count', value: fmt(agg.totalItems), color: 'primary.main' },
+        { label: 'Total on-hand qty', value: fmt(agg.totalStock), color: 'success.main' },
+        { label: 'Stock value (cost)', value: fmt(agg.totalValue), color: 'info.main' },
+        { label: 'In stock (OK)', value: fmt(agg.inStock), color: 'success.main' },
+        { label: 'Low stock', value: fmt(agg.lowStock), color: 'warning.main' },
+        { label: 'Out of stock (≤0)', value: fmt(agg.outOfStock), color: 'error.main' },
+        { label: 'Zero on-hand', value: fmt(agg.zeroStock), color: 'text.secondary' },
+        { label: 'Negative qty rows', value: fmt(agg.negativeStock), color: 'error.main' },
+        { label: 'Total negative qty', value: fmt(agg.totalNegativeQuantity), color: 'error.main' },
+      ]
+      return (
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          {cards.map((c) => (
+            <Grid item xs={12} sm={6} md={4} key={c.label}>
+              <Card variant="outlined">
+                <CardContent sx={{ py: 2 }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {c.label}
+                  </Typography>
+                  <Typography variant="h5" fontWeight={700} sx={{ color: c.color }}>
+                    {c.value}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )
+    }
+
+    if (!Array.isArray(rows) || rows.length === 0) {
       return (
         <Paper sx={{ p: 3, mt: 2 }}>
-          <Typography color="text.secondary">Unexpected summary shape.</Typography>
+          <Typography color="text.secondary">No items match your filters.</Typography>
         </Paper>
       )
     }
 
-    const n = (v) => Number(v ?? 0)
-    const fmt = (v) => n(v).toLocaleString(undefined, { maximumFractionDigits: 2 })
+    const stockStatusFor = (item) => {
+      const stock = parseFloat(item.currentStock ?? 0)
+      const min = parseFloat(item.minStockLevel ?? 0)
+      if (stock < 0) return { label: 'Negative', color: 'error' }
+      if (stock <= 0) return { label: 'Out of stock', color: 'error' }
+      if (min > 0 && stock <= min) return { label: 'Low stock', color: 'warning' }
+      return { label: 'In stock', color: 'success' }
+    }
 
-    const cards = [
-      { label: 'SKU count', value: fmt(agg.totalItems), color: 'primary.main' },
-      { label: 'Total on-hand qty', value: fmt(agg.totalStock), color: 'success.main' },
-      { label: 'Stock value (cost)', value: fmt(agg.totalValue), color: 'info.main' },
-      { label: 'In stock (OK)', value: fmt(agg.inStock), color: 'success.main' },
-      { label: 'Low stock', value: fmt(agg.lowStock), color: 'warning.main' },
-      { label: 'Out of stock (≤0)', value: fmt(agg.outOfStock), color: 'error.main' },
-      { label: 'Zero on-hand', value: fmt(agg.zeroStock), color: 'text.secondary' },
-      { label: 'Negative qty rows', value: fmt(agg.negativeStock), color: 'error.main' },
-      { label: 'Total negative qty', value: fmt(agg.totalNegativeQuantity), color: 'error.main' },
-    ]
+    const scopeLabel = (item) =>
+      item.branchName || item.warehouseName || item.scopeId || '—'
 
     return (
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        {cards.map((c) => (
-          <Grid item xs={12} sm={6} md={4} key={c.label}>
-            <Card variant="outlined">
-              <CardContent sx={{ py: 2 }}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  {c.label}
-                </Typography>
-                <Typography variant="h5" fontWeight={700} sx={{ color: c.color }}>
-                  {c.value}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      <TableContainer component={Paper} sx={{ mt: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Product</TableCell>
+              <TableCell>SKU</TableCell>
+              <TableCell>Category</TableCell>
+              <TableCell align="right">On hand</TableCell>
+              <TableCell align="right">Purchased</TableCell>
+              <TableCell align="right">Sold</TableCell>
+              <TableCell align="right">Cost</TableCell>
+              <TableCell align="right">Stock value</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Scope</TableCell>
+              <TableCell align="center">History</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((item) => {
+              const status = stockStatusFor(item)
+              const productId = item.id || item.inventoryItemId
+              return (
+                <TableRow key={productId || `${item.itemSku}-${item.scopeType}-${item.scopeId}`} hover>
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600}>
+                      {item.itemName || item.name || '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>{item.itemSku || item.sku || '—'}</TableCell>
+                  <TableCell>{item.itemCategory || item.category || '—'}</TableCell>
+                  <TableCell align="right">
+                    <Typography
+                      variant="body2"
+                      fontWeight={700}
+                      color={parseFloat(item.currentStock ?? 0) < 0 ? 'error.main' : 'inherit'}
+                    >
+                      {parseFloat(item.currentStock ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    {parseFloat(item.totalPurchased ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell align="right">
+                    {parseFloat(item.totalSold ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell align="right">
+                    {parseFloat(item.costPrice ?? 0).toFixed(2)}
+                  </TableCell>
+                  <TableCell align="right">
+                    {parseFloat(item.currentStockValue ?? 0).toFixed(2)}
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={status.label} color={status.color} size="small" variant="outlined" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={scopeLabel(item)}
+                      size="small"
+                      variant="outlined"
+                      color={item.scopeType === 'BRANCH' ? 'primary' : 'secondary'}
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <Tooltip title="View Product History">
+                      <IconButton
+                        size="small"
+                        disabled={!productId}
+                        onClick={() => {
+                          if (productId) {
+                            window.open(`/dashboard/stock-reports/product/${productId}`, '_blank')
+                          }
+                        }}
+                      >
+                        <ViewIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
     )
   }
 
