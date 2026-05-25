@@ -324,6 +324,39 @@ const AdminDashboardPage = () => {
     } catch (e) {}
   }
 
+  const handleClearSimulation = () => {
+    try {
+      sessionStorage.removeItem('adminSimulation')
+    } catch (e) {}
+    setSelectedScope('')
+    setSelectedScopeType('')
+    setSelectedScopeData(null)
+    setIsSimulationActive(false)
+  }
+
+  const buildSimulationQuery = (scopeType, scopeId) => {
+    if (!scopeType || !scopeId) return ''
+    const role = scopeType === 'BRANCH' ? 'CASHIER' : 'WAREHOUSE_KEEPER'
+    const scope = scopeType === 'BRANCH' ? 'branch' : 'warehouse'
+    return `?role=${role}&scope=${scope}&id=${scopeId}`
+  }
+
+  const handleNavigate = (item, scopeType, scopeId) => {
+    if (item.action === 'pos') {
+      router.push(`/pos/terminal${buildSimulationQuery(scopeType || 'BRANCH', scopeId || selectedScope)}`)
+      return
+    }
+
+    if (item.action === 'warehouse_billing') {
+      router.push(`/warehouse-billing${buildSimulationQuery(scopeType || 'WAREHOUSE', scopeId || selectedScope)}`)
+      return
+    }
+
+    if (item.path) {
+      router.push(`${item.path}${buildSimulationQuery(scopeType, scopeId)}`)
+    }
+  }
+
   return (
     <DashboardLayout>
       <Box sx={{ p: 3 }}>
