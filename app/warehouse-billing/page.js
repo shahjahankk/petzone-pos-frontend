@@ -215,14 +215,24 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   const discountInputRef = useRef(null)
   const dropdownRef = useRef(null)
 
-  const focusField = useCallback((field) => {
+  const focusField = useCallback((field, attempt = 0) => {
     const refMap = {
       item: itemInputRef,
       price: priceInputRef,
       qty: qtyInputRef,
       discount: discountInputRef,
     }
-    setTimeout(() => refMap[field]?.current?.focus(), 30)
+    const el = refMap[field]?.current
+    if (el && !el.disabled) {
+      el.focus()
+      if (field !== 'item' && typeof el.select === 'function') {
+        el.select()
+      }
+      return
+    }
+    if (attempt < 12) {
+      setTimeout(() => focusField(field, attempt + 1), 40)
+    }
   }, [])
 
   const focusNextRowItem = useCallback(() => {
@@ -273,16 +283,39 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
 
   const filteredProducts = useMemo(() => {
     if (!itemSearch || itemSearch.length < 1) return []
-    const q = itemSearch.toLowerCase()
+    const q = itemSearch.toLowerCase().trim()
+    if (!q) return []
+
+    const normalize = (value) => {
+      if (value == null) return ''
+      return String(value).toLowerCase()
+    }
+
+    const scoreMatch = (p) => {
+      const name = normalize(p.name)
+      const sku = normalize(p.sku)
+      const barcode = normalize(p.barcode)
+      const category = normalize(p.category)
+      const description = normalize(p.description)
+
+      if (name === q) return 100
+      if (name.startsWith(q)) return 90
+      if (sku === q || barcode === q) return 85
+      if (name.includes(q)) return 80
+      if (sku.includes(q) || barcode.includes(q)) return 70
+      if (category.includes(q)) return 60
+      if (description.includes(q)) return 50
+      return 0
+    }
+
     return inventoryItems
-      .filter(p =>
-        p.name?.toLowerCase().includes(q) ||
-        p.sku?.toLowerCase().includes(q) ||
-        p.barcode?.toLowerCase().includes(q) ||
-        p.category?.toLowerCase().includes(q)
-      )
-      .slice(0, 12)
-      .map(p => ({
+      .map((p) => ({ p, score: scoreMatch(p) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score
+        return normalize(a.p.name).localeCompare(normalize(b.p.name))
+      })
+      .map(({ p }) => ({
         id: p.id,
         name: p.name,
         price: p.sellingPrice,
@@ -296,33 +329,35 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
 
   const handleSelectProduct = async (product, nextFocus = 'price') => {
     if (!product) return
-    // Field = catalog selling price; last sale price is hint only (see lastPriceHint below)
     const customPrice = Number(product.price) || 0
-    let lastPriceHint = null
-    if (typeof fetchLastCustomerItemPrice === 'function') {
-      try {
-        const hint = await fetchLastCustomerItemPrice(product.id)
-        if (hint && hint.lastPrice != null && Number.isFinite(Number(hint.lastPrice))) {
-          lastPriceHint = {
-            lastPrice: hint.lastPrice,
-            lastInvoice: hint.lastInvoice,
-            lastDate: hint.lastDate
-          }
-        }
-      } catch (_) { /* no last-price hint */ }
-    }
+
     onUpdate(index, {
       ...product,
       quantity: 1,
       discount: 0,
       customPrice,
-      lastPriceHint
+      lastPriceHint: null
     })
     setItemSearch(product.name)
     setOpen(false)
     setHighlightedIndex(-1)
     onEnsureRowVisible?.(index)
     focusField(nextFocus)
+
+    if (typeof fetchLastCustomerItemPrice === 'function') {
+      try {
+        const hint = await fetchLastCustomerItemPrice(product.id)
+        if (hint && hint.lastPrice != null && Number.isFinite(Number(hint.lastPrice))) {
+          onUpdate(index, {
+            lastPriceHint: {
+              lastPrice: hint.lastPrice,
+              lastInvoice: hint.lastInvoice,
+              lastDate: hint.lastDate
+            }
+          })
+        }
+      } catch (_) { /* no last-price hint */ }
+    }
   }
 
   const pickDropdownProduct = useCallback(() => {
@@ -378,8 +413,16 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         return
       }
       if (item.id) {
+        e.preventDefault()
         setOpen(false)
+        focusField('price')
       }
+      return
+    }
+
+    if (e.key === 'Tab' && e.shiftKey && item.id) {
+      e.preventDefault()
+      setOpen(false)
     }
   }
 
@@ -554,6 +597,12 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
               if (e.key === 'Enter') {
                 e.preventDefault()
                 focusField('qty')
+              } else if (e.key === 'Tab' && !e.shiftKey) {
+                e.preventDefault()
+                focusField('qty')
+              } else if (e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault()
+                focusField('item')
               }
             }}
             inputProps={{
@@ -598,6 +647,12 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             if (e.key === 'Enter' && item.id) {
               e.preventDefault()
               focusField('discount')
+            } else if (e.key === 'Tab' && !e.shiftKey && item.id) {
+              e.preventDefault()
+              focusField('discount')
+            } else if (e.key === 'Tab' && e.shiftKey && item.id) {
+              e.preventDefault()
+              focusField('price')
             }
           }}
           inputProps={{
@@ -630,6 +685,9 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             } else if (e.key === 'Tab' && !e.shiftKey) {
               e.preventDefault()
               focusNextRowItem()
+            } else if (e.key === 'Tab' && e.shiftKey) {
+              e.preventDefault()
+              focusField('qty')
             }
           }}
           inputProps={{
