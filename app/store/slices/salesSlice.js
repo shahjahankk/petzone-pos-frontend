@@ -185,18 +185,6 @@ export const fetchLatestSales = createAsyncThunk(
   }
 )
 
-export const fetchSalesSummary = createAsyncThunk(
-  'sales/fetchSalesSummary',
-  async (params = {}, { rejectWithValue }) => {
-    try {
-      const response = await api.get('/sales/summary', { params })
-      return response.data
-    } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch sales summary')
-    }
-  }
-)
-
 const initialState = {
   data: [],
   returns: [],
@@ -358,20 +346,12 @@ const salesSlice = createSlice({
         state.error = action.payload
       })
 
-      // fetchSalesReturns
-      .addCase(fetchSalesReturns.pending, (state) => {
-        state.loading = true
-        state.error = null
-      })
+      // fetchSalesReturns — do not toggle global loading/error; runs alongside fetchSales
+      .addCase(fetchSalesReturns.pending, (state) => {})
       .addCase(fetchSalesReturns.fulfilled, (state, action) => {
-        state.loading = false
         state.returns = action.payload.data || action.payload
-        state.error = null
       })
-      .addCase(fetchSalesReturns.rejected, (state, action) => {
-        state.loading = false
-        state.error = action.payload
-      })
+      .addCase(fetchSalesReturns.rejected, (state) => {})
 
       // createSalesReturn
       .addCase(createSalesReturn.pending, (state) => {
@@ -400,21 +380,6 @@ const salesSlice = createSlice({
         state.error = null
       })
       .addCase(fetchLatestSales.rejected, (state, action) => {
-        state.loading = false
-        state.error = action.payload
-      })
-
-      // fetchSalesSummary
-      .addCase(fetchSalesSummary.pending, (state) => {
-        state.loading = true
-        state.error = null
-      })
-      .addCase(fetchSalesSummary.fulfilled, (state, action) => {
-        state.loading = false
-        state.summary = action.payload.data || action.payload
-        state.error = null
-      })
-      .addCase(fetchSalesSummary.rejected, (state, action) => {
         state.loading = false
         state.error = action.payload
       })

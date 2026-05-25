@@ -27,7 +27,7 @@ import RouteGuard from '../../../components/auth/RouteGuard'
 import PermissionCheck from '../../../components/auth/PermissionCheck'
 import ConfirmationDialog from '../../../components/crud/ConfirmationDialog'
 import { useSalesPolling } from '../../../hooks/usePolling'
-import { fetchSales, deleteSale, fetchSalesReturns, createSalesReturn, getSale, fetchSalesSummary } from '../../store/slices/salesSlice'
+import { fetchSales, deleteSale, fetchSalesReturns, createSalesReturn, getSale } from '../../store/slices/salesSlice'
 import { fetchInventory } from '../../store/slices/inventorySlice'
 import { fetchBranchSettings, fetchBranches } from '../../store/slices/branchesSlice'
 import { fetchWarehouses, fetchWarehouseSettings } from '../../store/slices/warehousesSlice'
@@ -509,7 +509,6 @@ const SalesManagement = () => {
 
       dispatch(fetchSales(salesParams))
       dispatch(fetchSalesReturns(salesParams))
-      dispatch(fetchSalesSummary(salesParams))
     }, 500)
 
     // Only fetch branches/warehouses for unscoped admin (global view)
