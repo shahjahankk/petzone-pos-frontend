@@ -159,6 +159,25 @@ const acquireSerialPort = async () => {
 
 const EMPTY_CART_ROW = { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 }
 
+/** Sans-serif tabular digits with plain 0 — avoids slashed-zero vs 8 confusion in billing. */
+const BILLING_NUM_FONT = '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+const billingNumTypo = {
+  fontFamily: BILLING_NUM_FONT,
+  fontVariantNumeric: 'lining-nums tabular-nums',
+  fontFeatureSettings: '"zero" 0, "tnum" 1, "lnum" 1',
+  fontWeight: 600,
+  letterSpacing: '0.01em',
+}
+const billingNumInputStyle = (align = 'right') => ({
+  textAlign: align,
+  fontFamily: BILLING_NUM_FONT,
+  fontSize: '1.05rem',
+  fontWeight: 600,
+  fontVariantNumeric: 'lining-nums tabular-nums',
+  fontFeatureSettings: '"zero" 0, "tnum" 1, "lnum" 1',
+  letterSpacing: '0.01em',
+})
+
 const createEmptyTabState = (overrides = {}) => ({
   cart: [],
   customerName: '',
@@ -191,8 +210,35 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   const [open, setOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const itemInputRef = useRef(null)
+  const priceInputRef = useRef(null)
   const qtyInputRef = useRef(null)
+  const discountInputRef = useRef(null)
   const dropdownRef = useRef(null)
+
+  const focusField = useCallback((field) => {
+    const refMap = {
+      item: itemInputRef,
+      price: priceInputRef,
+      qty: qtyInputRef,
+      discount: discountInputRef,
+    }
+    setTimeout(() => refMap[field]?.current?.focus(), 30)
+  }, [])
+
+  const focusNextRowItem = useCallback(() => {
+    if (isLast) {
+      onAddRow()
+      return
+    }
+    const next = document.querySelector(
+      `input[data-order-field="item"][data-order-row="${index + 1}"]`
+    )
+    if (next) {
+      next.focus()
+    } else {
+      onAddRow()
+    }
+  }, [index, isLast, onAddRow])
 
   useEffect(() => {
     if (!item.id) {
@@ -245,7 +291,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       }))
   }, [itemSearch, inventoryItems])
 
-  const handleSelectProduct = async (product) => {
+  const handleSelectProduct = async (product, nextFocus = 'price') => {
     if (!product) return
     // Field = catalog selling price; last sale price is hint only (see lastPriceHint below)
     const customPrice = Number(product.price) || 0
@@ -272,7 +318,65 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     setItemSearch(product.name)
     setOpen(false)
     setHighlightedIndex(-1)
-    setTimeout(() => qtyInputRef.current?.focus(), 50)
+    focusField(nextFocus)
+  }
+
+  const pickDropdownProduct = useCallback(() => {
+    if (!filteredProducts.length) return null
+    if (highlightedIndex >= 0 && filteredProducts[highlightedIndex]) {
+      return filteredProducts[highlightedIndex]
+    }
+    return filteredProducts[0]
+  }, [filteredProducts, highlightedIndex])
+
+  const handleItemSearchKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      setOpen(false)
+      setHighlightedIndex(-1)
+      return
+    }
+
+    const hasDropdown = open && filteredProducts.length > 0
+
+    if (e.key === 'ArrowDown' && hasDropdown) {
+      e.preventDefault()
+      setHighlightedIndex((prev) =>
+        prev < 0 ? 0 : (prev + 1) % filteredProducts.length
+      )
+      return
+    }
+
+    if (e.key === 'ArrowUp' && hasDropdown) {
+      e.preventDefault()
+      setHighlightedIndex((prev) =>
+        prev <= 0 ? filteredProducts.length - 1 : prev - 1
+      )
+      return
+    }
+
+    if (e.key === 'Enter') {
+      if (hasDropdown) {
+        e.preventDefault()
+        const product = pickDropdownProduct()
+        if (product) handleSelectProduct(product, 'price')
+      } else if (item.id) {
+        e.preventDefault()
+        focusField('price')
+      }
+      return
+    }
+
+    if (e.key === 'Tab' && !e.shiftKey) {
+      if (hasDropdown) {
+        e.preventDefault()
+        const product = pickDropdownProduct()
+        if (product) handleSelectProduct(product, 'price')
+        return
+      }
+      if (item.id) {
+        setOpen(false)
+      }
+    }
   }
 
   const unitPrice = parseFloat(
@@ -291,19 +395,32 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     verticalAlign: 'middle'
   }
 
-  const inputSx = {
+  const textInputSx = {
     '& .MuiOutlinedInput-root': {
       height: 48,
       fontSize: '0.95rem',
-      fontFamily: 'monospace'
     },
     '& input[type=number]': { MozAppearance: 'textfield' },
     '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none' },
     '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' }
   }
 
+  const numberInputSx = {
+    ...textInputSx,
+    '& .MuiOutlinedInput-root': {
+      ...textInputSx['& .MuiOutlinedInput-root'],
+      ...billingNumTypo,
+      fontSize: '1.05rem',
+    },
+    '& .MuiOutlinedInput-input': {
+      ...billingNumTypo,
+      fontSize: '1.05rem',
+    },
+  }
+
   return (
     <TableRow
+      data-order-row={index}
       sx={{
         bgcolor: index % 2 === 0 ? 'transparent' : alpha(theme.palette.primary.main, 0.02),
         '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.06) },
@@ -332,34 +449,15 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
               setOpen(true)
             }}
             onFocus={() => { if (!item.id) setOpen(true) }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setOpen(false)
-                setHighlightedIndex(-1)
-                return
-              }
-              if (e.key === 'Tab' && item.id) {
-                setOpen(false)
-                return
-              }
-              if (!open || filteredProducts.length === 0) return
-              if (e.key === 'ArrowDown') {
-                e.preventDefault()
-                setHighlightedIndex(prev => (prev + 1) % filteredProducts.length)
-              } else if (e.key === 'ArrowUp') {
-                e.preventDefault()
-                setHighlightedIndex(prev => (prev <= 0 ? filteredProducts.length - 1 : prev - 1))
-              } else if (e.key === 'Enter') {
-                e.preventDefault()
-                if (highlightedIndex >= 0 && filteredProducts[highlightedIndex]) {
-                  handleSelectProduct(filteredProducts[highlightedIndex])
-                }
-              }
+            onKeyDown={handleItemSearchKeyDown}
+            inputProps={{
+              'data-order-field': 'item',
+              'data-order-row': String(index),
             }}
             sx={{
-              ...inputSx,
+              ...textInputSx,
               '& .MuiOutlinedInput-root': {
-                ...inputSx['& .MuiOutlinedInput-root'],
+                ...textInputSx['& .MuiOutlinedInput-root'],
                 bgcolor: item.id ? alpha(theme.palette.success.main, 0.04) : 'background.paper',
                 borderColor: item.id ? theme.palette.success.main : undefined
               }
@@ -417,7 +515,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
                     size="small"
                     color="primary"
                     variant="outlined"
-                    sx={{ fontFamily: 'monospace', fontWeight: 700, minWidth: 60 }}
+                    sx={{ ...billingNumTypo, minWidth: 60 }}
                   />
                 </Box>
               ))}
@@ -436,6 +534,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       <TableCell sx={{ ...cellSx, width: '13%' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0.25 }}>
           <TextField
+            inputRef={priceInputRef}
             fullWidth
             size="small"
             type="number"
@@ -443,18 +542,31 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             placeholder="—"
             disabled={!item.id}
             onChange={(e) => onUpdate(index, { customPrice: parseFloat(e.target.value) || 0 })}
-            inputProps={{ min: 0, step: 1, style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.95rem' } }}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                focusField('qty')
+              }
+            }}
+            inputProps={{
+              min: 0,
+              step: 1,
+              style: billingNumInputStyle('right'),
+              'data-order-field': 'price',
+              'data-order-row': String(index),
+            }}
             sx={{
-              ...inputSx,
+              ...numberInputSx,
               '& .MuiOutlinedInput-root': {
-                ...inputSx['& .MuiOutlinedInput-root'],
+                ...numberInputSx['& .MuiOutlinedInput-root'],
                 bgcolor: item.customPrice !== undefined && item.customPrice !== null && item.customPrice !== item.price
                   ? '#fff8e1' : 'transparent'
               }
             }}
           />
           {item.id && item.lastPriceHint?.lastInvoice != null && (
-            <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.65rem', color: 'text.secondary', lineHeight: 1.2, textAlign: 'right' }}>
+            <Typography variant="caption" sx={{ ...billingNumTypo, fontSize: '0.65rem', fontWeight: 500, color: 'text.secondary', lineHeight: 1.2, textAlign: 'right' }}>
               Last price: Rs {Math.round(Number(item.lastPriceHint.lastPrice) || 0)} (Invoice {item.lastPriceHint.lastInvoice})
             </Typography>
           )}
@@ -474,22 +586,27 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             const v = parseFloat(e.target.value)
             onUpdate(index, { quantity: isNaN(v) || v < 0 ? 0 : v })
           }}
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && item.id) {
-              if (isLast) onAddRow()
-              else {
-                const rows = document.querySelectorAll('[data-row-item]')
-                if (rows[index + 1]) rows[index + 1].focus()
-              }
+              e.preventDefault()
+              focusField('discount')
             }
           }}
-          inputProps={{ min: 0.01, step: 1, style: { textAlign: 'center', fontFamily: 'monospace', fontSize: '0.95rem' } }}
-          sx={inputSx}
+          inputProps={{
+            min: 0.01,
+            step: 1,
+            style: billingNumInputStyle('center'),
+            'data-order-field': 'qty',
+            'data-order-row': String(index),
+          }}
+          sx={numberInputSx}
         />
       </TableCell>
 
       <TableCell sx={{ ...cellSx, width: '12%' }}>
         <TextField
+          inputRef={discountInputRef}
           fullWidth
           size="small"
           type="number"
@@ -497,8 +614,25 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
           placeholder="—"
           disabled={!item.id}
           onChange={(e) => onUpdate(index, { discount: parseFloat(e.target.value) || 0 })}
-          inputProps={{ min: 0, step: 1, style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.95rem', color: '#d32f2f' } }}
-          sx={inputSx}
+          onFocus={(e) => e.target.select()}
+          onKeyDown={(e) => {
+            if (!item.id) return
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              focusNextRowItem()
+            } else if (e.key === 'Tab' && !e.shiftKey) {
+              e.preventDefault()
+              focusNextRowItem()
+            }
+          }}
+          inputProps={{
+            min: 0,
+            step: 1,
+            style: { ...billingNumInputStyle('right'), color: '#d32f2f' },
+            'data-order-field': 'discount',
+            'data-order-row': String(index),
+          }}
+          sx={numberInputSx}
         />
       </TableCell>
 
@@ -506,9 +640,9 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
         <Typography
           variant="body1"
           sx={{
-            fontFamily: 'monospace',
+            ...billingNumTypo,
             fontWeight: 700,
-            fontSize: '1rem',
+            fontSize: '1.05rem',
             color: item.id ? 'text.primary' : 'text.disabled',
             pr: 1
           }}
@@ -522,6 +656,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
           <IconButton
             size="small"
             color="error"
+            tabIndex={-1}
             onClick={() => onRemove(index)}
             sx={{
               bgcolor: alpha(theme.palette.error.main, 0.08),
@@ -535,6 +670,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
           <IconButton
             size="small"
             color="primary"
+            tabIndex={-1}
             onClick={onAddRow}
             sx={{
               bgcolor: alpha(theme.palette.primary.main, 0.08),
@@ -1979,13 +2115,13 @@ function WarehouseBillingPage() {
                       <TextField size="small" type="number" label="Paid"
                         value={isFullyCredit ? '0' : (paymentAmount || '')} disabled={isFullyCredit}
                         onChange={(e) => { const v = Math.floor(parseFloat(e.target.value) || 0); setPaymentAmount(v.toString()); setCreditAmount((total - v).toString()) }}
-                        inputProps={{ style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.9rem' } }}
+                        inputProps={{ style: billingNumInputStyle('right') }}
                         sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 44, bgcolor: 'white' }, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none' }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' } }}
                       />
                       <TextField size="small" type="number" label="Credit"
                         value={creditAmount || ''} disabled={isFullyCredit}
                         onChange={(e) => { const v = parseFloat(e.target.value) || 0; setCreditAmount(v.toString()); setPaymentAmount((total - v).toString()) }}
-                        inputProps={{ style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.9rem', color: '#d32f2f' } }}
+                        inputProps={{ style: { ...billingNumInputStyle('right'), color: '#d32f2f' } }}
                         sx={{ flex: 1, '& .MuiOutlinedInput-root': { height: 44, bgcolor: 'white' }, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none' }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' } }}
                       />
                     </Box>
@@ -2000,12 +2136,12 @@ function WarehouseBillingPage() {
                       <Chip size="small"
                         label={`${outstandingTotal < 0 ? 'Credit' : 'Outstanding'}: ${outstandingTotal.toFixed(0)}`}
                         color={outstandingTotal < 0 ? 'success' : 'warning'} variant="filled"
-                        sx={{ fontFamily: 'monospace', fontWeight: 600 }} />
+                        sx={{ ...billingNumTypo, fontWeight: 600 }} />
                     )}
                     <Chip size="small"
                       label={`TOTAL: ${total.toFixed(0)}`}
                       color="primary" variant="filled"
-                      sx={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', height: 28 }} />
+                      sx={{ ...billingNumTypo, fontWeight: 700, fontSize: '0.85rem', height: 28 }} />
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Tooltip title="Settings">
@@ -2051,7 +2187,7 @@ function WarehouseBillingPage() {
                       <Chip key={payment.id}
                         icon={<Checkbox size="small" checked={selectedOutstandingPayments.includes(payment.id)} onChange={() => handleOutstandingPaymentToggle(payment.id)} sx={{ p: 0 }} />}
                         label={
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.95rem' }}>
+                          <span style={{ ...billingNumInputStyle('right'), display: 'inline-block' }}>
                             {payment.isCredit ? 'CREDIT' : 'DUE'}: {Math.abs(parseFloat(payment.outstandingAmount || 0)).toLocaleString()}
                           </span>
                         }
@@ -2117,7 +2253,7 @@ function WarehouseBillingPage() {
                             value={settlementPaymentAmount}
                             onChange={(e) => handleSettlementPaymentChange(e.target.value)}
                             autoFocus
-                            inputProps={{ min: 0, step: 1, style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.9rem' } }}
+                            inputProps={{ min: 0, step: 1, style: billingNumInputStyle('right') }}
                             sx={{
                               width: 130,
                               '& .MuiOutlinedInput-root': { height: 36, bgcolor: '#e8f5e9' },
@@ -2132,7 +2268,7 @@ function WarehouseBillingPage() {
                             label="Remaining"
                             value={settlementCreditAmount}
                             disabled
-                            inputProps={{ style: { textAlign: 'right', fontFamily: 'monospace', fontSize: '0.9rem', color: '#d32f2f' } }}
+                            inputProps={{ style: { ...billingNumInputStyle('right'), color: '#d32f2f' } }}
                             sx={{
                               width: 130,
                               '& .MuiOutlinedInput-root': { height: 36, bgcolor: '#fff3e0' },
@@ -2206,7 +2342,7 @@ function WarehouseBillingPage() {
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>TAX %</Typography>
                     <TextField size="small" type="number" value={taxRate}
                       onChange={(e) => setTaxRate(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                      inputProps={{ min: 0, max: 100, step: 0.1, style: { textAlign: 'center', width: 44, fontFamily: 'monospace' } }}
+                      inputProps={{ min: 0, max: 100, step: 0.1, style: { ...billingNumInputStyle('center'), width: 44 } }}
                       sx={{ width: 64, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white' }, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none' }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' } }}
                     />
                   </Box>
@@ -2215,7 +2351,7 @@ function WarehouseBillingPage() {
                     <TextField size="small" type="number"
                       value={parseFloat(totalDiscount || 0).toFixed(0)}
                       onChange={(e) => setTotalDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                      inputProps={{ min: 0, step: 1, style: { textAlign: 'right', width: 56, fontFamily: 'monospace' } }}
+                      inputProps={{ min: 0, step: 1, style: { ...billingNumInputStyle('right'), width: 56 } }}
                       sx={{ width: 80, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white' }, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none' }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none' } }}
                     />
                   </Box>
@@ -2233,10 +2369,10 @@ function WarehouseBillingPage() {
                   ORDER ENTRY — {currentTab?.name || ''}
                 </Typography>
                 <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center' }}>
-                  <Chip size="small" label={`Subtotal: ${Math.round(subtotal).toLocaleString()}`} sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', fontFamily: 'monospace', fontWeight: 600 }} />
-                  {tax > 0 && <Chip size="small" label={`Tax: ${Math.round(tax)}`} sx={{ bgcolor: alpha('#fff', 0.15), color: 'white', fontFamily: 'monospace' }} />}
-                  {totalDiscount > 0 && <Chip size="small" label={`Disc: -${Math.round(totalDiscount)}`} sx={{ bgcolor: alpha(theme.palette.error.main, 0.6), color: 'white', fontFamily: 'monospace' }} />}
-                  <Chip size="small" label={`BILL: ${Math.round(billAmount).toLocaleString()}`} sx={{ bgcolor: alpha('#fff', 0.3), color: 'white', fontFamily: 'monospace', fontWeight: 700 }} />
+                  <Chip size="small" label={`Subtotal: ${Math.round(subtotal).toLocaleString()}`} sx={{ bgcolor: alpha('#fff', 0.2), color: 'white', ...billingNumTypo }} />
+                  {tax > 0 && <Chip size="small" label={`Tax: ${Math.round(tax)}`} sx={{ bgcolor: alpha('#fff', 0.15), color: 'white', ...billingNumTypo, fontWeight: 500 }} />}
+                  {totalDiscount > 0 && <Chip size="small" label={`Disc: -${Math.round(totalDiscount)}`} sx={{ bgcolor: alpha(theme.palette.error.main, 0.6), color: 'white', ...billingNumTypo, fontWeight: 500 }} />}
+                  <Chip size="small" label={`BILL: ${Math.round(billAmount).toLocaleString()}`} sx={{ bgcolor: alpha('#fff', 0.3), color: 'white', ...billingNumTypo, fontWeight: 700 }} />
                 </Box>
               </Box>
 
@@ -2248,10 +2384,10 @@ function WarehouseBillingPage() {
                       <TableCell sx={{ width: '42%', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}` }}>
                         ITEM &nbsp;<Typography component="span" variant="caption" color="text.secondary">(name / SKU / barcode)</Typography>
                       </TableCell>
-                      <TableCell sx={{ width: '13%', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'right' }}>UNIT PRICE</TableCell>
-                      <TableCell sx={{ width: '10%', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'center' }}>QTY</TableCell>
-                      <TableCell sx={{ width: '12%', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'right', color: 'error.main' }}>DISCOUNT</TableCell>
-                      <TableCell sx={{ width: '13%', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'right' }}>FINAL</TableCell>
+                      <TableCell sx={{ width: '13%', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'right' }}>UNIT PRICE</TableCell>
+                      <TableCell sx={{ width: '10%', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'center' }}>QTY</TableCell>
+                      <TableCell sx={{ width: '12%', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'right', color: 'error.main' }}>DISCOUNT</TableCell>
+                      <TableCell sx={{ width: '13%', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'right' }}>FINAL</TableCell>
                       <TableCell sx={{ width: 56, fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', bgcolor: '#f8f9fa', borderBottom: `2px solid ${theme.palette.primary.main}`, textAlign: 'center' }}>+</TableCell>
                     </TableRow>
                   </TableHead>
@@ -2284,26 +2420,27 @@ function WarehouseBillingPage() {
                 display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
                 borderRadius: '0 0 8px 8px'
               }}>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
-                  Subtotal: <strong>{Math.round(subtotal).toLocaleString()}</strong>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Subtotal: <Box component="strong" sx={billingNumTypo}>{Math.round(subtotal).toLocaleString()}</Box>
                 </Typography>
                 {tax > 0 && (
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
-                    + Tax {taxRate}%: <strong>{Math.round(tax)}</strong>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    + Tax {taxRate}%: <Box component="strong" sx={billingNumTypo}>{Math.round(tax)}</Box>
                   </Typography>
                 )}
                 {totalDiscount > 0 && (
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'error.main' }}>
-                    − Discount: <strong>{Math.round(totalDiscount)}</strong>
+                  <Typography variant="body2" sx={{ color: 'error.main' }}>
+                    − Discount: <Box component="strong" sx={billingNumTypo}>{Math.round(totalDiscount)}</Box>
                   </Typography>
                 )}
                 {Math.abs(outstandingTotal) > 0.01 && (
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', color: outstandingTotal < 0 ? 'success.main' : 'warning.main', fontWeight: 700 }}>
-                    {outstandingTotal < 0 ? '+ Credit:' : '+ Outstanding:'} <strong>{outstandingTotal.toFixed(0)}</strong>
+                  <Typography variant="body2" sx={{ color: outstandingTotal < 0 ? 'success.main' : 'warning.main', fontWeight: 700 }}>
+                    {outstandingTotal < 0 ? '+ Credit:' : '+ Outstanding:'}{' '}
+                    <Box component="strong" sx={billingNumTypo}>{outstandingTotal.toFixed(0)}</Box>
                   </Typography>
                 )}
                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography variant="h6" sx={{ fontFamily: 'monospace', fontWeight: 800, color: 'primary.main' }}>
+                  <Typography variant="h6" sx={{ ...billingNumTypo, fontWeight: 800, fontSize: '1.25rem', color: 'primary.main' }}>
                     TOTAL: {Math.round(total).toLocaleString()}
                   </Typography>
                   <Button
