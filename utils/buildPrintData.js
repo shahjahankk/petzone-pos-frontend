@@ -243,8 +243,8 @@ const branchName    = sale.branchName    || sale.branch_name    || (scopeType !=
   const paymentStatus = formData?.paymentStatus || sale.paymentStatus || sale.payment_status || ''
 
   // ── Dates ──
-  const createdAt = sale.created_at || sale.createdAt || new Date().toISOString()
-  const dateObj   = new Date(createdAt)
+  const createdAt = formData?.saleDate || sale.sale_date || sale.saleDate || sale.created_at || sale.createdAt || new Date().toISOString()
+  const dateObj   = new Date(createdAt.length === 10 ? `${createdAt}T12:00:00` : createdAt)
   const date      = formatDisplayDate(dateObj)
   const time      = dateObj.toLocaleTimeString()
 

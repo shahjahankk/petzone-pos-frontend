@@ -46,6 +46,8 @@ import { fetchInventory } from '../../app/store/slices/inventorySlice'
 import api from '../../utils/axios'
 import PrintDialog from '../print/PrintDialog'
 import buildPrintData from '../../utils/buildPrintData'
+import AppDateField from '../date/AppDateField'
+import { formatDisplayDate, toIsoDateOnly } from '../../utils/displayDates'
 
     const EditableInvoiceForm = ({ 
     open, 
@@ -64,6 +66,7 @@ import buildPrintData from '../../utils/buildPrintData'
         paymentMethod: 'CASH',
         paymentStatus: 'COMPLETED',
         notes: '',
+        saleDate: '',
         items: [],
         tax: 0,
         hasTax: false
@@ -129,6 +132,7 @@ import buildPrintData from '../../utils/buildPrintData'
         paymentMethod: paymentMethod,
         paymentStatus: sale.paymentStatus || (sale.creditAmount > 0 ? 'PARTIAL' : 'COMPLETED'),
         notes: sale.notes || '',
+        saleDate: toIsoDateOnly(sale.sale_date || sale.saleDate || sale.created_at || sale.createdAt) || '',
         items: normalizedItems,
         tax: originalTax,
         hasTax: hasTax
@@ -498,6 +502,7 @@ const handleRemoveItem = (itemId) => {
         // Prepare update data
         const updateData = {
             ...formData,
+            saleDate: formData.saleDate || null,
             subtotal: totals.subtotal,
             tax: totals.tax,
             discount: totals.totalDiscount,
@@ -558,6 +563,7 @@ const handleRemoveItem = (itemId) => {
           paymentMethod  : formData.paymentMethod,
           paymentStatus  : formData.paymentStatus,
           notes          : formData.notes,
+          saleDate       : formData.saleDate,
           tax            : formData.tax,
           hasTax         : formData.hasTax,
           items          : formData.items,
@@ -708,6 +714,20 @@ const handleRemoveItem = (itemId) => {
                     />
                     </Grid>
                 )}
+                <Grid item xs={12} sm={3}>
+                    <AppDateField
+                    label="Invoice Date"
+                    value={formData.saleDate}
+                    onChange={(value) => handleFieldChange('saleDate', value)}
+                    slotProps={{
+                        textField: {
+                        helperText: formData.saleDate
+                            ? `Backdated to ${formatDisplayDate(formData.saleDate)}`
+                            : "Using invoice's saved date",
+                        },
+                    }}
+                    />
+                </Grid>
                 </Grid>
 
             </CardContent>

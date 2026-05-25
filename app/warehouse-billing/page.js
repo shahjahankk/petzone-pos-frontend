@@ -204,7 +204,7 @@ const createEmptyTabState = (overrides = {}) => ({
 })
 
 // ─── Inline Row Component ────────────────────────────────────────────────────
-function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem, fetchLastCustomerItemPrice }) {
+function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem, fetchLastCustomerItemPrice, onEnsureRowVisible }) {
   const theme = useTheme()
   const [itemSearch, setItemSearch] = useState(item.name || '')
   const [open, setOpen] = useState(false)
@@ -230,15 +230,17 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       onAddRow()
       return
     }
+    const nextIndex = index + 1
+    onEnsureRowVisible?.(nextIndex)
     const next = document.querySelector(
-      `input[data-order-field="item"][data-order-row="${index + 1}"]`
+      `input[data-order-field="item"][data-order-row="${nextIndex}"]`
     )
     if (next) {
       next.focus()
     } else {
       onAddRow()
     }
-  }, [index, isLast, onAddRow])
+  }, [index, isLast, onAddRow, onEnsureRowVisible])
 
   useEffect(() => {
     if (!item.id) {
@@ -251,9 +253,10 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
 
   useEffect(() => {
     if (autoFocusItem && itemInputRef.current) {
+      onEnsureRowVisible?.(index)
       setTimeout(() => itemInputRef.current?.focus(), 50)
     }
-  }, [autoFocusItem])
+  }, [autoFocusItem, index, onEnsureRowVisible])
 
   useEffect(() => {
     setHighlightedIndex(-1)
@@ -318,6 +321,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     setItemSearch(product.name)
     setOpen(false)
     setHighlightedIndex(-1)
+    onEnsureRowVisible?.(index)
     focusField(nextFocus)
   }
 
@@ -448,7 +452,10 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
               }
               setOpen(true)
             }}
-            onFocus={() => { if (!item.id) setOpen(true) }}
+            onFocus={() => {
+              if (!item.id) setOpen(true)
+              onEnsureRowVisible?.(index)
+            }}
             onKeyDown={handleItemSearchKeyDown}
             inputProps={{
               'data-order-field': 'item',
@@ -821,6 +828,9 @@ function WarehouseBillingPage() {
 
   const [newRowIndex, setNewRowIndex] = useState(null)
 
+  const orderTableScrollRef = useRef(null)
+  const prevCartLenRef = useRef(0)
+
   const barcodeInputRef = useRef(null)
   const manualInputRef = useRef(null)
   const lastScanTimeRef = useRef(0)
@@ -1014,6 +1024,38 @@ function WarehouseBillingPage() {
     setNewRowIndex(currentCart.length)
     setTimeout(() => setNewRowIndex(null), 150)
   }, [currentCart.length])
+
+  const scrollOrderRowIntoView = useCallback((rowIndex, block = 'nearest') => {
+    requestAnimationFrame(() => {
+      const container = orderTableScrollRef.current
+      const row = container?.querySelector(`tr[data-order-row="${rowIndex}"]`)
+      if (row) {
+        row.scrollIntoView({ block, behavior: 'smooth', inline: 'nearest' })
+        return
+      }
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    prevCartLenRef.current = currentCart.length
+  }, [activeTabId])
+
+  useEffect(() => {
+    if (newRowIndex != null) {
+      scrollOrderRowIntoView(newRowIndex, 'center')
+    }
+  }, [newRowIndex, scrollOrderRowIntoView])
+
+  useEffect(() => {
+    const len = currentCart.length
+    if (len > prevCartLenRef.current) {
+      scrollOrderRowIntoView(cartWithPlaceholder.length - 1, 'end')
+    }
+    prevCartLenRef.current = len
+  }, [currentCart.length, cartWithPlaceholder.length, scrollOrderRowIntoView])
 
   useEffect(() => {
     if (!user) return
@@ -1456,12 +1498,15 @@ function WarehouseBillingPage() {
     if (selectedRetailer?.id != null && selectedRetailer?.id !== '') {
       payload.retailerId = selectedRetailer.id
     }
+    if (saleDate) {
+      payload.saleDate = saleDate
+    }
     if (isCredit) { payload.isCreditUsage = true; payload.creditAmount = Math.abs(creditAmount) }
     if (paymentAmountForBackend === 0 && !isCredit) payload.isCreditNote = true
     const clearResponse = await api.post('/sales/clear-outstanding', payload)
     if (!clearResponse.data?.success) throw new Error(clearResponse.data?.message || 'Failed to clear outstanding payments')
     return clearResponse.data
-  }, [selectedOutstandingPayments, outstandingPayments, calculateSettlementValues, paymentMethod, selectedRetailer, notes])
+  }, [selectedOutstandingPayments, outstandingPayments, calculateSettlementValues, paymentMethod, selectedRetailer, notes, saleDate])
 
   const normalizeCartItemForPrint = useCallback((item) => {
     const parseNumber = (value) => {
@@ -1684,7 +1729,8 @@ function WarehouseBillingPage() {
                 companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone, companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
                 logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
                 receiptNumber: settlementSale.invoice_no || `SETTLE-${Date.now()}`,
-                date: formatDisplayDate(settlementSale.created_at), time: new Date(settlementSale.created_at).toLocaleTimeString(),
+                date: formatDisplayDate(settlementSale.sale_date || settlementSale.saleDate || settlementSale.created_at),
+                time: new Date(settlementSale.sale_date || settlementSale.saleDate || settlementSale.created_at).toLocaleTimeString(),
                 cashierName: user?.name || user?.username || 'Warehouse Keeper',
                 customerName: settlementSale.customer_name || retailerNameDisplay, customerPhone: settlementSale.customer_phone || retailerPhoneDisplay,
                 items: [], subtotal: 0, tax: 0, discount: 0, invoiceTotal: 0,
@@ -1751,8 +1797,8 @@ function WarehouseBillingPage() {
           companyName: companyInfo.name, companyAddress: companyInfo.address,
           companyPhone: companyInfo.phone, companyEmail: companyInfo.email, logoUrl: companyInfo.logoUrl,
           receiptNumber: sale.invoice_no || `INV-${Date.now()}`,
-          date: formatDisplayDate(sale.created_at || Date.now()),
-          time: new Date(sale.created_at || Date.now()).toLocaleTimeString(),
+          date: formatDisplayDate(sale.sale_date || sale.saleDate || sale.created_at || Date.now()),
+          time: new Date(sale.sale_date || sale.saleDate || sale.created_at || Date.now()).toLocaleTimeString(),
           cashierName: user?.name || user?.username || 'Warehouse Keeper',
           customerName: selectedRetailer?.name || customerName || 'Walk-in',
           customerPhone: selectedRetailer?.phone || customerPhone || '',
@@ -2376,7 +2422,10 @@ function WarehouseBillingPage() {
                 </Box>
               </Box>
 
-              <TableContainer sx={{ flex: 1, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: alpha(theme.palette.primary.main, 0.3), borderRadius: 3 } }}>
+              <TableContainer
+                ref={orderTableScrollRef}
+                sx={{ flex: 1, overflowY: 'auto', scrollBehavior: 'smooth', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: alpha(theme.palette.primary.main, 0.3), borderRadius: 3 } }}
+              >
                 <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
                   <TableHead>
                     <TableRow>
@@ -2407,6 +2456,7 @@ function WarehouseBillingPage() {
                           (index === cartWithPlaceholder.length - 1 && !item.id && newRowIndex === null)
                         }
                         fetchLastCustomerItemPrice={fetchLastCustomerItemPrice}
+                        onEnsureRowVisible={scrollOrderRowIntoView}
                       />
                     ))}
                   </TableBody>
