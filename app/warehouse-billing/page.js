@@ -204,7 +204,7 @@ const createEmptyTabState = (overrides = {}) => ({
 })
 
 // ─── Inline Row Component ────────────────────────────────────────────────────
-function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem, fetchLastCustomerItemPrice, onEnsureRowVisible }) {
+function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem, fetchLastCustomerItemPrice, onEnsureRowVisible, focusRequestRef }) {
   const theme = useTheme()
   const [itemSearch, setItemSearch] = useState(item.name || '')
   const [open, setOpen] = useState(false)
@@ -216,24 +216,27 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   const dropdownRef = useRef(null)
 
   const focusField = useCallback((field, attempt = 0) => {
-    const refMap = {
-      item: itemInputRef,
-      price: priceInputRef,
-      qty: qtyInputRef,
-      discount: discountInputRef,
-    }
-    const el = refMap[field]?.current
+    const selector = `input[data-order-field="${field}"][data-order-row="${index}"]`
+    const el = document.querySelector(selector)
     if (el && !el.disabled) {
       el.focus()
       if (field !== 'item' && typeof el.select === 'function') {
         el.select()
       }
-      return
+      return true
     }
-    if (attempt < 12) {
-      setTimeout(() => focusField(field, attempt + 1), 40)
+    if (attempt < 20) {
+      setTimeout(() => focusField(field, attempt + 1), 50)
     }
-  }, [])
+    return false
+  }, [index])
+
+  const queueFocusField = useCallback((field) => {
+    if (focusRequestRef) {
+      focusRequestRef.current = { index, field }
+    }
+    focusField(field)
+  }, [focusField, focusRequestRef, index])
 
   const focusNextRowItem = useCallback(() => {
     if (isLast) {
@@ -267,6 +270,15 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
       setTimeout(() => itemInputRef.current?.focus(), 50)
     }
   }, [autoFocusItem, index, onEnsureRowVisible])
+
+  useEffect(() => {
+    if (!item.id || !focusRequestRef?.current) return
+    const req = focusRequestRef.current
+    if (req.index !== index) return
+    const field = req.field || 'price'
+    focusRequestRef.current = null
+    focusField(field)
+  }, [item.id, index, focusRequestRef, focusField])
 
   useEffect(() => {
     setHighlightedIndex(-1)
@@ -342,7 +354,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     setOpen(false)
     setHighlightedIndex(-1)
     onEnsureRowVisible?.(index)
-    focusField(nextFocus)
+    queueFocusField(nextFocus)
 
     if (typeof fetchLastCustomerItemPrice === 'function') {
       try {
@@ -408,12 +420,14 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     if (e.key === 'Tab' && !e.shiftKey) {
       if (hasDropdown) {
         e.preventDefault()
+        e.stopPropagation()
         const product = pickDropdownProduct()
         if (product) handleSelectProduct(product, 'price')
         return
       }
       if (item.id) {
         e.preventDefault()
+        e.stopPropagation()
         setOpen(false)
         focusField('price')
       }
@@ -887,7 +901,8 @@ function WarehouseBillingPage() {
   const [newRowIndex, setNewRowIndex] = useState(null)
 
   const orderTableScrollRef = useRef(null)
-  const prevCartLenRef = useRef(0)
+  const rowFocusRequestRef = useRef(null)
+  const initialOrderFocusRef = useRef(false)
 
   const barcodeInputRef = useRef(null)
   const manualInputRef = useRef(null)
@@ -1098,22 +1113,22 @@ function WarehouseBillingPage() {
   }, [])
 
   useEffect(() => {
-    prevCartLenRef.current = currentCart.length
+    initialOrderFocusRef.current = false
   }, [activeTabId])
+
+  useEffect(() => {
+    if (initialOrderFocusRef.current || !activeTabId || currentCart.length > 0) return
+    initialOrderFocusRef.current = true
+    setNewRowIndex(0)
+    const timer = setTimeout(() => setNewRowIndex(null), 200)
+    return () => clearTimeout(timer)
+  }, [activeTabId, currentCart.length])
 
   useEffect(() => {
     if (newRowIndex != null) {
       scrollOrderRowIntoView(newRowIndex, 'center')
     }
   }, [newRowIndex, scrollOrderRowIntoView])
-
-  useEffect(() => {
-    const len = currentCart.length
-    if (len > prevCartLenRef.current) {
-      scrollOrderRowIntoView(cartWithPlaceholder.length - 1, 'end')
-    }
-    prevCartLenRef.current = len
-  }, [currentCart.length, cartWithPlaceholder.length, scrollOrderRowIntoView])
 
   useEffect(() => {
     if (!user) return
@@ -2501,7 +2516,7 @@ function WarehouseBillingPage() {
                   <TableBody>
                     {cartWithPlaceholder.map((item, index) => (
                       <OrderRow
-                        key={`row-${item.id || 'placeholder'}-${index}`}
+                        key={`order-row-${activeTabId}-${index}`}
                         item={item}
                         index={index}
                         inventoryItems={inventoryItems || []}
@@ -2509,12 +2524,10 @@ function WarehouseBillingPage() {
                         onRemove={handleRowRemove}
                         onAddRow={handleAddRow}
                         isLast={index === cartWithPlaceholder.length - 1}
-                        autoFocusItem={
-                          index === newRowIndex ||
-                          (index === cartWithPlaceholder.length - 1 && !item.id && newRowIndex === null)
-                        }
+                        autoFocusItem={index === newRowIndex}
                         fetchLastCustomerItemPrice={fetchLastCustomerItemPrice}
                         onEnsureRowVisible={scrollOrderRowIntoView}
+                        focusRequestRef={rowFocusRequestRef}
                       />
                     ))}
                   </TableBody>
