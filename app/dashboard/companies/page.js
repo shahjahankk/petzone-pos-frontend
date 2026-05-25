@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -279,7 +280,7 @@ function CompaniesPage() {
         'Products Purchased':    Number(row.metrics?.totalQuantityOrdered  || 0),
         'Inventory Items':       Number(row.metrics?.inventoryItemCount    || 0),
         'Last Purchase Date':    row.metrics?.lastPurchaseDate
-          ? new Date(row.metrics.lastPurchaseDate).toLocaleDateString() : '',
+          ? formatDisplayDate(row.metrics.lastPurchaseDate) : '',
       }))
 
       const XLSX      = await import('xlsx')
@@ -294,7 +295,7 @@ function CompaniesPage() {
         { Metric: 'Total Products Purchased',Value: summaryData.totalProductsPurchased ?? 0 },
         { Metric: 'Total Inventory Items',   Value: summaryData.totalInventoryItems   ?? 0 },
         { Metric: 'Last Purchase Date',      Value: summaryData.lastPurchaseDate
-          ? new Date(summaryData.lastPurchaseDate).toLocaleDateString() : '—' },
+          ? formatDisplayDate(summaryData.lastPurchaseDate) : '—' },
       ])
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
@@ -763,7 +764,7 @@ function CompaniesPage() {
                     <Typography color="textSecondary" gutterBottom variant="h6">Last Purchase Date</Typography>
                     <Typography variant="h5">
                       {aggregateMetrics.lastPurchaseDate
-                        ? new Date(aggregateMetrics.lastPurchaseDate).toLocaleDateString()
+                        ? formatDisplayDate(aggregateMetrics.lastPurchaseDate)
                         : '—'}
                     </Typography>
                   </Box>
@@ -932,7 +933,7 @@ function CompaniesPage() {
                               </Typography>
                               <Typography variant="caption" color="textSecondary">
                                 {(company.createdAt || company.created_at)
-                                  ? new Date(company.createdAt || company.created_at).toLocaleDateString()
+                                  ? formatDisplayDate(company.createdAt || company.created_at)
                                   : ''}
                               </Typography>
                             </TableCell>
@@ -942,7 +943,7 @@ function CompaniesPage() {
                             <TableCell>{formatNumber(company.metrics?.inventoryItemCount     || 0)}</TableCell>
                             <TableCell>
                               {company.metrics?.lastPurchaseDate
-                                ? new Date(company.metrics.lastPurchaseDate).toLocaleDateString()
+                                ? formatDisplayDate(company.metrics.lastPurchaseDate)
                                 : '—'}
                             </TableCell>
                             {canManageCompanies && (

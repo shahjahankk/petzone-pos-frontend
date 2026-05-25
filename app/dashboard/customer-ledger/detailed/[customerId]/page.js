@@ -35,6 +35,7 @@ import PermissionCheck from '../../../../../components/auth/PermissionCheck'
 import { fetchCustomerLedger, exportCustomerLedger } from '../../../../store/slices/customerLedgerSlice'
 import { pickTransactionBalance, pickTransactionOldBalance, formatMoneyOrDash } from '../../../../../utils/ledgerFinance'
 import { formatLedgerDate, formatLedgerDateTime, isLedgerBackdated, ledgerInvoiceDateCellTooltip } from '../../../../../utils/ledgerUxDates'
+import { formatDisplayDate } from '../../../../../utils/displayDates'
 
 const DetailedCustomerLedgerPage = () => {
   const dispatch = useDispatch()
@@ -151,14 +152,7 @@ const DetailedCustomerLedgerPage = () => {
     setSummaryStats(stats)
   }
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const datePart = String(dateString).substring(0, 10)
-    const parts = datePart.split('-')
-    if (parts.length !== 3) return 'N/A'
-    const [year, month, day] = parts
-    return `${day}/${month}/${year}`
-  }
+  const formatDate = (dateString) => formatDisplayDate(dateString)
 
   const formatCurrency = (amount) => {
     const num = parseFloat(amount || 0)

@@ -1,4 +1,5 @@
 'use client'
+import AppDatePicker from '../../../../components/date/AppDatePicker'
 
 import { useEffect, useState, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -39,7 +40,6 @@ import {
   Schedule,
   AttachMoney,
 } from '@mui/icons-material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
@@ -347,7 +347,7 @@ const DailyReportsPage = () => {
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={3}>
-                <DatePicker
+                <AppDatePicker
                   label="Date"
                   value={filters.date}
                   onChange={(date) => handleFilterChange('date', date)}

@@ -1,4 +1,6 @@
 'use client'
+import { formatDisplayDate } from '../../utils/displayDates'
+import AppDateField from '../../components/date/AppDateField'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../../utils/axios'
@@ -1525,7 +1527,7 @@ function WarehouseBillingPage() {
                 companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone, companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
                 logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
                 receiptNumber: settlementSale.invoice_no || `SETTLE-${Date.now()}`,
-                date: new Date(settlementSale.created_at).toLocaleDateString(), time: new Date(settlementSale.created_at).toLocaleTimeString(),
+                date: formatDisplayDate(settlementSale.created_at), time: new Date(settlementSale.created_at).toLocaleTimeString(),
                 cashierName: user?.name || user?.username || 'Warehouse Keeper',
                 customerName: settlementSale.customer_name || retailerNameDisplay, customerPhone: settlementSale.customer_phone || retailerPhoneDisplay,
                 items: [], subtotal: 0, tax: 0, discount: 0, invoiceTotal: 0,
@@ -1592,7 +1594,7 @@ function WarehouseBillingPage() {
           companyName: companyInfo.name, companyAddress: companyInfo.address,
           companyPhone: companyInfo.phone, companyEmail: companyInfo.email, logoUrl: companyInfo.logoUrl,
           receiptNumber: sale.invoice_no || `INV-${Date.now()}`,
-          date: new Date(sale.created_at || Date.now()).toLocaleDateString(),
+          date: formatDisplayDate(sale.created_at || Date.now()),
           time: new Date(sale.created_at || Date.now()).toLocaleTimeString(),
           cashierName: user?.name || user?.username || 'Warehouse Keeper',
           customerName: selectedRetailer?.name || customerName || 'Walk-in',
@@ -2139,13 +2141,14 @@ function WarehouseBillingPage() {
                   {/* Date field */}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0, ml: isSettlementMode ? 0 : 'auto' }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>DATE</Typography>
-                    <TextField
-                      size="small"
-                      type="date"
+                    <AppDateField
                       value={saleDate}
-                      onChange={(e) => setSaleDate(e.target.value)}
-                      sx={{ width: 150, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white', fontSize: '0.85rem' } }}
-                      inputProps={{ style: { fontFamily: 'monospace' } }}
+                      onChange={setSaleDate}
+                      slotProps={{
+                        textField: {
+                          sx: { width: 170, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white', fontSize: '0.85rem' } },
+                        },
+                      }}
                     />
                   </Box>
                 </Box>
@@ -2164,13 +2167,14 @@ function WarehouseBillingPage() {
                 {outstandingPayments.length === 0 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: 0 }}>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', whiteSpace: 'nowrap' }}>DATE</Typography>
-                    <TextField
-                      size="small"
-                      type="date"
+                    <AppDateField
                       value={saleDate}
-                      onChange={(e) => setSaleDate(e.target.value)}
-                      sx={{ width: 150, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white', fontSize: '0.85rem' } }}
-                      inputProps={{ style: { fontFamily: 'monospace' } }}
+                      onChange={setSaleDate}
+                      slotProps={{
+                        textField: {
+                          sx: { width: 170, '& .MuiOutlinedInput-root': { height: 36, bgcolor: 'white', fontSize: '0.85rem' } },
+                        },
+                      }}
                     />
                   </Box>
                 )}

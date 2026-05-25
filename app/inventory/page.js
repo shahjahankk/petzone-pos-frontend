@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../utils/displayDates'
 
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -301,7 +302,7 @@ function InventoryPage() {
                           />
                         </TableCell>
                         <TableCell>
-                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                          {item.createdAt ? formatDisplayDate(item.createdAt) : 'N/A'}
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', gap: 1 }}>

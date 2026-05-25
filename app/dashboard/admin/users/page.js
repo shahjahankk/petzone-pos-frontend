@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../../utils/displayDates'
 
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -242,7 +243,7 @@ function AdminUsersPage() {
     if (!dateString) return 'N/A'
     try {
       const date = new Date(dateString)
-      return date.toLocaleDateString()
+      return formatDisplayDate(date)
     } catch (e) {
       return 'N/A'
     }

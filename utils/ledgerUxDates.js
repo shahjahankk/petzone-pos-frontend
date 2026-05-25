@@ -2,20 +2,14 @@
  * Customer ledger display helpers (posting order unchanged — UI only).
  */
 
+import { formatDisplayDate, formatDisplayDateTime } from './displayDates'
+
 export function formatLedgerDate(iso) {
-  if (!iso) return 'N/A'
-  const s = String(iso).substring(0, 10)
-  const parts = s.split('-')
-  if (parts.length !== 3) return 'N/A'
-  const [y, m, d] = parts
-  return `${d}/${m}/${y}`
+  return formatDisplayDate(iso)
 }
 
 export function formatLedgerDateTime(iso) {
-  if (!iso) return 'N/A'
-  const t = new Date(iso)
-  if (Number.isNaN(t.getTime())) return 'N/A'
-  return t.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  return formatDisplayDateTime(iso)
 }
 
 /** Business invoice date vs actual posting instant (different calendar day). */

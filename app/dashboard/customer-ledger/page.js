@@ -1,4 +1,6 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
+import AppDateField from '../../../components/date/AppDateField'
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { 
@@ -126,14 +128,7 @@ function CustomerLedgerPage() {
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount || 0)
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const datePart = String(dateString).substring(0, 10)
-    const parts = datePart.split('-')
-    if (parts.length !== 3) return 'N/A'
-    const [year, month, day] = parts
-    return `${day}/${month}/${year}`
-  }
+  const formatDate = (dateString) => formatDisplayDate(dateString)
 
   const getPaymentStatusColor = (status) => {
     switch (status) {
@@ -393,7 +388,7 @@ const loadCustomerLedger = useCallback((customerId) => {
         `*Outstanding:  ${formatCurrency(summary.outstandingBalance || 0)}*`,
         `---------------------------`,
         `(Full detailed ledger attached)`,
-        `Sent via POS System - ${new Date().toLocaleDateString()}`,
+        `Sent via POS System - ${formatDisplayDate(new Date())}`,
       ].filter(Boolean).join('\n')
 
       const encodedMsg = encodeURIComponent(message)
@@ -961,16 +956,14 @@ const sorted = [...transactions].sort((a, b) => {
                   <Box sx={{ mb: 3 }}>
                     <Grid container spacing={2} alignItems="center">
                       <Grid item xs={12} md={3}>
-                        <TextField fullWidth label="Start Date" type="date"
+                        <AppDateField label="Start Date"
                           value={ledgerFilters.startDate}
-                          onChange={(e) => setLedgerFilters({ ...ledgerFilters, startDate: e.target.value })}
-                          InputLabelProps={{ shrink: true }} />
+                          onChange={(v) => setLedgerFilters({ ...ledgerFilters, startDate: v })} />
                       </Grid>
                       <Grid item xs={12} md={3}>
-                        <TextField fullWidth label="End Date" type="date"
+                        <AppDateField label="End Date"
                           value={ledgerFilters.endDate}
-                          onChange={(e) => setLedgerFilters({ ...ledgerFilters, endDate: e.target.value })}
-                          InputLabelProps={{ shrink: true }} />
+                          onChange={(v) => setLedgerFilters({ ...ledgerFilters, endDate: v })} />
                       </Grid>
                       <Grid item xs={12} md={3}>
                         <FormControl fullWidth>

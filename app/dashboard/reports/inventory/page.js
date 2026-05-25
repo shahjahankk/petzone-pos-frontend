@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../../utils/displayDates'
 
 import { useEffect, useState, useCallback } from 'react'
 import { useTheme } from '@mui/material/styles'
@@ -89,7 +90,7 @@ export default function InventoryReportsPage() {
   const handleExportPDF = () => {
     const w = window.open('', '_blank')
     w.document.write(`<html><head><title>Inventory Report</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f0f0f0}</style></head><body>
-      <h1>Inventory Report — ${new Date().toLocaleDateString()}</h1>
+      <h1>Inventory Report — ${formatDisplayDate(new Date())}</h1>
       <p>Total Items: ${summary?.totalItems || 0} | Low Stock: ${summary?.stockStatusCounts?.['Low Stock'] || lowStockItems?.length || 0}</p>
       <h3>Low Stock Items</h3>
       <table><tr><th>Item</th><th>Current</th><th>Min</th><th>Status</th></tr>

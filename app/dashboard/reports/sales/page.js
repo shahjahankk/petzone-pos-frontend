@@ -1,6 +1,7 @@
-  'use client'
+'use client'
 
-  import { useEffect, useState, useCallback } from 'react'
+import AppDatePicker from '../../../../components/date/AppDatePicker'
+import { useEffect, useState, useCallback } from 'react'
   import { useDispatch, useSelector } from 'react-redux'
   import {
     Box, Card, CardContent, Grid, Typography, Paper, Button,
@@ -16,7 +17,7 @@
   } from '@mui/icons-material'
   import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
   import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
-  import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+  
   import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, Legend,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line,
@@ -381,11 +382,11 @@
         {/* Filters row */}
         <Box sx={{ display:'flex', gap:2, alignItems:'center', flexWrap:'wrap', pb:2 }}>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
+            <AppDatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
               onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,dateFrom:d})) }}
               slots={{ textField: TextField }}
               slotProps={{ textField:{ size:'small', sx:{ minWidth:150 } } }} />
-            <DatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
+            <AppDatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
               onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,dateTo:d})) }}
               slots={{ textField: TextField }}
               slotProps={{ textField:{ size:'small', sx:{ minWidth:150 } } }} />

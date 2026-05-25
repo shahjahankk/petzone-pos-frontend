@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
@@ -183,7 +184,7 @@ const ReturnsPage = () => {
         />
       )
     },
-    { field: 'created_at', headerName: 'Return Date', width: 120, renderCell: (params) => new Date(params.value).toLocaleDateString() },
+    { field: 'created_at', headerName: 'Return Date', width: 120, renderCell: (params) => formatDisplayDate(params.value) },
     { field: 'username', headerName: 'Processed By', width: 150 },
     { 
       field: 'scope_type', 
@@ -916,7 +917,7 @@ const ReturnsPage = () => {
                             </Box>
                           </TableCell>
                           <TableCell>
-                            {new Date(returnItem.created_at || returnItem.createdAt).toLocaleDateString()}
+                            {formatDisplayDate(returnItem.created_at || returnItem.createdAt)}
                           </TableCell>
                           <TableCell>{returnItem.notes || 'N/A'}</TableCell>
                           {canManageReturns && (
@@ -1259,7 +1260,7 @@ const ReturnsPage = () => {
                         <Grid item xs={12} sm={6}>
                           <Typography variant="body2" color="text.secondary">Return Date:</Typography>
                           <Typography variant="body1" fontWeight="medium">
-                            {new Date(returnDetails.created_at || returnDetails.createdAt).toLocaleDateString()}
+                            {formatDisplayDate(returnDetails.created_at || returnDetails.createdAt)}
                           </Typography>
                         </Grid>
                         <Grid item xs={12} sm={6}>

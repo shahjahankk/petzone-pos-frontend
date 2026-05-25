@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../utils/displayDates'
 
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -331,7 +332,7 @@ function CustomersPage() {
                 {customerTransactions.map((transaction) => (
                   <tr key={transaction.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(transaction.createdAt).toLocaleDateString()}
+                      {formatDisplayDate(transaction.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

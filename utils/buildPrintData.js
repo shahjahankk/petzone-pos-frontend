@@ -1,3 +1,4 @@
+import { formatDisplayDate } from './displayDates'
 /**
  * buildPrintData.js
  *
@@ -244,7 +245,7 @@ const branchName    = sale.branchName    || sale.branch_name    || (scopeType !=
   // ── Dates ──
   const createdAt = sale.created_at || sale.createdAt || new Date().toISOString()
   const dateObj   = new Date(createdAt)
-  const date      = dateObj.toLocaleDateString()
+  const date      = formatDisplayDate(dateObj)
   const time      = dateObj.toLocaleTimeString()
 
   // ── Notes ──

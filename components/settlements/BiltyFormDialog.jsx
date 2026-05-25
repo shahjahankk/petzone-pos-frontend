@@ -1,4 +1,5 @@
 'use client'
+import AppDateField from '../date/AppDateField'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Alert, Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import { Add, Delete } from '@mui/icons-material'
@@ -152,7 +153,7 @@ export default function BiltyFormDialog({ open, onClose, onSave, bilty, scopeTyp
             <TextField fullWidth label="Customer Phone" value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} />
           </Grid>
           <Grid item xs={12} md={4}>
-            <TextField fullWidth type="date" label="Bilty Date" InputLabelProps={{ shrink: true }} value={form.biltyDate} onChange={(e) => setForm({ ...form, biltyDate: e.target.value })} />
+            <AppDateField label="Bilty Date" value={form.biltyDate} onChange={(v) => setForm({ ...form, biltyDate: v })} />
           </Grid>
           <Grid item xs={12} md={4}>
             <TextField fullWidth multiline minRows={2} label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />

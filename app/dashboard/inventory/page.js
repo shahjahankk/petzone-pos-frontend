@@ -1,4 +1,6 @@
 'use client'
+import AppDatePicker from '../../../components/date/AppDatePicker'
+import { formatDisplayDate } from '../../../utils/displayDates'
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -31,7 +33,6 @@ import {
   Pagination,
   Snackbar
 } from '@mui/material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import { 
@@ -1398,7 +1399,7 @@ const canEditInventory = useMemo(() => {
                         <TableCell>
                           {item.purchaseDate ? (
                             <Typography variant="body2">
-                              {new Date(item.purchaseDate).toLocaleDateString()}
+                              {formatDisplayDate(item.purchaseDate)}
                             </Typography>
                           ) : (
                             <Typography variant="body2" color="text.secondary">-</Typography>

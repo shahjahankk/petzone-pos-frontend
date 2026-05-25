@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useTheme } from '@mui/material/styles'
@@ -10,9 +11,8 @@ import {
   CircularProgress, Pagination, Dialog, DialogTitle, DialogContent, DialogActions,
   Badge, Autocomplete, Stack, alpha, Checkbox
 } from '@mui/material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
+import AppDatePicker from '../../../components/date/AppDatePicker'
+import AppDateField from '../../../components/date/AppDateField'
 import {
   Search as SearchIcon, Clear as ClearIcon, FilterList as FilterIcon,
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Visibility as ViewIcon,
@@ -173,20 +173,16 @@ function HeaderFields({ formData, formErrors, suppliers, isScopeTypeLocked, onFi
           </Grid>
         )}
         <Grid item xs={12} md={2}>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker label="Order Date *"
-              value={formData.orderDate ? new Date(formData.orderDate) : null}
-              onChange={(v) => onFieldChange('orderDate', v ? v.toISOString().split('T')[0] : '')}
-              slotProps={{ textField: { fullWidth: true, size: 'small', error: !!formErrors.orderDate, helperText: formErrors.orderDate } }} />
-          </LocalizationProvider>
+          <AppDatePicker label="Order Date *"
+            value={formData.orderDate ? new Date(formData.orderDate) : null}
+            onChange={(v) => onFieldChange('orderDate', v ? v.toISOString().split('T')[0] : '')}
+            slotProps={{ textField: { fullWidth: true, size: 'small', error: !!formErrors.orderDate, helperText: formErrors.orderDate } }} />
         </Grid>
         <Grid item xs={12} md={2}>
-          <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <DatePicker label="Expected Delivery"
-              value={formData.expectedDelivery ? new Date(formData.expectedDelivery) : null}
-              onChange={(v) => onFieldChange('expectedDelivery', v ? v.toISOString().split('T')[0] : '')}
-              slotProps={{ textField: { fullWidth: true, size: 'small' } }} />
-          </LocalizationProvider>
+          <AppDatePicker label="Expected Delivery"
+            value={formData.expectedDelivery ? new Date(formData.expectedDelivery) : null}
+            onChange={(v) => onFieldChange('expectedDelivery', v ? v.toISOString().split('T')[0] : '')}
+            slotProps={{ textField: { fullWidth: true, size: 'small' } }} />
         </Grid>
         <Grid item xs={12} md={showScopeIdField ? 3 : 2}>
           <TextField fullWidth size="small" label="Notes"
@@ -930,16 +926,14 @@ function PurchaseOrdersPage() {
                 </FormControl>
               </Grid>
               <Grid item xs={12} md={2}>
-                <TextField fullWidth size="small" label="From Date" type="date"
+                <AppDateField label="From Date"
                   value={filters.orderDateFrom}
-                  onChange={(e) => dispatch(setFilters({ orderDateFrom: e.target.value }))}
-                  InputLabelProps={{ shrink: true }} />
+                  onChange={(v) => dispatch(setFilters({ orderDateFrom: v }))} />
               </Grid>
               <Grid item xs={12} md={2}>
-                <TextField fullWidth size="small" label="To Date" type="date"
+                <AppDateField label="To Date"
                   value={filters.orderDateTo}
-                  onChange={(e) => dispatch(setFilters({ orderDateTo: e.target.value }))}
-                  InputLabelProps={{ shrink: true }} />
+                  onChange={(v) => dispatch(setFilters({ orderDateTo: v }))} />
               </Grid>
               <Grid item xs={12} md={1}>
                 <Button fullWidth variant="outlined" onClick={() => dispatch(clearFilters())}
@@ -1004,10 +998,10 @@ function PurchaseOrdersPage() {
                                 <Chip label={order.scopeName || order.scopeType || 'Unknown'} size="small"
                                   color={order.scopeType === 'BRANCH' ? 'primary' : 'secondary'} variant="outlined" />
                               </TableCell>
-                              <TableCell><Typography variant="body2">{new Date(order.orderDate).toLocaleDateString()}</Typography></TableCell>
+                              <TableCell><Typography variant="body2">{formatDisplayDate(order.orderDate)}</Typography></TableCell>
                               <TableCell>
                                 {order.expectedDelivery
-                                  ? <Typography variant="body2">{new Date(order.expectedDelivery).toLocaleDateString()}</Typography>
+                                  ? <Typography variant="body2">{formatDisplayDate(order.expectedDelivery)}</Typography>
                                   : <Typography variant="body2" color="text.secondary">-</Typography>}
                               </TableCell>
                               <TableCell><Chip icon={cfg?.icon} label={cfg?.label || orderStatus} color={cfg?.color || 'default'} size="small" /></TableCell>
@@ -1167,7 +1161,7 @@ function PurchaseOrdersPage() {
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Typography variant="body2" fontWeight="bold" sx={{ minWidth: 100 }}>Order Date:</Typography>
-                          <Typography variant="body2">{new Date(selectedOrder.orderDate).toLocaleDateString()}</Typography>
+                          <Typography variant="body2">{formatDisplayDate(selectedOrder.orderDate)}</Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Typography variant="body2" fontWeight="bold" sx={{ minWidth: 100 }}>Status:</Typography>

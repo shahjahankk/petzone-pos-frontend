@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../../utils/displayDates'
 
 import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -231,7 +232,7 @@ function AdminWarehouseLedgersPage() {
             {entries && entries.length > 0 ? (
               entries.map((entry) => (
               <TableRow key={entry.id}>
-                <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
+                <TableCell>{formatDisplayDate(entry.date)}</TableCell>
                 <TableCell>
                   <Chip 
                     label={entry.type} 

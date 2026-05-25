@@ -5,6 +5,7 @@ import { ReduxProvider } from './store/ReduxProvider'
 import RouteProtection from '../components/auth/RouteProtection'
 import AuthInitializer from '../components/auth/AuthInitializer'
 import InstallPrompt from '../components/pwa/InatallPrompt'
+import AppDateProvider from '../components/date/AppDateProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -24,11 +25,13 @@ export default function RootLayout({ children }) {
       <body className={inter.className}>
         <ReduxProvider>
           <CustomThemeProvider>
-            <AuthInitializer />
-            <RouteProtection>
-              {children}
-            </RouteProtection>
-            <InstallPrompt />
+            <AppDateProvider>
+              <AuthInitializer />
+              <RouteProtection>
+                {children}
+              </RouteProtection>
+              <InstallPrompt />
+            </AppDateProvider>
           </CustomThemeProvider>
         </ReduxProvider>
       </body>

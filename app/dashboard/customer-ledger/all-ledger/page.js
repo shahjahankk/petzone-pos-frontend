@@ -8,6 +8,8 @@ import {
   Alert, CircularProgress
 } from '@mui/material'
 import { FilterList as FilterIcon, Refresh as RefreshIcon, Download as DownloadIcon } from '@mui/icons-material'
+import { formatDisplayDate } from '../../../../utils/displayDates'
+import AppDateField from '../../../../components/date/AppDateField'
 import {
   fetchCustomerLedger, exportCustomerLedger, clearError
 } from '../../../store/slices/customerLedgerSlice'
@@ -40,11 +42,7 @@ const handleApplyFilters = () => {
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount || 0)
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    const p = String(dateString).substring(0, 10).split('-')
-    return p.length !== 3 ? 'N/A' : `${p[2]}/${p[1]}/${p[0]}`
-  }
+  const formatDate = (dateString) => formatDisplayDate(dateString)
 
   const getTxType = (t) => {
     if (t.transaction_type === 'RETURN') return { label: 'Return', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }
@@ -180,12 +178,12 @@ const sortTransactionsAsc = (transactions) => {
         <Paper sx={{ p: 2.5, mb: 3, borderRadius: 2 }} elevation={0} variant="outlined">
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
-              <TextField fullWidth size="small" label="Start Date" type="date" value={filters.startDate}
-                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} InputLabelProps={{ shrink: true }} />
+              <AppDateField label="Start Date" value={filters.startDate}
+                onChange={(v) => setFilters({ ...filters, startDate: v })} />
             </Grid>
             <Grid item xs={12} md={3}>
-              <TextField fullWidth size="small" label="End Date" type="date" value={filters.endDate}
-                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} InputLabelProps={{ shrink: true }} />
+              <AppDateField label="End Date" value={filters.endDate}
+                onChange={(v) => setFilters({ ...filters, endDate: v })} />
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">

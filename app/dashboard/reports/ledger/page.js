@@ -1,4 +1,5 @@
 'use client'
+import AppDatePicker from '../../../../components/date/AppDatePicker'
 
 import { useEffect, useState, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -23,7 +24,7 @@ import {
 import { Refresh, AccountBalance, TrendingDown, TrendingUp } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+
 import {
   LineChart,
   Line,
@@ -125,7 +126,7 @@ export default function LedgerReportsPage() {
           <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} sm={6} md={4}>
-                <DatePicker
+                <AppDatePicker
                   label="From"
                   value={dateFrom}
                   onChange={(d) => d && setDateFrom(d)}
@@ -133,7 +134,7 @@ export default function LedgerReportsPage() {
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <DatePicker
+                <AppDatePicker
                   label="To"
                   value={dateTo}
                   onChange={(d) => d && setDateTo(d)}

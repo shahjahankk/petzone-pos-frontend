@@ -1,4 +1,6 @@
 'use client'
+import { formatDisplayDate } from '../../../../utils/displayDates'
+import AppDateField from '../../../../components/date/AppDateField'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../../../../utils/axios'
@@ -687,14 +689,11 @@ function SalesLedger() {
               </Grid>
               
               <Grid item xs={12} md={2}>
-                <TextField
-                  fullWidth
-                  type="date"
+                <AppDateField
                   label="Date"
                   value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ fontWeight: 500 }}
+                  onChange={setDateFilter}
+                  slotProps={{ textField: { sx: { fontWeight: 500 } } }}
                 />
               </Grid>
               
@@ -798,7 +797,7 @@ function SalesLedger() {
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           <CalendarIcon sx={{ mr: 1, fontSize: 16, color: 'text.secondary' }} />
-                          {new Date(sale.created_at).toLocaleDateString()}
+                          {formatDisplayDate(sale.created_at)}
                         </Box>
                       </TableCell>
                       <TableCell>
@@ -1227,7 +1226,7 @@ function SalesLedger() {
                     Total: {parseFloat(deletingSale.total || 0).toFixed(2)}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    Date: {new Date(deletingSale.created_at).toLocaleDateString()}
+                    Date: {formatDisplayDate(deletingSale.created_at)}
                   </Typography>
                 </Box>
               )}

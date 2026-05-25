@@ -1,4 +1,6 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
+import AppDateField from '../../../components/date/AppDateField'
 
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -298,7 +300,7 @@ function FinancialDashboard() {
               {financialSummary?.recentTransactions?.slice(0, 5).map((transaction) => (
                 <tr key={transaction._id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(transaction.createdAt).toLocaleDateString()}
+                    {formatDisplayDate(transaction.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
@@ -392,7 +394,7 @@ function FinancialDashboard() {
           {salesSummary?.dailySales?.slice(-7).map((day) => (
             <div key={`${day._id.year}-${day._id.month}-${day._id.day}`} className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">
-                {new Date(day._id.year, day._id.month - 1, day._id.day).toLocaleDateString()}
+                {formatDisplayDate(day._id.year, day._id.month - 1, day._id.day)}
               </span>
               <div className="flex items-center space-x-2">
                 <div className="w-48 bg-gray-200 rounded-full h-2">
@@ -743,17 +745,13 @@ function FinancialDashboard() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
               <div className="flex space-x-2">
-                <input
-                  type="date"
+                <AppDateField
                   value={dateRange.startDate}
-                  onChange={(e) => handleDateRangeChange({ ...dateRange, startDate: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(v) => handleDateRangeChange({ ...dateRange, startDate: v })}
                 />
-                <input
-                  type="date"
+                <AppDateField
                   value={dateRange.endDate}
-                  onChange={(e) => handleDateRangeChange({ ...dateRange, endDate: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={(v) => handleDateRangeChange({ ...dateRange, endDate: v })}
                 />
               </div>
             </div>

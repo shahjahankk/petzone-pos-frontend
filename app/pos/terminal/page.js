@@ -1,4 +1,6 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
+import AppDateField from '../../../components/date/AppDateField'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import api from '../../../utils/axios'
@@ -1669,7 +1671,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
         logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
         receiptNumber: '',
-        date: new Date().toLocaleDateString(),
+        date: formatDisplayDate(new Date()),
         time: new Date().toLocaleTimeString(),
         cashierName: user?.name || user?.username || 'Cashier',
         customerName: customerName || 'Walk-in Customer',
@@ -1751,7 +1753,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
               logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
               receiptNumber: settlementSale.invoice_no || `SETTLE-${Date.now()}`,
-              date: new Date(settlementSale.created_at).toLocaleDateString(),
+              date: formatDisplayDate(settlementSale.created_at),
               time: new Date(settlementSale.created_at).toLocaleTimeString(),
               cashierName: user?.name || user?.username || 'Cashier',
               customerName: settlementSale.customer_name || customerName || 'Unknown',
@@ -1954,7 +1956,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
         logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
         receiptNumber: '',
-        date: new Date().toLocaleDateString(),
+        date: formatDisplayDate(new Date()),
         time: new Date().toLocaleTimeString(),
         cashierName: user?.name || user?.username || 'Cashier',
         customerName: customerName || 'Walk-in Customer',
@@ -2016,7 +2018,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
         logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
         receiptNumber: `DRAFT-${Date.now()}`,
-        date: new Date().toLocaleDateString(),
+        date: formatDisplayDate(new Date()),
         time: new Date().toLocaleTimeString(),
         cashierName: user?.name || user?.username || 'Cashier',
         customerName: customerName || 'Walk-in Customer',
@@ -2544,7 +2546,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
           logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
           receiptNumber: sale.invoice_no || `POS-${Date.now()}`,
-          date: new Date().toLocaleDateString(),
+          date: formatDisplayDate(new Date()),
           time: new Date().toLocaleTimeString(),
           cashierName: user?.name || user?.username || 'Cashier',
           customerName: customerName || 'Walk-in Customer',
@@ -2785,7 +2787,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                 {customerSearchResults.map((customer, index) => (
                   <Box key={index} sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }} onClick={() => selectCustomer(customer)}>
                     <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{customer.name}</Typography>
-                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>Phone: {customer.phone || 'N/A'} | Sales: {customer.totalSales} | Last: {new Date(customer.lastSale).toLocaleDateString()}</Typography>
+                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>Phone: {customer.phone || 'N/A'} | Sales: {customer.totalSales} | Last: {formatDisplayDate(customer.lastSale)}</Typography>
                   </Box>
                 ))}
               </Paper>
@@ -3061,7 +3063,16 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               <Typography variant="subtitle2" gutterBottom>
                 Sale Date <Typography component="span" variant="caption" color="text.secondary">(optional – leave blank for today)</Typography>
               </Typography>
-              <TextField fullWidth type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} inputProps={{ max: new Date().toISOString().split('T')[0] }} size="small" helperText={saleDate ? `Backdated to ${saleDate}` : "Using today's date"} />
+              <AppDateField
+                value={saleDate}
+                onChange={setSaleDate}
+                maxDate={new Date()}
+                slotProps={{
+                  textField: {
+                    helperText: saleDate ? `Backdated to ${formatDisplayDate(saleDate)}` : "Using today's date",
+                  },
+                }}
+              />
             </Box>
 
             <Box sx={{ mt: 'auto' }}>
@@ -3245,7 +3256,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                       const previewPayment = isFullyCredit || isBalancePayment ? 0 : isPartialPayment ? parseFloat(paymentAmount) || 0 : twO
                       const previewCredit = isFullyCredit || isBalancePayment ? twO : isPartialPayment ? twO - previewPayment : 0
                       setShowPrinterDialog(false); setSelectedLayout('thermal')
-                      setPrintData({ type: 'receipt', title: 'SALES RECEIPT', companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name, companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address, companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone, companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email, logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl, receiptNumber: `TEST-${Date.now()}`, date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(), cashierName: user?.name || user?.username || 'Cashier', customerName: customerName || 'Walk-in Customer', customerPhone: customerPhone || '', items: currentCart.map(normalizeCartItemForPrint), subtotal, tax, discount: totalDiscount, invoiceTotal: billAmount, oldBalance: selOustandingTotal, total: twO, paymentMethod: isFullyCredit ? 'FULLY_CREDIT' : paymentMethod, paymentAmount: previewPayment, creditAmount: previewCredit, remainingBalance: Math.max(0, twO - previewPayment), notes: '', footerMessage: 'Thank you for your business!' })
+                      setPrintData({ type: 'receipt', title: 'SALES RECEIPT', companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name, companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address, companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone, companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email, logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl, receiptNumber: `TEST-${Date.now()}`, date: formatDisplayDate(new Date()), time: new Date().toLocaleTimeString(), cashierName: user?.name || user?.username || 'Cashier', customerName: customerName || 'Walk-in Customer', customerPhone: customerPhone || '', items: currentCart.map(normalizeCartItemForPrint), subtotal, tax, discount: totalDiscount, invoiceTotal: billAmount, oldBalance: selOustandingTotal, total: twO, paymentMethod: isFullyCredit ? 'FULLY_CREDIT' : paymentMethod, paymentAmount: previewPayment, creditAmount: previewCredit, remainingBalance: Math.max(0, twO - previewPayment), notes: '', footerMessage: 'Thank you for your business!' })
                       setShowPrintDialog(true)
                     }}>
                     <Typography variant="body1" fontWeight="bold">📄 Thermal Printer Layout</Typography>
@@ -3264,7 +3275,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                       const previewPayment = isFullyCredit || isBalancePayment ? 0 : isPartialPayment ? parseFloat(paymentAmount) || 0 : twO
                       const previewCredit = isFullyCredit || isBalancePayment ? twO : isPartialPayment ? twO - previewPayment : 0
                       setShowPrinterDialog(false); setSelectedLayout('color')
-                      setPrintData({ type: 'receipt', title: 'SALES RECEIPT', companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name, companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address, companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone, companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email, logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl, receiptNumber: `TEST-${Date.now()}`, date: new Date().toLocaleDateString(), time: new Date().toLocaleTimeString(), cashierName: user?.name || user?.username || 'Cashier', customerName: customerName || 'Walk-in Customer', customerPhone: customerPhone || '', items: currentCart.map(normalizeCartItemForPrint), subtotal, tax, discount: totalDiscount, invoiceTotal: billAmount, oldBalance: selOustandingTotal, total: twO, paymentMethod: isFullyCredit ? 'FULLY_CREDIT' : paymentMethod, paymentAmount: previewPayment, creditAmount: previewCredit, remainingBalance: Math.max(0, twO - previewPayment), notes: '', footerMessage: 'Thank you for your business!' })
+                      setPrintData({ type: 'receipt', title: 'SALES RECEIPT', companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name, companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address, companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone, companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email, logoUrl: companyInfo.logoUrl || DEFAULT_COMPANY_INFO.logoUrl, receiptNumber: `TEST-${Date.now()}`, date: formatDisplayDate(new Date()), time: new Date().toLocaleTimeString(), cashierName: user?.name || user?.username || 'Cashier', customerName: customerName || 'Walk-in Customer', customerPhone: customerPhone || '', items: currentCart.map(normalizeCartItemForPrint), subtotal, tax, discount: totalDiscount, invoiceTotal: billAmount, oldBalance: selOustandingTotal, total: twO, paymentMethod: isFullyCredit ? 'FULLY_CREDIT' : paymentMethod, paymentAmount: previewPayment, creditAmount: previewCredit, remainingBalance: Math.max(0, twO - previewPayment), notes: '', footerMessage: 'Thank you for your business!' })
                       setShowPrintDialog(true)
                     }}>
                     <Typography variant="body1" fontWeight="bold">🖨️ Color Printer Layout</Typography>

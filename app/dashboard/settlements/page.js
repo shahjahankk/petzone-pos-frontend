@@ -1,4 +1,5 @@
 'use client'
+import AppDateField from '../../../components/date/AppDateField'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Paper, Tab, Tabs, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material'
@@ -93,8 +94,8 @@ function SettlementsPage() {
                   <Grid item xs={12} md={2}><TextField fullWidth label="Scope Id" value={filters.scopeId} onChange={(e) => setFilters({ ...filters, scopeId: e.target.value })} /></Grid>
                 </>
               )}
-              <Grid item xs={12} md={2}><TextField fullWidth type="date" label="Start Date" InputLabelProps={{ shrink: true }} value={filters.startDate} onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} /></Grid>
-              <Grid item xs={12} md={2}><TextField fullWidth type="date" label="End Date" InputLabelProps={{ shrink: true }} value={filters.endDate} onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} /></Grid>
+              <Grid item xs={12} md={2}><AppDateField label="Start Date" value={filters.startDate} onChange={(v) => setFilters({ ...filters, startDate: v })} /></Grid>
+              <Grid item xs={12} md={2}><AppDateField label="End Date" value={filters.endDate} onChange={(v) => setFilters({ ...filters, endDate: v })} /></Grid>
               <Grid item xs={12} md={2}><TextField fullWidth label="Customer Name" value={filters.customerName} onChange={(e) => setFilters({ ...filters, customerName: e.target.value })} /></Grid>
               <Grid item xs={12} md={2}><TextField fullWidth label="Customer Phone" value={filters.customerPhone} onChange={(e) => setFilters({ ...filters, customerPhone: e.target.value })} /></Grid>
               <Grid item xs={12} md={2}><TextField fullWidth label="Payment Method" value={filters.paymentMethod} onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })} /></Grid>

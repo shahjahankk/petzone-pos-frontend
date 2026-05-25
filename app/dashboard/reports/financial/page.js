@@ -1,4 +1,5 @@
 'use client'
+import AppDatePicker from '../../../../components/date/AppDatePicker'
 
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -14,7 +15,7 @@ import {
 } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+
 import {
   BarChart, Bar, PieChart, Pie, Cell, Legend,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -167,11 +168,11 @@ export default function FinancialReportsPage() {
                   {[2026, 2025, 2024, 2023, 2022].map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
                 </Select>
               </FormControl>
-              <DatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
+              <AppDatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
                 onChange={(d) => setFilters(p => ({ ...p, dateFrom: d }))}
                 slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }} />
-              <DatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
+              <AppDatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
                 onChange={(d) => setFilters(p => ({ ...p, dateTo: d }))}
                 slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }} />

@@ -1,3 +1,4 @@
+import { formatDisplayDate } from '../../../utils/displayDates'
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 import { pickTransactionBalance, pickTransactionOldBalance } from '../../../utils/ledgerFinance'
@@ -120,7 +121,7 @@ export const exportCustomerLedger = createAsyncThunk(
                   transaction.items.forEach((item) => {
                     rows.push({
                       'Customer Name': customerName,
-                      'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+                      'Date': formatDisplayDate(transaction.transaction_date || transaction.created_at),
                       'Invoice #': transaction.invoice_no || 'N/A',
                       'Item Name': item.item_name || item.name || 'N/A',
                       'SKU': item.sku || 'N/A',
@@ -140,7 +141,7 @@ export const exportCustomerLedger = createAsyncThunk(
                 } else {
                   rows.push({
                     'Customer Name': customerName,
-                    'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+                    'Date': formatDisplayDate(transaction.transaction_date || transaction.created_at),
                     'Invoice #': transaction.invoice_no || 'N/A',
                     'Item Name': 'No items',
                     'SKU': 'N/A',
@@ -161,7 +162,7 @@ export const exportCustomerLedger = createAsyncThunk(
             } else {
               rows = transactions.map((transaction) => ({
                 'Customer Name': customerName,
-                'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+                'Date': formatDisplayDate(transaction.transaction_date || transaction.created_at),
                 'Invoice #': transaction.invoice_no || 'N/A',
                 'Amount': parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0).toFixed(2),
                 'Old Balance': excelOldBalanceCell(transaction),
@@ -181,7 +182,7 @@ export const exportCustomerLedger = createAsyncThunk(
             const allRows = payload.transactions.map((transaction) => ({
               'Customer Name': transaction.customer_name || 'Unknown Customer',
               'Customer Phone': transaction.customer_phone || '',
-              'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+              'Date': formatDisplayDate(transaction.transaction_date || transaction.created_at),
               'Invoice #': transaction.invoice_no || 'N/A',
               'Amount': parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0).toFixed(2),
               'Old Balance': excelOldBalanceCell(transaction),
@@ -232,7 +233,7 @@ export const exportCustomerLedger = createAsyncThunk(
             if (transaction.items && transaction.items.length > 0) {
               transaction.items.forEach(item => {
                 excelData.push({
-                  'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+                  'Date': formatDisplayDate(transaction.transaction_date || transaction.created_at),
                   'Invoice #': transaction.invoice_no || 'N/A',
                   'Item Name': item.item_name || item.name || 'N/A',
                   'SKU': item.sku || 'N/A',
@@ -251,7 +252,7 @@ export const exportCustomerLedger = createAsyncThunk(
               })
             } else {
               excelData.push({
-                'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+                'Date': formatDisplayDate(transaction.transaction_date || transaction.created_at),
                 'Invoice #': transaction.invoice_no || 'N/A',
                 'Item Name': 'No items',
                 'SKU': 'N/A',
@@ -283,7 +284,7 @@ export const exportCustomerLedger = createAsyncThunk(
               transaction.total_amount ?? (Number.isFinite(oldNum) ? oldNum + amount : amount)
             )
             return {
-              'Date': new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString(),
+              'Date': formatDisplayDate(transaction.transaction_date || transaction.created_at),
               'Invoice #': transaction.invoice_no || 'N/A',
               'Amount': amount.toFixed(2),
               'Old Balance': excelOldBalanceCell(transaction),

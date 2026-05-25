@@ -1,4 +1,5 @@
 'use client'
+import AppDateField from '../date/AppDateField'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Alert, Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Grid, MenuItem, TextField, Typography } from '@mui/material'
 import api from '../../utils/axios'
@@ -179,7 +180,7 @@ export default function SettlementFormDialog({ open, onClose, onSave, settlement
             </TextField>
           </Grid>
           <Grid item xs={12} md={4}>
-            <TextField fullWidth type="date" label="Settlement Date" InputLabelProps={{ shrink: true }} value={form.settlementDate} onChange={(e) => setForm({ ...form, settlementDate: e.target.value })} />
+            <AppDateField label="Settlement Date" value={form.settlementDate} onChange={(v) => setForm({ ...form, settlementDate: v })} />
           </Grid>
           <Grid item xs={12} md={8}>
             <TextField fullWidth multiline minRows={2} label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />

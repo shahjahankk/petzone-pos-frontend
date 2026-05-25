@@ -1,4 +1,6 @@
 'use client'
+import AppDatePicker from '../../../../components/date/AppDatePicker'
+import { formatDisplayDate } from '../../../../utils/displayDates'
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -27,7 +29,7 @@ import {
   InputAdornment
 } from '@mui/material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import {
   ArrowBack as ArrowBackIcon,
@@ -129,13 +131,13 @@ const CompanyDetailPage = () => {
         { Metric: 'Total Purchase Amount', Value: dataset.stats?.totalPurchaseAmount || 0 },
         { Metric: 'Products Purchased', Value: dataset.stats?.totalQuantityOrdered || 0 },
         { Metric: 'Inventory Items', Value: dataset.stats?.inventoryItemCount || 0 },
-        { Metric: 'Last Purchase Date', Value: dataset.stats?.lastPurchaseDate ? new Date(dataset.stats.lastPurchaseDate).toLocaleDateString() : '—' }
+        { Metric: 'Last Purchase Date', Value: dataset.stats?.lastPurchaseDate ? formatDisplayDate(dataset.stats.lastPurchaseDate) : '—' }
       ])
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
       const purchaseOrdersSheet = XLSX.utils.json_to_sheet((dataset.purchaseOrders || []).map(order => ({
         'Order #': order.order_number,
-        Date: order.order_date ? new Date(order.order_date).toLocaleDateString() : (order.created_at ? new Date(order.created_at).toLocaleDateString() : ''),
+        Date: order.order_date ? formatDisplayDate(order.order_date) : (order.created_at ? formatDisplayDate(order.created_at) : ''),
         Status: order.status || '',
         'Total Amount': order.total_amount || 0,
         'Items Count': order.items?.length || 0
@@ -167,7 +169,7 @@ const CompanyDetailPage = () => {
         'Current Stock': item.current_stock,
         'Cost Price': item.cost_price,
         'Purchase Price': item.purchase_price,
-        'Last Updated': item.updated_at ? new Date(item.updated_at).toLocaleDateString() : ''
+        'Last Updated': item.updated_at ? formatDisplayDate(item.updated_at) : ''
       })))
       XLSX.utils.book_append_sheet(workbook, inventorySheet, 'Inventory Items')
 
@@ -332,7 +334,7 @@ const CompanyDetailPage = () => {
       const XLSX = await import('xlsx')
       const worksheetData = sortedPurchaseHistory.map(row => ({
         'Order #': row.orderNumber,
-        Date: row.orderDate ? row.orderDate.toLocaleDateString() : '',
+        Date: row.orderDate ? formatDisplayDate(row.orderDate) : '',
         Status: row.status,
         'Item Name': row.itemName,
         SKU: row.sku,
@@ -491,7 +493,7 @@ const CompanyDetailPage = () => {
                         />
                       </Stack>
                       <Typography variant="body2" color="textSecondary">
-                        Created: {detailData.company?.created_at ? new Date(detailData.company.created_at).toLocaleDateString() : '—'}
+                        Created: {detailData.company?.created_at ? formatDisplayDate(detailData.company.created_at) : '—'}
                       </Typography>
                     </CardContent>
                   </Card>
@@ -514,7 +516,7 @@ const CompanyDetailPage = () => {
                       </Stack>
                       <Divider sx={{ my: 2, opacity: 0.12 }} />
                         <Typography variant="caption" color="textSecondary">
-                        Last purchase {stats.lastPurchaseDate ? new Date(stats.lastPurchaseDate).toLocaleDateString() : '—'}
+                        Last purchase {stats.lastPurchaseDate ? formatDisplayDate(stats.lastPurchaseDate) : '—'}
                       </Typography>
                     </CardContent>
                   </Card>
@@ -677,7 +679,7 @@ const CompanyDetailPage = () => {
                             detailData.purchaseOrders.map(order => (
                               <TableRow key={order.id}>
                                 <TableCell>{order.order_number}</TableCell>
-                                <TableCell>{order.order_date ? new Date(order.order_date).toLocaleDateString() : (order.created_at ? new Date(order.created_at).toLocaleDateString() : '—')}</TableCell>
+                                <TableCell>{order.order_date ? formatDisplayDate(order.order_date) : (order.created_at ? formatDisplayDate(order.created_at) : '—')}</TableCell>
                                 <TableCell>
                                   <Chip label={order.status || 'Pending'} size="small" color={order.status === 'COMPLETED' ? 'success' : 'default'} />
                                 </TableCell>
@@ -718,7 +720,7 @@ const CompanyDetailPage = () => {
                       <Grid container spacing={2} sx={{ mb: 2 }}>
                         <Grid item xs={12} sm={6} md={3}>
                           <LocalizationProvider dateAdapter={AdapterDateFns}>
-                            <DatePicker
+                            <AppDatePicker
                               label="Start date"
                               value={historyStartDate}
                               onChange={(newValue) => setHistoryStartDate(newValue)}
@@ -728,7 +730,7 @@ const CompanyDetailPage = () => {
                         </Grid>
                         <Grid item xs={12} sm={6} md={3}>
                           <LocalizationProvider dateAdapter={AdapterDateFns}>
-                            <DatePicker
+                            <AppDatePicker
                               label="End date"
                               value={historyEndDate}
                               onChange={(newValue) => setHistoryEndDate(newValue)}
@@ -822,7 +824,7 @@ const CompanyDetailPage = () => {
                               sortedPurchaseHistory.map((row) => (
                                 <TableRow key={row.id}>
                                   <TableCell>{row.orderNumber}</TableCell>
-                                  <TableCell>{row.orderDate ? row.orderDate.toLocaleDateString() : '—'}</TableCell>
+                                  <TableCell>{row.orderDate ? formatDisplayDate(row.orderDate) : '—'}</TableCell>
                                   <TableCell>
                                     <Chip label={row.status} size="small" color={row.status === 'COMPLETED' ? 'success' : 'default'} />
                                   </TableCell>
@@ -873,7 +875,7 @@ const CompanyDetailPage = () => {
                                 <TableCell>{item.category}</TableCell>
                                 <TableCell>{formatNumber(item.current_stock)}</TableCell>
                                 <TableCell>{formatCurrency(item.cost_price)}</TableCell>
-                                <TableCell>{item.updated_at ? new Date(item.updated_at).toLocaleDateString() : '—'}</TableCell>
+                                <TableCell>{item.updated_at ? formatDisplayDate(item.updated_at) : '—'}</TableCell>
                               </TableRow>
                             ))
                           )}

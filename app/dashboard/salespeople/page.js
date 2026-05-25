@@ -1,4 +1,6 @@
 'use client'
+import AppDatePicker from '../../../components/date/AppDatePicker'
+import { formatDisplayDate } from '../../../utils/displayDates'
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Box,
@@ -33,7 +35,7 @@ import {
   ListItemIcon
 } from '@mui/material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import {
   Add as AddIcon,
@@ -203,7 +205,7 @@ const SalespeoplePage = () => {
       sp.email || 'N/A',
       sp.warehouse_name || 'N/A',
       sp.status,
-      new Date(sp.created_at).toLocaleDateString()
+      formatDisplayDate(sp.created_at)
     ])
     return [headers, ...rows].map(row => row.join(',')).join('\n')
   }
@@ -219,7 +221,7 @@ const SalespeoplePage = () => {
         'Email': sp.email || 'N/A',
         'Warehouse': sp.warehouse_name || 'N/A',
         'Status': sp.status,
-        'Created At': new Date(sp.created_at).toLocaleDateString()
+        'Created At': formatDisplayDate(sp.created_at)
       }))
       
       const workbook = XLSX.utils.book_new()
@@ -253,7 +255,7 @@ const SalespeoplePage = () => {
         <body>
           <div class="header">
             <h1>Salespeople Report</h1>
-            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+            <p>Generated on: ${formatDisplayDate(new Date())}</p>
             <p>Total Records: ${salespeopleData.length}</p>
           </div>
           
@@ -284,7 +286,7 @@ const SalespeoplePage = () => {
                   <td>${sp.email || 'N/A'}</td>
                   <td>${sp.warehouse_name || 'N/A'}</td>
                   <td class="status-${sp.status.toLowerCase()}">${sp.status}</td>
-                  <td>${new Date(sp.created_at).toLocaleDateString()}</td>
+                  <td>${formatDisplayDate(sp.created_at)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -492,7 +494,7 @@ const SalespeoplePage = () => {
       ['Salesperson Sales Report Summary'],
       ['Salesperson', selectedSalespersonForSales?.name || 'Unknown'],
       ['Report Date Range', salespersonStartDate && salespersonEndDate 
-        ? `${salespersonStartDate.toLocaleDateString()} - ${salespersonEndDate.toLocaleDateString()}`
+        ? `${formatDisplayDate(salespersonStartDate)} - ${formatDisplayDate(salespersonEndDate)}`
         : 'All Time'],
       ['Total Transactions', transactionCount],
       ['Total Subtotal', totalSubtotal.toFixed(2)],
@@ -523,7 +525,7 @@ const SalespeoplePage = () => {
       const customerInfo = sale.customerInfo || (sale.customer_info ? JSON.parse(sale.customer_info) : {})
       return [
         sale.id,
-        saleDate.toLocaleDateString(),
+        formatDisplayDate(saleDate),
         saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
         sale.invoice_no || 'N/A',
         customerInfo.name || sale.customer_name || 'Walk-in Customer',
@@ -562,7 +564,7 @@ const SalespeoplePage = () => {
         ['Salesperson Sales Report Summary'],
         ['Salesperson', selectedSalespersonForSales?.name || 'Unknown'],
         ['Report Date Range', salespersonStartDate && salespersonEndDate 
-          ? `${salespersonStartDate.toLocaleDateString()} - ${salespersonEndDate.toLocaleDateString()}`
+          ? `${formatDisplayDate(salespersonStartDate)} - ${formatDisplayDate(salespersonEndDate)}`
           : 'All Time'],
         ['Total Transactions', transactionCount],
         ['Total Subtotal', totalSubtotal.toFixed(2)],
@@ -587,7 +589,7 @@ const SalespeoplePage = () => {
         const customerInfo = sale.customerInfo || (sale.customer_info ? JSON.parse(sale.customer_info) : {})
         return {
           'ID': sale.id,
-          'Date': saleDate.toLocaleDateString(),
+          'Date': formatDisplayDate(saleDate),
           'Time': saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
           'Invoice #': sale.invoice_no || 'N/A',
           'Customer': customerInfo.name || sale.customer_name || 'Walk-in Customer',
@@ -634,7 +636,7 @@ const SalespeoplePage = () => {
     const totalTransactions = salesData.length
     
     const dateRange = salespersonStartDate && salespersonEndDate
-      ? `${salespersonStartDate.toLocaleDateString()} to ${salespersonEndDate.toLocaleDateString()}`
+      ? `${formatDisplayDate(salespersonStartDate)} to ${formatDisplayDate(salespersonEndDate)}`
       : 'All Time'
     
     const itemSummary = buildItemSummary(salesData)
@@ -721,7 +723,7 @@ const SalespeoplePage = () => {
         <body>
           <div class="header">
             <h1>Salesperson Sales Report</h1>
-            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+            <p>Generated on: ${formatDisplayDate(new Date())}</p>
             <p><strong>Salesperson:</strong> ${salespersonName}</p>
             <p><strong>Date Range:</strong> ${dateRange}</p>
           </div>
@@ -796,7 +798,7 @@ const SalespeoplePage = () => {
                 const customerName = customerInfo.name || sale.customer_name || 'Walk-in Customer'
                 return `
                   <tr>
-                    <td>${saleDate.toLocaleDateString()} ${saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
+                    <td>${formatDisplayDate(saleDate)} ${saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                     <td>${sale.invoice_no || 'N/A'}</td>
                     <td>${customerName}</td>
                     <td class="amount">${parseFloat(sale.total || 0).toFixed(2)}</td>
@@ -1237,7 +1239,7 @@ const SalespeoplePage = () => {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
               <Typography variant="subtitle2" sx={{ minWidth: 120 }}>Date Range:</Typography>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
+                <AppDatePicker
                   label="Start Date"
                   value={salespersonStartDate}
                   onChange={(newValue) => {
@@ -1252,7 +1254,7 @@ const SalespeoplePage = () => {
                 />
               </LocalizationProvider>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
+                <AppDatePicker
                   label="End Date"
                   value={salespersonEndDate}
                   onChange={(newValue) => {
@@ -1413,7 +1415,7 @@ const SalespeoplePage = () => {
                       return (
                         <TableRow key={sale.id} hover>
                           <TableCell>
-                            {saleDate.toLocaleDateString()} {saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {formatDisplayDate(saleDate)} {saleDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
                           </TableCell>
                           <TableCell>{sale.invoice_no || 'N/A'}</TableCell>
                           <TableCell>{customerInfo.name || sale.customer_name || 'Walk-in Customer'}</TableCell>

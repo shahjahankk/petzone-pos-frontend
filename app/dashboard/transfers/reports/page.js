@@ -1,5 +1,6 @@
 'use client'
-
+import { formatDisplayDate } from '../../../../utils/displayDates'
+import AppDateField from '../../../../components/date/AppDateField'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import api from '../../../../utils/axios'
@@ -174,7 +175,7 @@ const TransferReportsPage = () => {
         transfer.status,
         transfer.initiated_by_name,
         transfer.approved_by_name || '',
-        new Date(transfer.created_at).toLocaleDateString(),
+        formatDisplayDate(transfer.created_at),
         transfer.expected_date || '',
         transfer.actual_date || '',
         transfer.notes || ''
@@ -444,17 +445,17 @@ const TransferReportsPage = () => {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {new Date(transfer.created_at).toLocaleDateString()}
+                    {formatDisplayDate(transfer.created_at)}
                   </Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {transfer.expected_date ? new Date(transfer.expected_date).toLocaleDateString() : '-'}
+                    {transfer.expected_date ? formatDisplayDate(transfer.expected_date) : '-'}
                   </Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {transfer.actual_date ? new Date(transfer.actual_date).toLocaleDateString() : '-'}
+                    {transfer.actual_date ? formatDisplayDate(transfer.actual_date) : '-'}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -517,25 +518,17 @@ const TransferReportsPage = () => {
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6} md={3}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
+                  <AppDateField
                     label="Start Date"
                     value={filters.startDate}
-                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
+                    onChange={(v) => handleFilterChange('startDate', v)}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
+                  <AppDateField
                     label="End Date"
                     value={filters.endDate}
-                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
+                    onChange={(v) => handleFilterChange('endDate', v)}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>

@@ -1,4 +1,6 @@
 'use client';
+import AppDatePicker from '../../../../components/date/AppDatePicker'
+import { formatDisplayDate, formatDisplayDateTime } from '../../../../utils/displayDates'
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
@@ -52,7 +54,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import PrintIcon from '@mui/icons-material/Print';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+;
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import RouteGuard from '../../../../components/auth/RouteGuard';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
@@ -187,15 +189,7 @@ const WarehouseSalesAnalyticsPage = () => {
   };
 
   // Format date
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const formatDate = (dateString) => formatDisplayDateTime(dateString)
 
   // Payment method colors
   const getPaymentMethodColor = (method) => {
@@ -602,14 +596,14 @@ const WarehouseSalesAnalyticsPage = () => {
               </Typography>
               <LocalizationProvider dateAdapter={AdapterDateFns}>
                 <Box sx={{ mb: 2 }}>
-                  <DatePicker
+                  <AppDatePicker
                     label="Start Date"
                     value={filters.startDate ? new Date(filters.startDate) : null}
                     onChange={(date) => handleFilterChange('startDate', date?.toISOString().split('T')[0] || '')}
                     slotProps={{ textField: { size: 'small', fullWidth: true } }}
                     sx={{ mb: 1 }}
                   />
-                  <DatePicker
+                  <AppDatePicker
                     label="End Date"
                     value={filters.endDate ? new Date(filters.endDate) : null}
                     onChange={(date) => handleFilterChange('endDate', date?.toISOString().split('T')[0] || '')}

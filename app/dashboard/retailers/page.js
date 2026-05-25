@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -578,7 +579,7 @@ const RetailersPage = () => {
                                 if (!createdAt) return 'Unknown'
                                 const d = typeof createdAt === 'string' || createdAt instanceof Date ? new Date(createdAt) : null
                                 if (!d || isNaN(d.getTime())) return 'Unknown'
-                                return d.toLocaleDateString()
+                                return formatDisplayDate(d)
                               })()}
                             </Typography>
                           </TableCell>

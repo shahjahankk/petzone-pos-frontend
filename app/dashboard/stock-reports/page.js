@@ -1,5 +1,6 @@
 'use client'
-
+import { formatDisplayDate } from '../../../utils/displayDates'
+import AppDateField from '../../../components/date/AppDateField'
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -546,7 +547,7 @@ function StockReportsPage() {
             return (
             <TableRow key={report.id} hover>
               <TableCell>
-                {new Date(report.createdAt).toLocaleDateString()}
+                {formatDisplayDate(report.createdAt)}
                 <br />
                 <Typography variant="caption" color="text.secondary">
                   {new Date(report.createdAt).toLocaleTimeString()}
@@ -974,25 +975,17 @@ function StockReportsPage() {
                   </FormControl>
                 </Grid>
                 <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
+                  <AppDateField
                     label="Start Date"
                     value={filters.startDate}
-                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
+                    onChange={(v) => handleFilterChange('startDate', v)}
                   />
                 </Grid>
                 <Grid item xs={12} md={2}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    type="date"
+                  <AppDateField
                     label="End Date"
                     value={filters.endDate}
-                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
+                    onChange={(v) => handleFilterChange('endDate', v)}
                   />
                 </Grid>
               </Grid>

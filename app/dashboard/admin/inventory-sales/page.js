@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../../utils/displayDates'
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -517,7 +518,7 @@ function AdminInventorySalesPage() {
                   <TableRow key={sale.id}>
                     <TableCell>{sale.id}</TableCell>
                     <TableCell>
-                      {new Date(sale.created_at).toLocaleDateString()}
+                      {formatDisplayDate(sale.created_at)}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

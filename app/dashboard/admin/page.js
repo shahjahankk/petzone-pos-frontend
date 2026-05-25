@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate } from '../../../utils/displayDates'
 
 import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -315,7 +316,7 @@ function AdminDashboard() {
                         {sale.total?.toFixed(2) || '0.00'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(sale.createdAt).toLocaleDateString()}
+                        {formatDisplayDate(sale.createdAt)}
                       </td>
                     </tr>
                   ))}

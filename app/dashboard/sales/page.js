@@ -1,4 +1,6 @@
 'use client'
+import AppDatePicker from '../../../components/date/AppDatePicker'
+import { formatDisplayDate } from '../../../utils/displayDates'
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -18,9 +20,6 @@ import {
   Visibility as ViewIcon, Receipt as ReceiptIcon, Refresh as RefreshIcon,
   Print as PrintIcon
 } from '@mui/icons-material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import withAuth from '../../../components/auth/withAuth'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../components/auth/RouteGuard'
@@ -714,7 +713,7 @@ const SalesManagement = () => {
     return Array.from(map.values()).sort((a, b) => b.totalQuantity - a.totalQuantity)
   }
 
-  const safeDate = (d) => d ? d.toLocaleDateString() : 'N/A'
+  const safeDate = (d) => d ? formatDisplayDate(d) : 'N/A'
 
   const getSalespersonCell = (sale, hasWarehouse) => {
     if (!hasWarehouse) return []
@@ -760,7 +759,7 @@ const SalesManagement = () => {
       const d = new Date(sale.created_at)
       return [
         sale.id,
-        d.toLocaleDateString(),
+        formatDisplayDate(d),
         d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
         sale.invoice_no || 'N/A',
         resolveCustomerName(sale),
@@ -799,7 +798,7 @@ const SalesManagement = () => {
         const d = new Date(sale.created_at)
         return {
           'ID':             sale.id,
-          'Date':           d.toLocaleDateString(),
+          'Date':           formatDisplayDate(d),
           'Time':           d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
           'Invoice #':      sale.invoice_no || 'N/A',
           'Customer':       resolveCustomerName(sale),
@@ -871,7 +870,7 @@ const SalesManagement = () => {
         <body>
           <div class="header">
             <h1>Sales Report</h1>
-            <p>Generated on: ${new Date().toLocaleDateString()}</p>
+            <p>Generated on: ${formatDisplayDate(new Date())}</p>
             <p>Date Range: ${safeDate(startDate)} to ${safeDate(endDate)}</p>
             <p>Total Records: ${salesData.length}</p>
           </div>
@@ -907,7 +906,7 @@ const SalesManagement = () => {
                 const d = new Date(sale.created_at)
                 return `
                   <tr>
-                    <td>${d.toLocaleDateString()}</td>
+                    <td>${formatDisplayDate(d)}</td>
                     <td>${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                     <td>${sale.invoice_no || 'N/A'}</td>
                     <td>${resolveCustomerName(sale)}</td>
@@ -1070,16 +1069,12 @@ const SalesManagement = () => {
                         />
                       </Grid>
                       <Grid item xs={12} md={2}>
-                        <LocalizationProvider dateAdapter={AdapterDateFns}>
-                          <DatePicker label="Start Date" value={startDate} onChange={setStartDate}
-                            slotProps={{ textField: { size: 'small', fullWidth: true } }} />
-                        </LocalizationProvider>
+                        <AppDatePicker label="Start Date" value={startDate} onChange={setStartDate}
+                          slotProps={{ textField: { size: 'small', fullWidth: true } }} />
                       </Grid>
                       <Grid item xs={12} md={2}>
-                        <LocalizationProvider dateAdapter={AdapterDateFns}>
-                          <DatePicker label="End Date" value={endDate} onChange={setEndDate}
-                            slotProps={{ textField: { size: 'small', fullWidth: true } }} />
-                        </LocalizationProvider>
+                        <AppDatePicker label="End Date" value={endDate} onChange={setEndDate}
+                          slotProps={{ textField: { size: 'small', fullWidth: true } }} />
                       </Grid>
                       <Grid item xs={12} md={2}>
                         <FormControl fullWidth size="small">
@@ -1221,7 +1216,7 @@ const SalesManagement = () => {
                                 <TableCell>{sale.id}</TableCell>
                                 <TableCell>
                                   {(() => {
-                                    try { const d = new Date(sale.created_at); return isNaN(d) ? 'N/A' : d.toLocaleDateString() }
+                                    try { const d = new Date(sale.created_at); return isNaN(d) ? 'N/A' : formatDisplayDate(d) }
                                     catch { return 'N/A' }
                                   })()}
                                 </TableCell>
@@ -1395,7 +1390,7 @@ const SalesManagement = () => {
                           <Typography variant="body2" fontWeight="bold">{locName}</Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', width: '100%' }}>
-                          <ListItemText primary="Date"     secondary={new Date(sale.createdAt || sale.date).toLocaleDateString()} sx={{ minWidth: 100 }} />
+                          <ListItemText primary="Date"     secondary={formatDisplayDate(sale.createdAt || sale.date)} sx={{ minWidth: 100 }} />
                           <ListItemText primary="Time"     secondary={new Date(sale.createdAt || sale.date).toLocaleTimeString()}  sx={{ minWidth: 100 }} />
                           <ListItemText primary="Customer" secondary={resolveCustomerName(sale)} sx={{ minWidth: 120 }} />
                           <ListItemText primary="Total"    secondary={parseFloat(sale.total || 0).toFixed(2)} sx={{ minWidth: 100 }} />

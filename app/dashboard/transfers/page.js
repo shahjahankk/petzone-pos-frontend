@@ -1,5 +1,6 @@
 'use client'
-
+import { formatDisplayDate } from '../../../utils/displayDates'
+import AppDateField from '../../../components/date/AppDateField'
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -796,7 +797,7 @@ const TransferManagementPage = () => {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {new Date(transfer.created_at).toLocaleDateString()}
+                      {formatDisplayDate(transfer.created_at)}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -1012,25 +1013,17 @@ const TransferManagementPage = () => {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="date"
+                <AppDateField
                   label="Start Date"
                   value={filters.startDate}
-                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                  InputLabelProps={{ shrink: true }}
+                  onChange={(v) => handleFilterChange('startDate', v)}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="date"
+                <AppDateField
                   label="End Date"
                   value={filters.endDate}
-                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                  InputLabelProps={{ shrink: true }}
+                  onChange={(v) => handleFilterChange('endDate', v)}
                 />
               </Grid>
             </Grid>

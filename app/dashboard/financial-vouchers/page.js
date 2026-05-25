@@ -1,4 +1,5 @@
 'use client'
+import AppDatePicker from '../../../components/date/AppDatePicker'
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useSearchParams } from 'next/navigation'
@@ -61,7 +62,7 @@ import {
   Business,
   Store,
 } from '@mui/icons-material'
-import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import { format } from 'date-fns'
@@ -82,7 +83,7 @@ const FinancialVouchersPage = () => {
   const theme = useTheme()
 
   // Helper function to safely format dates
-  const formatDate = (dateString, formatStr = 'dd/MM/yyyy') => {
+  const formatDate = (dateString, formatStr = 'dd MMM yyyy') => {
     if (!dateString) return 'N/A'
     try {
       const date = new Date(dateString)
@@ -608,7 +609,7 @@ const FinancialVouchersPage = () => {
           <body>
             <div class="header">
               <h1>Financial Vouchers Report</h1>
-              <p>Generated on: ${format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
+              <p>Generated on: ${format(new Date(), 'dd MMM yyyy HH:mm')}</p>
               <p>Total Records: ${data.length}</p>
             </div>
             <table>
@@ -769,7 +770,7 @@ const FinancialVouchersPage = () => {
                   {(reportFilters.type === 'daily' || reportFilters.type === 'monthly') && (
                     <>
                       {reportFilters.type === 'daily' && (
-                        <DatePicker
+                        <AppDatePicker
                           label="Select Date"
                           value={reportFilters.date}
                           onChange={(newValue) => setReportFilters(prev => ({ ...prev, date: newValue }))}
@@ -1107,7 +1108,7 @@ const FinancialVouchersPage = () => {
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
+                    <AppDatePicker
                       label="Date From"
                       value={filters.dateFrom ? new Date(filters.dateFrom) : null}
                       onChange={(newValue) => {
@@ -1125,7 +1126,7 @@ const FinancialVouchersPage = () => {
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
+                    <AppDatePicker
                       label="Date To"
                       value={filters.dateTo ? new Date(filters.dateTo) : null}
                       onChange={(newValue) => {

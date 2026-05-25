@@ -1,5 +1,6 @@
 'use client'
 
+import AppDateField from '../../../../components/date/AppDateField'
 import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import * as yup from 'yup'
@@ -302,25 +303,17 @@ function WarehouseLedgerEntriesTab({ warehouseId }) {
             </FormControl>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              size="small"
+            <AppDateField
               label="Start Date"
-              type="date"
               value={filters.startDate}
-              onChange={(e) => handleFilterChange('startDate', e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              onChange={(v) => handleFilterChange('startDate', v)}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              size="small"
+            <AppDateField
               label="End Date"
-              type="date"
               value={filters.endDate}
-              onChange={(e) => handleFilterChange('endDate', e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              onChange={(v) => handleFilterChange('endDate', v)}
             />
           </Grid>
         </Grid>

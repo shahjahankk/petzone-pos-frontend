@@ -1,4 +1,5 @@
 'use client'
+import { formatDisplayDate, formatDisplayMonthYear } from '../../../../../utils/displayDates'
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -176,7 +177,7 @@ function ProductStockHistoryPage() {
                         Purchase Date
                       </Typography>
                       <Typography variant="body1">
-                        {productData.purchase_date ? new Date(productData.purchase_date).toLocaleDateString() : 'N/A'}
+                        {productData.purchase_date ? formatDisplayDate(productData.purchase_date) : 'N/A'}
                       </Typography>
                       {productData.purchase_price && (
                         <Typography variant="caption" color="text.secondary">
@@ -369,7 +370,7 @@ function ProductStockHistoryPage() {
                 return (
                   <TableRow key={index} hover>
                     <TableCell>
-                      {new Date(movement.date).toLocaleDateString()}
+                      {formatDisplayDate(movement.date)}
                     </TableCell>
                     <TableCell>
                       <Typography color="success.main">
@@ -438,7 +439,7 @@ function ProductStockHistoryPage() {
                 const adjusted = parseFloat(movement.adjusted || 0)
                 
                 const netChange = purchased - sold + returned + adjusted
-                const monthName = new Date(movement.year, movement.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                const monthName = formatDisplayMonthYear(movement.year, movement.month)
                 return (
                   <TableRow key={index} hover>
                     <TableCell>
@@ -506,7 +507,7 @@ function ProductStockHistoryPage() {
               {recentTransactions.map((transaction) => (
                 <TableRow key={transaction.id} hover>
                   <TableCell>
-                    {transaction.createdAt ? new Date(transaction.createdAt).toLocaleDateString() : 'Invalid Date'}
+                    {transaction.createdAt ? formatDisplayDate(transaction.createdAt) : 'Invalid Date'}
                     <br />
                     <Typography variant="caption" color="text.secondary">
                       {transaction.createdAt ? new Date(transaction.createdAt).toLocaleTimeString() : 'Invalid Time'}

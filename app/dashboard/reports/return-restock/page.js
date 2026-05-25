@@ -1,5 +1,6 @@
 'use client'
 
+import AppDateField from '../../../../components/date/AppDateField'
 import { useEffect, useState, useCallback } from 'react'
 import { useTheme } from '@mui/material/styles'
 import {
@@ -457,14 +458,12 @@ export default function ReturnRestockReportPage() {
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth size="small" type="date" label="From"
-                  value={filters.from} onChange={(e) => setF('from', e.target.value)}
-                  InputLabelProps={{ shrink: true }} />
+                <AppDateField label="From"
+                  value={filters.from} onChange={(v) => setF('from', v)} />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth size="small" type="date" label="To"
-                  value={filters.to} onChange={(e) => setF('to', e.target.value)}
-                  InputLabelProps={{ shrink: true }} />
+                <AppDateField label="To"
+                  value={filters.to} onChange={(v) => setF('to', v)} />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <TextField fullWidth size="small" label="Search invoice / item / customer"
