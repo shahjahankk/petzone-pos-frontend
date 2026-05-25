@@ -195,6 +195,15 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   const dropdownRef = useRef(null)
 
   useEffect(() => {
+    if (!item.id) {
+      setItemSearch('')
+      setOpen(false)
+    } else {
+      setItemSearch(item.name || '')
+    }
+  }, [item.id, item.name])
+
+  useEffect(() => {
     if (autoFocusItem && itemInputRef.current) {
       setTimeout(() => itemInputRef.current?.focus(), 50)
     }
@@ -687,11 +696,11 @@ function WarehouseBillingPage() {
   }, [tabs, activeTabId])
 
   const currentCart = useMemo(() => {
-    return currentTab?.cart || []
+    return (currentTab?.cart || []).filter((item) => item?.id != null && item?.id !== '')
   }, [currentTab])
 
   const cartWithPlaceholder = useMemo(() => {
-    return currentCart.length > 0 ? currentCart : [EMPTY_CART_ROW]
+    return [...currentCart, { ...EMPTY_CART_ROW }]
   }, [currentCart])
 
   const updateCurrentTab = useCallback((updates) => {
@@ -839,24 +848,36 @@ function WarehouseBillingPage() {
   }, [retailersError, currentCart, updateCurrentTabCart, fetchLastCustomerItemPrice])
 
   const handleRowUpdate = useCallback((index, updates) => {
-    if (currentCart.length === 0) {
-      updateCurrentTab({ cart: [{ ...EMPTY_CART_ROW, ...updates }] })
+    const hasProductId = updates?.id != null && updates?.id !== ''
+    const clearingItem = Object.prototype.hasOwnProperty.call(updates, 'id') &&
+      (updates.id == null || updates.id === '') &&
+      updates?.name === ''
+
+    if (index >= currentCart.length) {
+      if (hasProductId) {
+        updateCurrentTab({ cart: [...currentCart, { ...EMPTY_CART_ROW, ...updates }] })
+      }
       return
     }
+
+    if (clearingItem) {
+      updateCurrentTab({ cart: currentCart.filter((_, i) => i !== index) })
+      return
+    }
+
     const newCart = currentCart.map((item, i) => (i === index ? { ...item, ...updates } : item))
     updateCurrentTab({ cart: newCart })
   }, [currentCart, updateCurrentTab])
 
   const handleRowRemove = useCallback((index) => {
-    const newCart = currentCart.filter((_, i) => i !== index)
-    updateCurrentTab({ cart: newCart })
+    if (index >= currentCart.length) return
+    updateCurrentTab({ cart: currentCart.filter((_, i) => i !== index) })
   }, [currentCart, updateCurrentTab])
 
   const handleAddRow = useCallback(() => {
-    const newCart = [...currentCart, { ...EMPTY_CART_ROW }]
-    updateCurrentTab({ cart: newCart })
     setNewRowIndex(currentCart.length)
-  }, [currentCart, updateCurrentTab])
+    setTimeout(() => setNewRowIndex(null), 150)
+  }, [currentCart.length])
 
   useEffect(() => {
     if (!user) return
@@ -1712,7 +1733,9 @@ function WarehouseBillingPage() {
   }
 
   const TabComponent = ({ tab, isActive, onClose, onClick }) => {
-    const itemCount = tab.cart.reduce((sum, item) => sum + item.quantity, 0)
+    const itemCount = tab.cart
+      .filter((item) => item?.id != null && item?.id !== '')
+      .reduce((sum, item) => sum + item.quantity, 0)
     const hasItems = itemCount > 0
     return (
       <Paper
@@ -2243,7 +2266,10 @@ function WarehouseBillingPage() {
                         onRemove={handleRowRemove}
                         onAddRow={handleAddRow}
                         isLast={index === cartWithPlaceholder.length - 1}
-                        autoFocusItem={index === newRowIndex || (index === 0 && currentCart.length === 0)}
+                        autoFocusItem={
+                          index === newRowIndex ||
+                          (index === cartWithPlaceholder.length - 1 && !item.id && newRowIndex === null)
+                        }
                         fetchLastCustomerItemPrice={fetchLastCustomerItemPrice}
                       />
                     ))}
