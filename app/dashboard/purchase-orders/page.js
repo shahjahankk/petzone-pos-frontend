@@ -35,9 +35,13 @@ const defaultCategories = ['General', 'Food', 'Accessories', 'Medicine', 'Toys',
 
 const statusConfig = {
   PENDING:   { color: 'warning', icon: <PendingIcon />, label: 'Pending' },
+  ORDERED:   { color: 'warning', icon: <PendingIcon />, label: 'Ordered' },
   COMPLETED: { color: 'success', icon: <CheckIcon />,   label: 'Completed' },
   CANCELLED: { color: 'error',   icon: <CancelIcon />,  label: 'Cancelled' }
 }
+
+const OPEN_PO_STATUSES = new Set(['PENDING', 'ORDERED'])
+const isOpenPoStatus = (status) => OPEN_PO_STATUSES.has(String(status || '').trim().toUpperCase())
 
 const purchaseOrderSchema = yup.object({
   supplierId:       yup.number().typeError('Supplier is required').required('Supplier is required'),
@@ -776,7 +780,9 @@ function PurchaseOrdersPage() {
     try {
       await dispatch(updatePurchaseOrderStatus({ id: orderId, status })).unwrap()
       dispatch(fetchPurchaseOrders(filters))
-    } catch (e) {}
+    } catch (e) {
+      window.alert(e?.message || e || 'Failed to update purchase order status')
+    }
   }
 
   const handleDeleteOrder = async () => {
@@ -976,7 +982,7 @@ function PurchaseOrdersPage() {
                           const cfg         = statusConfig[orderStatus]
                           const canEdit     =
                             user?.role === 'ADMIN' ||
-                            (orderStatus === 'PENDING' && (
+                            (isOpenPoStatus(orderStatus) && (
                               (user?.role === 'WAREHOUSE_KEEPER' && order.scopeType === 'WAREHOUSE' && order.scopeId === user.warehouseId) ||
                               (user?.role === 'CASHIER'          && order.scopeType === 'BRANCH'    && order.scopeId === user.branchId)
                             ))
@@ -1017,7 +1023,7 @@ function PurchaseOrdersPage() {
                                       <IconButton size="small" onClick={() => handleEditOrder(order)} color="primary"><EditIcon /></IconButton>
                                     </Tooltip>
                                   )}
-                                  {(user?.role === 'ADMIN' || originalUser?.role === 'ADMIN') && orderStatus === 'PENDING' && (
+                                  {(user?.role === 'ADMIN' || originalUser?.role === 'ADMIN') && isOpenPoStatus(orderStatus) && (
                                     <>
                                       <Tooltip title="Mark Completed">
                                         <IconButton size="small" onClick={() => handleStatusUpdate(order.id, 'COMPLETED')} color="success"><CheckIcon /></IconButton>
