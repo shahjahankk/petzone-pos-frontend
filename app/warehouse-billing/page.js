@@ -204,16 +204,40 @@ const createEmptyTabState = (overrides = {}) => ({
 })
 
 // ─── Inline Row Component ────────────────────────────────────────────────────
-function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem, fetchLastCustomerItemPrice, onEnsureRowVisible, focusRequestRef }) {
+function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, isLast, autoFocusItem, fetchLastCustomerItemPrice, onEnsureRowVisible, focusRequestRef, orderTableScrollRef }) {
   const theme = useTheme()
   const [itemSearch, setItemSearch] = useState(item.name || '')
   const [open, setOpen] = useState(false)
+  const [dropdownAbove, setDropdownAbove] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const itemInputRef = useRef(null)
   const priceInputRef = useRef(null)
   const qtyInputRef = useRef(null)
   const discountInputRef = useRef(null)
   const dropdownRef = useRef(null)
+
+  const syncDropdownPlacement = useCallback(() => {
+    const inputEl = itemInputRef.current
+    if (!inputEl) return
+    const inputRect = inputEl.getBoundingClientRect()
+    const container = orderTableScrollRef?.current
+    const containerRect = container?.getBoundingClientRect()
+    const viewportBottom = containerRect?.bottom ?? window.innerHeight
+    const viewportTop = containerRect?.top ?? 0
+    const spaceBelow = viewportBottom - inputRect.bottom
+    const spaceAbove = inputRect.top - viewportTop
+    const preferredHeight = 320
+    setDropdownAbove(spaceBelow < preferredHeight && spaceAbove > spaceBelow)
+  }, [orderTableScrollRef])
+
+  const ensureRowAndDropdownVisible = useCallback((block = 'center') => {
+    onEnsureRowVisible?.(index, block)
+    requestAnimationFrame(() => {
+      syncDropdownPlacement()
+      itemInputRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+      dropdownRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    })
+  }, [index, onEnsureRowVisible, syncDropdownPlacement])
 
   const focusField = useCallback((field, attempt = 0) => {
     const selector = `input[data-order-field="${field}"][data-order-row="${index}"]`
@@ -281,17 +305,22 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
   }, [item.id, index, focusRequestRef, focusField])
 
   useEffect(() => {
+    if (!open) return
+    ensureRowAndDropdownVisible('center')
+  }, [open, itemSearch, ensureRowAndDropdownVisible])
+
+  useEffect(() => {
     setHighlightedIndex(-1)
   }, [open, itemSearch])
 
   useEffect(() => {
-    if (highlightedIndex >= 0 && dropdownRef.current) {
-      const items = dropdownRef.current.querySelectorAll('[data-dropdown-item]')
-      if (items[highlightedIndex]) {
-        items[highlightedIndex].scrollIntoView({ block: 'nearest' })
-      }
+    if (highlightedIndex < 0 || !dropdownRef.current) return
+    const items = dropdownRef.current.querySelectorAll('[data-dropdown-item]')
+    if (items[highlightedIndex]) {
+      items[highlightedIndex].scrollIntoView({ block: 'nearest' })
     }
-  }, [highlightedIndex])
+    ensureRowAndDropdownVisible('center')
+  }, [highlightedIndex, ensureRowAndDropdownVisible])
 
   const filteredProducts = useMemo(() => {
     if (!itemSearch || itemSearch.length < 1) return []
@@ -392,7 +421,7 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     if (e.key === 'ArrowDown' && hasDropdown) {
       e.preventDefault()
       setHighlightedIndex((prev) =>
-        prev < 0 ? 0 : (prev + 1) % filteredProducts.length
+        prev < 0 ? 0 : Math.min(prev + 1, filteredProducts.length - 1)
       )
       return
     }
@@ -400,8 +429,31 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
     if (e.key === 'ArrowUp' && hasDropdown) {
       e.preventDefault()
       setHighlightedIndex((prev) =>
-        prev <= 0 ? filteredProducts.length - 1 : prev - 1
+        prev <= 0 ? 0 : prev - 1
       )
+      return
+    }
+
+    if ((e.key === 'PageDown' || e.key === 'PageUp') && hasDropdown) {
+      e.preventDefault()
+      const step = 8
+      setHighlightedIndex((prev) => {
+        const start = prev < 0 ? 0 : prev
+        if (e.key === 'PageDown') return Math.min(start + step, filteredProducts.length - 1)
+        return Math.max(start - step, 0)
+      })
+      return
+    }
+
+    if (e.key === 'Home' && hasDropdown) {
+      e.preventDefault()
+      setHighlightedIndex(0)
+      return
+    }
+
+    if (e.key === 'End' && hasDropdown) {
+      e.preventDefault()
+      setHighlightedIndex(filteredProducts.length - 1)
       return
     }
 
@@ -505,13 +557,13 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
             onChange={(e) => {
               setItemSearch(e.target.value)
               if (item.id) {
-                onUpdate(index, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0 })
+                onUpdate(index, { id: null, name: '', price: 0, quantity: 1, discount: 0, customPrice: 0, lastPriceHint: null })
               }
               setOpen(true)
             }}
             onFocus={() => {
               if (!item.id) setOpen(true)
-              onEnsureRowVisible?.(index)
+              ensureRowAndDropdownVisible('center')
             }}
             onKeyDown={handleItemSearchKeyDown}
             inputProps={{
@@ -535,7 +587,8 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
               ref={dropdownRef}
               sx={{
                 position: 'absolute',
-                top: '100%',
+                top: dropdownAbove ? 'auto' : '100%',
+                bottom: dropdownAbove ? '100%' : 'auto',
                 left: 0,
                 right: 0,
                 zIndex: 1400,
@@ -543,8 +596,9 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
                 overflowY: 'auto',
                 boxShadow: 6,
                 border: `1px solid ${theme.palette.primary.main}`,
-                borderTop: 'none',
-                borderRadius: '0 0 8px 8px'
+                borderTop: dropdownAbove ? `1px solid ${theme.palette.primary.main}` : 'none',
+                borderBottom: dropdownAbove ? 'none' : `1px solid ${theme.palette.primary.main}`,
+                borderRadius: dropdownAbove ? '8px 8px 0 0' : '0 0 8px 8px'
               }}
             >
               {filteredProducts.map((product, pi) => (
@@ -635,9 +689,10 @@ function OrderRow({ item, index, inventoryItems, onUpdate, onRemove, onAddRow, i
               }
             }}
           />
-          {item.id && item.lastPriceHint?.lastInvoice != null && (
+          {item.id && item.lastPriceHint?.lastPrice != null && Number.isFinite(Number(item.lastPriceHint.lastPrice)) && (
             <Typography variant="caption" sx={{ ...billingNumTypo, fontSize: '0.65rem', fontWeight: 500, color: 'text.secondary', lineHeight: 1.2, textAlign: 'right' }}>
-              Last price: Rs {Math.round(Number(item.lastPriceHint.lastPrice) || 0)} (Invoice {item.lastPriceHint.lastInvoice})
+              Last price: Rs {Math.round(Number(item.lastPriceHint.lastPrice) || 0)}
+              {item.lastPriceHint.lastInvoice ? ` (Invoice ${item.lastPriceHint.lastInvoice})` : ''}
             </Typography>
           )}
         </Box>
@@ -1072,21 +1127,35 @@ function WarehouseBillingPage() {
       (updates.id == null || updates.id === '') &&
       updates?.name === ''
 
-    if (index >= currentCart.length) {
-      if (hasProductId) {
-        updateCurrentTab({ cart: [...currentCart, { ...EMPTY_CART_ROW, ...updates }] })
+    setTabs(prev => prev.map(tab => {
+      if (tab.id !== activeTabId) return tab
+
+      const cart = (tab.cart || []).filter((item) => item?.id != null && item?.id !== '')
+
+      if (index >= cart.length) {
+        if (!hasProductId) return tab
+        return {
+          ...tab,
+          modifiedAt: new Date(),
+          cart: [...cart, { ...EMPTY_CART_ROW, ...updates }]
+        }
       }
-      return
-    }
 
-    if (clearingItem) {
-      updateCurrentTab({ cart: currentCart.filter((_, i) => i !== index) })
-      return
-    }
+      if (clearingItem) {
+        return {
+          ...tab,
+          modifiedAt: new Date(),
+          cart: cart.filter((_, i) => i !== index)
+        }
+      }
 
-    const newCart = currentCart.map((item, i) => (i === index ? { ...item, ...updates } : item))
-    updateCurrentTab({ cart: newCart })
-  }, [currentCart, updateCurrentTab])
+      return {
+        ...tab,
+        modifiedAt: new Date(),
+        cart: cart.map((item, i) => (i === index ? { ...item, ...updates } : item))
+      }
+    }))
+  }, [activeTabId])
 
   const handleRowRemove = useCallback((index) => {
     if (index >= currentCart.length) return
@@ -2497,6 +2566,7 @@ function WarehouseBillingPage() {
 
               <TableContainer
                 ref={orderTableScrollRef}
+                data-order-table-scroll
                 sx={{ flex: 1, overflowY: 'auto', scrollBehavior: 'smooth', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: alpha(theme.palette.primary.main, 0.3), borderRadius: 3 } }}
               >
                 <Table stickyHeader size="small" sx={{ tableLayout: 'fixed' }}>
@@ -2528,6 +2598,7 @@ function WarehouseBillingPage() {
                         fetchLastCustomerItemPrice={fetchLastCustomerItemPrice}
                         onEnsureRowVisible={scrollOrderRowIntoView}
                         focusRequestRef={rowFocusRequestRef}
+                        orderTableScrollRef={orderTableScrollRef}
                       />
                     ))}
                   </TableBody>
