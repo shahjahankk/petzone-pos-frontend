@@ -74,6 +74,16 @@ const ReturnsPage = () => {
     if (typeof returnsError === 'object' && returnsError.message) return String(returnsError.message)
     return 'Something went wrong'
   }, [returnsError])
+
+  const getCustomerDisplay = useCallback((row) => {
+    if (!row) return 'N/A'
+    return row.customerName || row.customer_name || 'N/A'
+  }, [])
+
+  const getCustomerPhone = useCallback((row) => {
+    if (!row) return null
+    return row.customerPhone || row.customer_phone || null
+  }, [])
   const { warehouseSettings } = useSelector((state) => state.warehouses || { warehouseSettings: null })
   const { branchSettings }    = useSelector((state) => state.branches  || { branchSettings: null })
 
@@ -506,8 +516,10 @@ const ReturnsPage = () => {
     const unitPrice   = parseFloat(invoiceItem.unitPrice) || parseFloat(invoiceItem.price) || 0
     const refundAmount = quantity * unitPrice
     const newItem = {
-      productName:  invoiceItem.itemName || invoiceItem.name,
-      quantity:     quantity,
+      productName: invoiceItem.itemName || invoiceItem.name,
+      inventoryItemId: invoiceItem.inventoryItemId || invoiceItem.inventory_item_id || null,
+      sku: invoiceItem.sku || null,
+      quantity,
       refundAmount: refundAmount.toFixed(2)
     }
     setReturnForm(prev => ({ ...prev, items: [...prev.items, newItem] }))
@@ -520,8 +532,10 @@ const ReturnsPage = () => {
       const unitPrice   = parseFloat(invoiceItem.unitPrice) || parseFloat(invoiceItem.price) || 0
       const refundAmount = quantity * unitPrice
       return {
-        productName:  invoiceItem.itemName || invoiceItem.name,
-        quantity:     quantity,
+        productName: invoiceItem.itemName || invoiceItem.name,
+        inventoryItemId: invoiceItem.inventoryItemId || invoiceItem.inventory_item_id || null,
+        sku: invoiceItem.sku || null,
+        quantity,
         refundAmount: refundAmount.toFixed(2)
       }
     })
@@ -559,9 +573,11 @@ const ReturnsPage = () => {
       saleId: parseInt(returnForm.saleId),
       reason: returnForm.reason.trim(),
       notes:  returnForm.notes || '',
-      items:  validItems.map(item => ({
-        productName:  item.productName.trim(),
-        quantity:     parseFloat(item.quantity),
+      items: validItems.map(item => ({
+        productName: item.productName.trim(),
+        inventoryItemId: item.inventoryItemId || null,
+        sku: item.sku || null,
+        quantity: parseFloat(item.quantity),
         refundAmount: parseFloat(item.refundAmount)
       }))
     }
@@ -883,6 +899,7 @@ const ReturnsPage = () => {
                       <TableRow>
                         <TableCell>ID</TableCell>
                         <TableCell>Sale ID</TableCell>
+                        <TableCell>Customer</TableCell>
                         <TableCell>Reason</TableCell>
                         <TableCell align="right">Amount</TableCell>
                         <TableCell>Processed By</TableCell>
@@ -904,6 +921,16 @@ const ReturnsPage = () => {
                                 <Typography variant="caption" color="text.secondary">{returnItem.invoice_no}</Typography>
                               )}
                             </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="medium">
+                              {getCustomerDisplay(returnItem)}
+                            </Typography>
+                            {getCustomerPhone(returnItem) && (
+                              <Typography variant="caption" color="text.secondary">
+                                {getCustomerPhone(returnItem)}
+                              </Typography>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Chip label={returnItem.reason?.replace('_', ' ').toUpperCase() || 'N/A'} size="small" color="secondary" />
@@ -1014,6 +1041,19 @@ const ReturnsPage = () => {
                       }}
                       required
                     />
+                    {selectedInvoice && (selectedInvoice.customer_name || selectedInvoice.customerName) && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Customer:{' '}
+                        <Typography component="span" variant="body2" fontWeight="medium" color="text.primary">
+                          {selectedInvoice.customer_name || selectedInvoice.customerName}
+                        </Typography>
+                        {(selectedInvoice.customer_phone || selectedInvoice.customerPhone) && (
+                          <Typography component="span" variant="body2" color="text.secondary">
+                            {' '}({selectedInvoice.customer_phone || selectedInvoice.customerPhone})
+                          </Typography>
+                        )}
+                      </Typography>
+                    )}
                   </Grid>
                   <Grid item xs={12} sm={8}>
                     <FormControl fullWidth required>
@@ -1055,6 +1095,11 @@ const ReturnsPage = () => {
                       <Box sx={{ mt: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
                         <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>
                           📋 Invoice Items - {selectedInvoice.invoice_no}
+                          {(selectedInvoice.customer_name || selectedInvoice.customerName) && (
+                            <Typography component="span" variant="body1" sx={{ display: 'block', mt: 0.5, fontWeight: 'normal', opacity: 0.95 }}>
+                              Customer: {selectedInvoice.customer_name || selectedInvoice.customerName}
+                            </Typography>
+                          )}
                         </Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                           <Typography variant="body2" sx={{ color: 'white' }}>
@@ -1241,6 +1286,13 @@ const ReturnsPage = () => {
                         <Grid item xs={12} sm={6}>
                           <Typography variant="body2" color="text.secondary">Original Sale ID:</Typography>
                           <Typography variant="body1" fontWeight="medium">{returnDetails.original_sale_id || returnDetails.sale_id || 'N/A'}</Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="body2" color="text.secondary">Customer:</Typography>
+                          <Typography variant="body1" fontWeight="medium">{getCustomerDisplay(returnDetails)}</Typography>
+                          {getCustomerPhone(returnDetails) && (
+                            <Typography variant="caption" color="text.secondary">{getCustomerPhone(returnDetails)}</Typography>
+                          )}
                         </Grid>
                         <Grid item xs={12} sm={6}>
                           <Typography variant="body2" color="text.secondary">Reason:</Typography>
