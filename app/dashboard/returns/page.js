@@ -66,7 +66,14 @@ const ReturnsPage = () => {
 
   // ── Auth: original Redux user ─────────────────────────────────────────────
   const { user: originalUser } = useSelector((state) => state.auth)
-  const { data: returns, total: totalReturnsCount, loading, error } = useSelector((state) => state.returns)
+  const { data: returns, total: totalReturnsCount, loading, error: returnsError } = useSelector((state) => state.returns)
+
+  const errorMessage = useMemo(() => {
+    if (!returnsError) return null
+    if (typeof returnsError === 'string') return returnsError
+    if (typeof returnsError === 'object' && returnsError.message) return String(returnsError.message)
+    return 'Something went wrong'
+  }, [returnsError])
   const { warehouseSettings } = useSelector((state) => state.warehouses || { warehouseSettings: null })
   const { branchSettings }    = useSelector((state) => state.branches  || { branchSettings: null })
 
@@ -867,8 +874,8 @@ const ReturnsPage = () => {
 
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}><CircularProgress /></Box>
-              ) : error ? (
-                <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+              ) : errorMessage ? (
+                <Alert severity="error" sx={{ mb: 2 }}>{errorMessage}</Alert>
               ) : (
                 <TableContainer component={Paper}>
                   <Table>

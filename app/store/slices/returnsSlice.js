@@ -1,6 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
+function resolveErrorMessage(payload, fallback = 'Something went wrong') {
+  if (!payload) return fallback
+  if (typeof payload === 'string') return payload
+  if (typeof payload === 'object' && typeof payload.message === 'string') return payload.message
+  return fallback
+}
+
 // Async thunks for returns
 export const fetchReturns = createAsyncThunk(
   'returns/fetchReturns',
@@ -110,7 +117,7 @@ const returnsSlice = createSlice({
       })
       .addCase(fetchReturns.rejected, (state, action) => {
         state.loading = false
-        state.error = action.payload
+        state.error = resolveErrorMessage(action.payload, 'Failed to fetch returns')
       })
       // Create return
       .addCase(createReturn.pending, (state) => {
@@ -123,9 +130,8 @@ const returnsSlice = createSlice({
         state.data.push(newReturn)
         state.error = null
       })
-      .addCase(createReturn.rejected, (state, action) => {
+      .addCase(createReturn.rejected, (state) => {
         state.loading = false
-        state.error = action.payload
       })
       // Update return
       .addCase(updateReturn.pending, (state) => {
@@ -141,9 +147,8 @@ const returnsSlice = createSlice({
         }
         state.error = null
       })
-      .addCase(updateReturn.rejected, (state, action) => {
+      .addCase(updateReturn.rejected, (state) => {
         state.loading = false
-        state.error = action.payload
       })
       // Delete return
       .addCase(deleteReturn.pending, (state) => {
@@ -155,9 +160,8 @@ const returnsSlice = createSlice({
         state.data = state.data.filter(returnItem => returnItem.id !== action.payload)
         state.error = null
       })
-      .addCase(deleteReturn.rejected, (state, action) => {
+      .addCase(deleteReturn.rejected, (state) => {
         state.loading = false
-        state.error = action.payload
       })
   }
 })
