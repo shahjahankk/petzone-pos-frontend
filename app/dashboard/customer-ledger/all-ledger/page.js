@@ -175,17 +175,40 @@ const handleRefresh = () => {
 const sortTransactionsAsc = (transactions) => {
   if (!transactions || transactions.length === 0) return []
   return [...transactions].sort((a, b) => {
-    const ta = new Date(a.postedAt || a.created_at || 0).getTime()
-    const tb = new Date(b.postedAt || b.created_at || 0).getTime()
+    const ta = new Date(a.postedAt || a.created_at || a.sort_at || 0).getTime()
+    const tb = new Date(b.postedAt || b.created_at || b.sort_at || 0).getTime()
     if (ta !== tb) return ta - tb
     return (a.transaction_id || 0) - (b.transaction_id || 0)
+  })
+}
+
+const firstActivityMs = (group) => {
+  const txs = group?.transactions || []
+  if (!txs.length) return 0
+  return Math.min(
+    ...txs.map((t) =>
+      new Date(t.postedAt || t.created_at || t.sort_at || t.transaction_date || 0).getTime()
+    )
+  )
+}
+
+const sortGroupsByFirstActivity = (groupList) => {
+  if (!groupList?.length) return []
+  return [...groupList].sort((a, b) => {
+    const fa = firstActivityMs(a)
+    const fb = firstActivityMs(b)
+    if (fa !== fb) return fa - fb
+    const na = (a.customer?.name || '').toLowerCase()
+    const nb = (b.customer?.name || '').toLowerCase()
+    if (na !== nb) return na.localeCompare(nb)
+    return (a.customer?.phone || '').localeCompare(b.customer?.phone || '')
   })
 }
 
   const isInitialLoad = loading && !currentCustomerLedger
   const isRefreshing = loading && !!currentCustomerLedger
 
-  const groups = currentCustomerLedger?.groupedLedgers || []
+  const groups = sortGroupsByFirstActivity(currentCustomerLedger?.groupedLedgers || [])
   const uniqueCount = currentCustomerLedger?.customer?.unique_customers ?? groups.length
 
   const grandTotals = groups.reduce((acc, g) => {
