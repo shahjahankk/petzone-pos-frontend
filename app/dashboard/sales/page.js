@@ -450,19 +450,53 @@ const SalesManagement = () => {
   })()
 
   // ── Data fetching ──────────────────────────────────────────────────────────
+  const buildSalesFetchParams = useCallback(() => {
+    const salesParams = { ...baseScopeParams, page, limit: rowsPerPage, _t: Date.now() }
+
+    if (isActualAdmin && !isAdminMode) {
+      if (filters.scopeType !== 'all') {
+        salesParams.scopeType = filters.scopeType
+        if (filters.scopeId !== 'all') {
+          const parsed = Number(filters.scopeId)
+          salesParams.scopeId = Number.isNaN(parsed) ? filters.scopeId : parsed
+        } else {
+          delete salesParams.scopeId
+        }
+      } else if (!scopeInfo) {
+        delete salesParams.scopeType
+        delete salesParams.scopeId
+      }
+      if (filters.companyId !== 'all') salesParams.companyId = filters.companyId
+      if (scopeSearch) salesParams.scopeSearch = scopeSearch
+    }
+
+    if (user?.role === 'WAREHOUSE_KEEPER' && filters.retailerId !== 'all') {
+      salesParams.retailerId = filters.retailerId
+    }
+
+    if (startDate) salesParams.startDate = startDate.toISOString().split('T')[0]
+    if (endDate) salesParams.endDate = endDate.toISOString().split('T')[0]
+
+    const trimmedSearch = searchTerm.trim()
+    if (trimmedSearch) salesParams.search = trimmedSearch
+
+    return salesParams
+  }, [
+    baseScopeParams, page, rowsPerPage, isActualAdmin, isAdminMode, filters,
+    scopeInfo, scopeSearch, user?.role, startDate, endDate, searchTerm,
+  ])
+
   const handleManualRefresh = useCallback(() => {
-    const params = { ...baseScopeParams, page, limit: rowsPerPage, _t: Date.now() }
-    if (isActualAdmin && !isAdminMode && scopeSearch) params.scopeSearch = scopeSearch
+    const params = buildSalesFetchParams()
     dispatch(fetchSales(params))
     dispatch(fetchSalesReturns(params))
-  }, [dispatch, baseScopeParams, page, rowsPerPage, isActualAdmin, isAdminMode, scopeSearch])
+  }, [dispatch, buildSalesFetchParams])
 
   const handleDataUpdate = useCallback(() => {
-    const params = { ...baseScopeParams, page, limit: rowsPerPage, _t: Date.now() }
-    if (isActualAdmin && !isAdminMode && scopeSearch) params.scopeSearch = scopeSearch
+    const params = buildSalesFetchParams()
     dispatch(fetchSales(params))
     dispatch(fetchSalesReturns(params))
-  }, [dispatch, baseScopeParams, page, rowsPerPage, isActualAdmin, isAdminMode, scopeSearch])
+  }, [dispatch, buildSalesFetchParams])
 
   const { isPolling, lastUpdate, refreshData } = useSalesPolling({
     enabled: false,
@@ -475,39 +509,8 @@ const SalesManagement = () => {
     if (!initialized) return // wait for URL params to be read first
 
     const timeoutId = setTimeout(() => {
-      const salesParams = { ...baseScopeParams }
-
-      // Only apply extra scope/company filters when admin is NOT in simulation mode.
-      // When in simulation mode, baseScopeParams already has the correct scope.
-      if (isActualAdmin && !isAdminMode) {
-        if (filters.scopeType !== 'all') {
-          salesParams.scopeType = filters.scopeType
-          if (filters.scopeId !== 'all') {
-            const parsed = Number(filters.scopeId)
-            salesParams.scopeId = Number.isNaN(parsed) ? filters.scopeId : parsed
-          } else {
-            delete salesParams.scopeId
-          }
-        } else if (!scopeInfo) {
-          delete salesParams.scopeType
-          delete salesParams.scopeId
-        }
-        if (filters.companyId !== 'all') salesParams.companyId = filters.companyId
-        if (scopeSearch) salesParams.scopeSearch = scopeSearch
-      }
-
-      if (user?.role === 'WAREHOUSE_KEEPER' && filters.retailerId !== 'all') {
-        salesParams.retailerId = filters.retailerId
-      }
-
-      if (startDate) salesParams.startDate = startDate.toISOString().split('T')[0]
-      if (endDate)   salesParams.endDate   = endDate.toISOString().split('T')[0]
-
-      salesParams.page  = page
-      salesParams.limit = rowsPerPage
-
-      dispatch(fetchSales(salesParams))
-      dispatch(fetchSalesReturns(salesParams))
+      dispatch(fetchSales(buildSalesFetchParams()))
+      dispatch(fetchSalesReturns(buildSalesFetchParams()))
     }, 500)
 
     // Only fetch branches/warehouses for unscoped admin (global view)
@@ -525,7 +528,7 @@ const SalesManagement = () => {
     if (user) dispatch(fetchInventory({ ...baseScopeParams }))
 
     return () => clearTimeout(timeoutId)
-  }, [dispatch, user, filters, startDate, endDate, baseScopeParams, scopeInfo, page, rowsPerPage, scopeSearch, initialized, isActualAdmin, isAdminMode])
+  }, [dispatch, user, initialized, isActualAdmin, isAdminMode, baseScopeParams, buildSalesFetchParams])
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
   const handleFilterChange = (field, value) => {
@@ -559,13 +562,6 @@ const SalesManagement = () => {
 
   const getFilteredAndSortedSales = () => {
     let filtered = (sales || []).filter(sale => {
-      if (searchTerm) {
-        const lower = searchTerm.toLowerCase()
-        const invoiceMatch  = sale.invoice_no?.toLowerCase().includes(lower)
-        const customerMatch = resolveCustomerName(sale).toLowerCase().includes(lower)
-        if (!invoiceMatch && !customerMatch) return false
-      }
-
       if (paymentMethodFilter !== 'all') {
         const pm          = sale.paymentMethod || sale.payment_method
         const ps          = sale.paymentStatus || sale.payment_status
@@ -619,10 +615,7 @@ const SalesManagement = () => {
     return filtered
   }
 
-  // Pagination is server-driven (page/limit sent on every fetch).
-  // Client-side filter/sort operates only on the current server page.
-  // Do NOT re-slice here — that would hide rows on page 2+ since the server already
-  // returned only `rowsPerPage` rows.
+  // Pagination + text search are server-driven. Other filters/sort apply on the current page.
   const allFilteredSales = getFilteredAndSortedSales()
   const totalItems  = salesPagination?.total ?? allFilteredSales.length
   const totalPages  = Math.max(1, Math.ceil(totalItems / rowsPerPage))
@@ -655,7 +648,7 @@ const SalesManagement = () => {
       if (deleteSale.fulfilled.match(result)) {
         setOpenDeleteDialog(false)
         setEntityToDelete(null)
-        dispatch(fetchSales({ ...baseScopeParams, page, limit: rowsPerPage }))
+        dispatch(fetchSales(buildSalesFetchParams()))
       } else if (deleteSale.rejected.match(result)) {
         alert(`Failed to delete sale: ${result.payload || 'Unknown error'}`)
       }
@@ -684,7 +677,7 @@ const SalesManagement = () => {
   }
 
   const handleSaveEditableInvoice = () => {
-    dispatch(fetchSales({ ...baseScopeParams, page, limit: rowsPerPage }))
+    dispatch(fetchSales(buildSalesFetchParams()))
     dispatch(fetchInventory(baseScopeParams))
     setShowEditableInvoice(false)
     setEditingSale(null)
@@ -1057,12 +1050,13 @@ const SalesManagement = () => {
                         <TextField
                           fullWidth size="small" label="Search Sales"
                           placeholder="Search by invoice, customer..."
-                          value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                          value={searchTerm}
+                          onChange={(e) => { setSearchTerm(e.target.value); setPage(1) }}
                           InputProps={{
                             startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
                             endAdornment: searchTerm && (
                               <InputAdornment position="end">
-                                <IconButton size="small" onClick={() => setSearchTerm('')} edge="end"><ClearIcon /></IconButton>
+                                <IconButton size="small" onClick={() => { setSearchTerm(''); setPage(1) }} edge="end"><ClearIcon /></IconButton>
                               </InputAdornment>
                             )
                           }}
