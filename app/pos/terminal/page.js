@@ -569,6 +569,19 @@ function POSTerminal() {
     loadAvailablePrinters()
   }, [dispatch, user, loadAvailablePrinters, isAdminMode])
 
+  const buildPosScopeParams = useCallback(() => {
+    if (scopeInfo?.scopeType && scopeInfo?.scopeId != null) {
+      return { scopeType: scopeInfo.scopeType, scopeId: scopeInfo.scopeId }
+    }
+    if (user?.role === 'CASHIER' && user.branchId) {
+      return { scopeType: 'BRANCH', scopeId: user.branchId }
+    }
+    if (user?.role === 'WAREHOUSE_KEEPER' && user.warehouseId) {
+      return { scopeType: 'WAREHOUSE', scopeId: user.warehouseId }
+    }
+    return {}
+  }, [user, scopeInfo])
+
   const searchOutstandingPayments = useCallback(async (phoneNumber, customerName) => {
     if ((!phoneNumber || phoneNumber.trim().length < 3) && (!customerName || customerName.trim().length < 3)) {
       setOutstandingPayments([])
@@ -580,6 +593,9 @@ function POSTerminal() {
 
     try {
       const params = new URLSearchParams()
+      const scopeParams = buildPosScopeParams()
+      if (scopeParams.scopeType) params.append('scopeType', scopeParams.scopeType)
+      if (scopeParams.scopeId != null) params.append('scopeId', String(scopeParams.scopeId))
       if (phoneNumber && phoneNumber.trim().length >= 3) params.append('phone', phoneNumber.trim())
       if (customerName && customerName.trim().length >= 3) params.append('customerName', customerName.trim())
 
@@ -621,7 +637,7 @@ function POSTerminal() {
     } finally {
       setIsSearchingOutstanding(false)
     }
-  }, [])
+  }, [buildPosScopeParams])
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -708,9 +724,11 @@ function POSTerminal() {
 
     setCustomerSearchLoading(true)
     try {
+      const scopeParams = buildPosScopeParams()
+      const sharedParams = { search: trimmed, limit: 20, ...scopeParams }
       const [ledgerRes, customersRes] = await Promise.all([
-        api.get('/customer-ledger/customers', { params: { search: trimmed, limit: 20 } }),
-        api.get('/customers', { params: { search: trimmed, limit: 20 } }).catch(() => ({ data: { data: [] } })),
+        api.get('/customer-ledger/customers', { params: sharedParams }),
+        api.get('/customers', { params: sharedParams }).catch(() => ({ data: { data: [] } })),
       ])
 
       const ledgerCustomers = (ledgerRes.data?.data?.customers || []).map((c) => ({
@@ -752,7 +770,7 @@ function POSTerminal() {
     } finally {
       setCustomerSearchLoading(false)
     }
-  }, [])
+  }, [buildPosScopeParams])
 
   const triggerCustomerSearch = useCallback((value) => {
     if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current)
