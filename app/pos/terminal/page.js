@@ -717,7 +717,7 @@ function POSTerminal() {
         id: `ledger-${c.customer_name}-${c.customer_phone}`,
         name: c.customer_name || 'Walk-in Customer',
         phone: c.customer_phone || '',
-        balance: parseFloat(c.current_balance || 0),
+        balance: parseFloat(c.current_balance ?? c.outstanding_balance ?? 0),
         totalSales: parseInt(c.total_transactions || 0, 10),
         lastSale: c.last_transaction_date,
       }))
@@ -727,7 +727,7 @@ function POSTerminal() {
         name: c.name || 'Walk-in Customer',
         phone: c.phone || '',
         customerId: c.id,
-        balance: parseFloat(c.balance || 0),
+        balance: parseFloat(c.currentBalance ?? c.current_balance ?? c.balance ?? 0),
         totalSales: 0,
         lastSale: null,
       }))
@@ -2952,7 +2952,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               type="tel"
             />
 
-            {customerPhone && customerPhone.trim().length >= 3 && (
+            {((customerPhone && customerPhone.trim().length >= 3) || (customerName && customerName.trim().length >= 3)) && (
               <Card sx={{ mb: 2, border: '1px solid', borderColor: 'warning.main' }}>
                 <CardContent sx={{ p: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -2961,7 +2961,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                       <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: 'warning.main' }}>Outstanding Payments</Typography>
                       {isSearchingOutstanding && <CircularProgress size={16} sx={{ ml: 1 }} />}
                     </Box>
-                    <IconButton size="small" onClick={() => { if (customerPhone && customerPhone.trim().length >= 3) searchOutstandingPayments(customerPhone.trim(), customerName?.trim()) }} disabled={isSearchingOutstanding} sx={{ color: 'warning.main' }}>
+                    <IconButton size="small" onClick={() => { if ((customerPhone?.trim().length >= 3) || (customerName?.trim().length >= 3)) searchOutstandingPayments(customerPhone?.trim(), customerName?.trim()) }} disabled={isSearchingOutstanding} sx={{ color: 'warning.main' }}>
                       <RefreshIcon fontSize="small" />
                     </IconButton>
                   </Box>
@@ -3025,7 +3025,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                       </List>
                     </>
                   ) : !isSearchingOutstanding ? (
-                    <Typography variant="body2" color="text.secondary">No outstanding payments found for this phone number.</Typography>
+                    <Typography variant="body2" color="text.secondary">No outstanding balance found for this customer.</Typography>
                   ) : null}
                 </CardContent>
               </Card>
