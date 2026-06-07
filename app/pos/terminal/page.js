@@ -251,7 +251,6 @@ function POSTerminal() {
   }, [user])
 
   const { data: inventoryItems, loading: inventoryLoading, error: inventoryError } = useSelector((state) => state.inventory)
-  const salesData = useSelector((state) => state.sales.data) || []
 
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' })
   const showToast = useCallback((message, severity = 'info') => {
@@ -280,6 +279,8 @@ function POSTerminal() {
   const [salespeople, setSalespeople] = useState([])
   const [customerSearchResults, setCustomerSearchResults] = useState([])
   const [showCustomerSearch, setShowCustomerSearch] = useState(false)
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false)
+  const [customerHighlightedIndex, setCustomerHighlightedIndex] = useState(-1)
   const [searchResults, setSearchResults] = useState([])
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showPhysicalScanner, setShowPhysicalScanner] = useState(false)
@@ -319,6 +320,8 @@ function POSTerminal() {
 
   const barcodeInputRef = useRef(null)
   const manualInputRef = useRef(null)
+  const customerDropdownRef = useRef(null)
+  const customerSearchTimerRef = useRef(null)
   const lastScanTimeRef = useRef(0)
   const hydratingTabIdRef = useRef(null)
   const isCompletingSaleRef = useRef(false)
@@ -694,47 +697,84 @@ function POSTerminal() {
 
   const handleManualSearch = (query) => handleSearch(query)
 
-  const searchCustomers = (query, salesData) => {
-    if (!query || query.length < 2) {
+  const searchCustomers = useCallback(async (query) => {
+    const trimmed = (query || '').trim()
+    if (trimmed.length < 2) {
       setCustomerSearchResults([])
       setShowCustomerSearch(false)
+      setCustomerHighlightedIndex(-1)
       return
     }
 
-    const customerMatches = salesData.filter(sale => {
-      const nameMatch = sale.customer_name?.toLowerCase().includes(query.toLowerCase())
-      const phoneMatch = sale.customer_phone?.includes(query)
-      return nameMatch || phoneMatch
-    })
+    setCustomerSearchLoading(true)
+    try {
+      const [ledgerRes, customersRes] = await Promise.all([
+        api.get('/customer-ledger/customers', { params: { search: trimmed, limit: 20 } }),
+        api.get('/customers', { params: { search: trimmed, limit: 20 } }).catch(() => ({ data: { data: [] } })),
+      ])
 
-    const uniqueCustomers = []
-    const seenCustomers = new Set()
+      const ledgerCustomers = (ledgerRes.data?.data?.customers || []).map((c) => ({
+        id: `ledger-${c.customer_name}-${c.customer_phone}`,
+        name: c.customer_name || 'Walk-in Customer',
+        phone: c.customer_phone || '',
+        balance: parseFloat(c.current_balance || 0),
+        totalSales: parseInt(c.total_transactions || 0, 10),
+        lastSale: c.last_transaction_date,
+      }))
 
-    customerMatches.forEach(sale => {
-      const customerKey = `${sale.customer_name || ''}-${sale.customer_phone || ''}`
-      if (!seenCustomers.has(customerKey) && (sale.customer_name || sale.customer_phone)) {
-        seenCustomers.add(customerKey)
-        uniqueCustomers.push({
-          name: sale.customer_name || 'Walk-in Customer',
-          phone: sale.customer_phone || '',
-          lastSale: sale.created_at,
-          totalSales: salesData.filter(s =>
-            s.customer_name === sale.customer_name && s.customer_phone === sale.customer_phone
-          ).length
-        })
+      const tableCustomers = (customersRes.data?.data || []).map((c) => ({
+        id: `customer-${c.id}`,
+        name: c.name || 'Walk-in Customer',
+        phone: c.phone || '',
+        customerId: c.id,
+        balance: parseFloat(c.balance || 0),
+        totalSales: 0,
+        lastSale: null,
+      }))
+
+      const seen = new Set()
+      const merged = []
+      for (const customer of [...ledgerCustomers, ...tableCustomers]) {
+        const key = `${(customer.name || '').toLowerCase()}|${(customer.phone || '').trim()}`
+        if (!customer.name && !customer.phone) continue
+        if (seen.has(key)) continue
+        seen.add(key)
+        merged.push(customer)
       }
-    })
 
-    setCustomerSearchResults(uniqueCustomers)
-    setShowCustomerSearch(uniqueCustomers.length > 0)
-  }
+      setCustomerSearchResults(merged.slice(0, 20))
+      setShowCustomerSearch(merged.length > 0)
+      setCustomerHighlightedIndex(-1)
+    } catch {
+      setCustomerSearchResults([])
+      setShowCustomerSearch(false)
+      setCustomerHighlightedIndex(-1)
+    } finally {
+      setCustomerSearchLoading(false)
+    }
+  }, [])
 
-  const selectCustomer = (customer) => {
-    setCustomerName(customer.name)
-    setCustomerPhone(customer.phone)
+  const triggerCustomerSearch = useCallback((value) => {
+    if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current)
+    customerSearchTimerRef.current = setTimeout(() => {
+      searchCustomers(value)
+    }, 300)
+  }, [searchCustomers])
+
+  useEffect(() => () => {
+    if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current)
+  }, [])
+
+  const selectCustomer = useCallback((customer) => {
+    setCustomerName(customer.name || '')
+    setCustomerPhone(customer.phone || '')
     setShowCustomerSearch(false)
     setCustomerSearchResults([])
-  }
+    setCustomerHighlightedIndex(-1)
+    if ((customer.phone && customer.phone.trim().length >= 3) || (customer.name && customer.name.trim().length >= 3)) {
+      searchOutstandingPayments(customer.phone?.trim(), customer.name?.trim())
+    }
+  }, [searchOutstandingPayments])
 
   const getCategories = () => {
     const categories = [...new Set(inventoryItems.map(item => item.category).filter(Boolean))]
@@ -2779,21 +2819,138 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               </Box>
             </Box>
 
-            <TextField fullWidth size="small" label="Customer Name (Optional)" value={customerName} onChange={(e) => { const value = e.target.value; setCustomerName(value); searchCustomers(value, salesData) }} sx={{ mb: 1 }} />
+            <Box sx={{ position: 'relative', mb: 1 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Customer Name (Optional)"
+                value={customerName}
+                placeholder="Type name to search customers..."
+                onChange={(e) => {
+                  const value = e.target.value
+                  setCustomerName(value)
+                  triggerCustomerSearch(value)
+                }}
+                onFocus={() => {
+                  if (customerName.trim().length >= 2) triggerCustomerSearch(customerName)
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowCustomerSearch(false)
+                    setCustomerHighlightedIndex(-1)
+                  }, 150)
+                }}
+                onKeyDown={(e) => {
+                  if (!showCustomerSearch || customerSearchResults.length === 0) return
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    setCustomerHighlightedIndex((prev) => {
+                      const next = (prev + 1) % customerSearchResults.length
+                      setTimeout(() => {
+                        if (customerDropdownRef.current) {
+                          const items = customerDropdownRef.current.querySelectorAll('[data-customer-item]')
+                          if (items[next]) items[next].scrollIntoView({ block: 'nearest' })
+                        }
+                      }, 0)
+                      return next
+                    })
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    setCustomerHighlightedIndex((prev) => {
+                      const next = prev <= 0 ? customerSearchResults.length - 1 : prev - 1
+                      setTimeout(() => {
+                        if (customerDropdownRef.current) {
+                          const items = customerDropdownRef.current.querySelectorAll('[data-customer-item]')
+                          if (items[next]) items[next].scrollIntoView({ block: 'nearest' })
+                        }
+                      }, 0)
+                      return next
+                    })
+                  } else if (e.key === 'Enter' && customerHighlightedIndex >= 0) {
+                    e.preventDefault()
+                    selectCustomer(customerSearchResults[customerHighlightedIndex])
+                  } else if (e.key === 'Escape') {
+                    setShowCustomerSearch(false)
+                    setCustomerHighlightedIndex(-1)
+                  }
+                }}
+                InputProps={{
+                  endAdornment: customerSearchLoading ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null,
+                }}
+              />
+              {(showCustomerSearch || customerSearchLoading) && customerName.trim().length >= 2 && (
+                <Paper
+                  ref={customerDropdownRef}
+                  sx={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 1400,
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    boxShadow: 4,
+                    border: '1px solid',
+                    borderColor: 'primary.main',
+                    borderRadius: '0 0 8px 8px',
+                  }}
+                >
+                  {customerSearchLoading && customerSearchResults.length === 0 ? (
+                    <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CircularProgress size={14} />
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>Searching customers...</Typography>
+                    </Box>
+                  ) : customerSearchResults.length === 0 ? (
+                    <Typography variant="caption" sx={{ p: 1.5, display: 'block', fontFamily: 'monospace', color: 'text.secondary' }}>
+                      No matching customers
+                    </Typography>
+                  ) : (
+                    customerSearchResults.map((customer, index) => (
+                      <Box
+                        key={customer.id || index}
+                        data-customer-item
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectCustomer(customer)}
+                        onMouseEnter={() => setCustomerHighlightedIndex(index)}
+                        sx={{
+                          p: 1,
+                          cursor: 'pointer',
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                          bgcolor: index === customerHighlightedIndex ? 'action.selected' : 'transparent',
+                          '&:hover': { bgcolor: 'action.hover' },
+                          '&:last-child': { borderBottom: 'none' },
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
+                          {customer.name}
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', display: 'block' }}>
+                          Phone: {customer.phone || 'N/A'}
+                          {customer.totalSales > 0 ? ` | Sales: ${customer.totalSales}` : ''}
+                          {customer.lastSale ? ` | Last: ${formatDisplayDate(customer.lastSale)}` : ''}
+                          {Number.isFinite(customer.balance) ? ` | Bal: ${customer.balance.toFixed(0)}` : ''}
+                        </Typography>
+                      </Box>
+                    ))
+                  )}
+                </Paper>
+              )}
+            </Box>
 
-            {showCustomerSearch && customerSearchResults.length > 0 && (
-              <Paper sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
-                <Typography variant="subtitle2" sx={{ p: 1, fontFamily: 'monospace', bgcolor: 'primary.light', color: 'primary.contrastText' }}>Found Customers:</Typography>
-                {customerSearchResults.map((customer, index) => (
-                  <Box key={index} sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }} onClick={() => selectCustomer(customer)}>
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{customer.name}</Typography>
-                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>Phone: {customer.phone || 'N/A'} | Sales: {customer.totalSales} | Last: {formatDisplayDate(customer.lastSale)}</Typography>
-                  </Box>
-                ))}
-              </Paper>
-            )}
-
-            <TextField fullWidth size="small" label="Customer Phone (Optional)" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} sx={{ mb: 1, fontFamily: 'monospace' }} placeholder="Enter customer phone number..." type="tel" />
+            <TextField
+              fullWidth
+              size="small"
+              label="Customer Phone (Optional)"
+              value={customerPhone}
+              onChange={(e) => {
+                setCustomerPhone(e.target.value)
+                if (e.target.value.trim().length >= 2) triggerCustomerSearch(e.target.value)
+              }}
+              sx={{ mb: 1, fontFamily: 'monospace' }}
+              placeholder="Enter customer phone number..."
+              type="tel"
+            />
 
             {customerPhone && customerPhone.trim().length >= 3 && (
               <Card sx={{ mb: 2, border: '1px solid', borderColor: 'warning.main' }}>
