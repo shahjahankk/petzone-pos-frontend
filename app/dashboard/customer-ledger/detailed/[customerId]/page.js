@@ -215,7 +215,26 @@ const DetailedCustomerLedgerPage = () => {
     return map[cleanMethod] || cleanMethod
   }
 
-  const formatPaymentType = (paymentType, paymentMethod) => {
+  const getTransactionStatus = (transaction) => {
+    const balPick = pickTransactionBalance(transaction)
+    const balance = balPick !== null
+      ? balPick
+      : parseFloat(transaction.balance || transaction.running_balance || 0)
+    const paid = parseFloat(transaction.corrected_paid || transaction.paid_amount || transaction.payment_amount || 0)
+    if (transaction.payment_method === 'FULLY_CREDIT' && transaction.payment_type !== 'OUTSTANDING_SETTLEMENT') {
+      return { label: 'Credit', color: 'error' }
+    }
+    if (balance <= 0.01) return { label: 'Paid', color: 'success' }
+    if (paid > 0) return { label: 'Partial', color: 'warning' }
+    return { label: 'Credit', color: 'error' }
+  }
+
+  const formatPaymentType = (paymentType, paymentMethod, transaction) => {
+    if (transaction) {
+      const status = getTransactionStatus(transaction)
+      if (status.label === 'Partial') return 'Partial Payment'
+      if (status.label === 'Credit') return 'Fully Credit'
+    }
     if (!paymentType) {
       const methodMap = {
         FULLY_CREDIT: 'Fully Credit', PARTIAL_PAYMENT: 'Partial Payment',
@@ -392,7 +411,9 @@ const transactions = (
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {transactions.map((transaction, index) => (
+                      {transactions.map((transaction, index) => {
+                        const txStatus = getTransactionStatus(transaction)
+                        return (
                         <TableRow key={index}>
                           <TableCell>
                             <Tooltip title={ledgerInvoiceDateCellTooltip(transaction)}>
@@ -477,13 +498,13 @@ const transactions = (
                           <TableCell>{formatPaymentMethod(transaction.payment_method)}</TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ fontWeight: 'medium', color: 'primary.main' }}>
-                              {formatPaymentType(transaction.payment_type, transaction.payment_method)}
+                              {formatPaymentType(transaction.payment_type, transaction.payment_method, transaction)}
                             </Typography>
                           </TableCell>
                           <TableCell>
                             <Chip
-                              label={getPaymentStatusDisplay(transaction.payment_status)}
-                              color={getPaymentStatusColor(transaction.payment_status)}
+                              label={txStatus.label}
+                              color={txStatus.color}
                               size="small"
                             />
                           </TableCell>
@@ -500,7 +521,7 @@ const transactions = (
                             </Typography>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      )})}
                       
                       {/* Grand Total Row */}
                       <TableRow sx={{ 
