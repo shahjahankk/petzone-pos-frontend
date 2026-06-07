@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   Box, Typography, TextField, Button, Table, TableBody, TableCell,
@@ -16,24 +16,72 @@ import {
 import { pickTransactionBalance, pickTransactionOldBalance, formatMoneyOrDash } from '../../../../utils/ledgerFinance'
 import { formatLedgerDate, formatLedgerDateTime, isLedgerBackdated, ledgerInvoiceDateCellTooltip } from '../../../../utils/ledgerUxDates'
 
+const ALL_LEDGER_SCROLL_KEY = 'all-ledger-scroll-y'
+
 function AllLedgerContent() {
   const dispatch = useDispatch()
   const { currentCustomerLedger, loading, error } = useSelector((state) => state.customerLedger)
   const [filters, setFilters] = useState({ startDate: '', endDate: '', transactionType: 'all' })
+  const scrollRestoreRef = useRef(null)
+  const hasRestoredScrollRef = useRef(false)
 
-const loadAllLedger = useCallback(() => {
+  const saveScrollPosition = useCallback(() => {
+    const y = window.scrollY
+    scrollRestoreRef.current = y
+    sessionStorage.setItem(ALL_LEDGER_SCROLL_KEY, String(y))
+  }, [])
+
+  const restoreScrollPosition = useCallback(() => {
+    const fromRef = scrollRestoreRef.current
+    const fromStorage = parseInt(sessionStorage.getItem(ALL_LEDGER_SCROLL_KEY) || '0', 10)
+    const y = fromRef != null && fromRef > 0 ? fromRef : fromStorage
+    if (!y || y <= 0) return
+    requestAnimationFrame(() => {
+      window.scrollTo(0, y)
+      scrollRestoreRef.current = null
+    })
+  }, [])
+
+const loadAllLedger = useCallback((options = {}) => {
+  if (options.preserveScroll) saveScrollPosition()
   dispatch(fetchCustomerLedger({
     customerId: '__all__',
     params: { ...filters, detailed: 'true', limit: 5000, offset: 0 }
   }))
-}, [dispatch, filters])
+}, [dispatch, filters, saveScrollPosition])
 
 // Initial load once; filters are applied via the button.
 // eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => { loadAllLedger() }, [])
 
+useEffect(() => {
+  const onScroll = () => sessionStorage.setItem(ALL_LEDGER_SCROLL_KEY, String(window.scrollY))
+  window.addEventListener('scroll', onScroll, { passive: true })
+  return () => window.removeEventListener('scroll', onScroll)
+}, [])
+
+useEffect(() => {
+  if (loading || !currentCustomerLedger) return
+  if (scrollRestoreRef.current != null) {
+    restoreScrollPosition()
+    hasRestoredScrollRef.current = true
+    return
+  }
+  if (!hasRestoredScrollRef.current) {
+    restoreScrollPosition()
+    hasRestoredScrollRef.current = true
+  }
+}, [loading, currentCustomerLedger, restoreScrollPosition])
+
 const handleApplyFilters = () => {
+  scrollRestoreRef.current = null
+  sessionStorage.removeItem(ALL_LEDGER_SCROLL_KEY)
+  window.scrollTo(0, 0)
   loadAllLedger()
+}
+
+const handleRefresh = () => {
+  loadAllLedger({ preserveScroll: true })
 }
 
   const handleExport = (format = 'pdf', detailed = false) =>
@@ -134,6 +182,9 @@ const sortTransactionsAsc = (transactions) => {
   })
 }
 
+  const isInitialLoad = loading && !currentCustomerLedger
+  const isRefreshing = loading && !!currentCustomerLedger
+
   const groups = currentCustomerLedger?.groupedLedgers || []
   const uniqueCount = currentCustomerLedger?.customer?.unique_customers ?? groups.length
 
@@ -168,7 +219,11 @@ const sortTransactionsAsc = (transactions) => {
               {label}
             </Button>
           ))}
-          <Tooltip title="Refresh"><IconButton onClick={loadAllLedger} sx={{ color: 'white' }}><RefreshIcon /></IconButton></Tooltip>
+          <Tooltip title="Refresh">
+            <IconButton onClick={handleRefresh} disabled={loading} sx={{ color: 'white' }}>
+              {isRefreshing ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <RefreshIcon />}
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 
@@ -211,10 +266,10 @@ const sortTransactionsAsc = (transactions) => {
         </Paper>
 
         {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => dispatch(clearError())}>{error}</Alert>}
-        {loading && <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>}
+        {isInitialLoad && <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>}
 
         {/* Summary Cards */}
-        {!loading && groups.length > 0 && (
+        {!isInitialLoad && groups.length > 0 && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {[
               { label: 'Total Customers',     value: uniqueCount,                                    color: '#3b82f6' },
@@ -234,14 +289,14 @@ const sortTransactionsAsc = (transactions) => {
           </Grid>
         )}
 
-        {!loading && groups.length === 0 && currentCustomerLedger && (
+        {!isInitialLoad && groups.length === 0 && currentCustomerLedger && (
           <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 2 }} elevation={0} variant="outlined">
             <Typography variant="h6" color="text.secondary">No ledger data found</Typography>
           </Paper>
         )}
 
         {/* Customer Groups */}
-        {!loading && groups.map((group, gIdx) => {
+        {!isInitialLoad && groups.map((group, gIdx) => {
           const gs = group.summary || {}
           const transactions = sortTransactionsAsc(group.transactions || [])
 
@@ -392,7 +447,7 @@ const sortTransactionsAsc = (transactions) => {
         })}
 
         {/* Grand Total */}
-        {!loading && groups.length > 0 && (
+        {!isInitialLoad && groups.length > 0 && (
           <Paper sx={{ borderRadius: 2, overflow: 'hidden', border: '2px solid #1e293b', mb: 3 }} elevation={2}>
             <Box sx={{ px: 3, py: 1.5, background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'white', letterSpacing: 1 }}>GRAND TOTAL</Typography>
