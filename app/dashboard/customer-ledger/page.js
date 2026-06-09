@@ -419,9 +419,27 @@ const loadCustomerLedger = useCallback((customerId) => {
       }
     }
 
+    const billAmountForRow = (t) => {
+      const type = String(t.transaction_type || '').toUpperCase()
+      const pt = t.payment_type || ''
+      if (type === 'SETTLEMENT' || pt === 'OUTSTANDING_SETTLEMENT' || pt === 'CREDIT_REFUND_SETTLEMENT') return 0
+      const amount = parseFloat(t.amount || 0)
+      const total = parseFloat(t.total || 0)
+      const subtotal = parseFloat(t.subtotal || 0)
+      if (type === 'RETURN' || (t.payment_method === 'REFUND' && pt === 'REFUND')) {
+        const mag = Math.abs(amount) > 0.01 ? Math.abs(amount) : (Math.abs(total) > 0.01 ? Math.abs(total) : Math.abs(subtotal))
+        return -mag
+      }
+      if (Math.abs(amount) > 0.01) return amount
+      if (type === 'SALE' || type === 'BILTY' || type === 'EXPENSE') {
+        return Math.abs(total) > 0.01 ? total : subtotal
+      }
+      return amount
+    }
+
     const transactions = currentCustomerLedger.transactions
     const totals = transactions.reduce((acc, t) => {
-      const currentAmount = parseFloat(t.amount || 0)
+      const currentAmount = billAmountForRow(t)
       let correctedPaid = 0
       if (t.payment_method === 'FULLY_CREDIT' && t.payment_type !== 'OUTSTANDING_SETTLEMENT')
         correctedPaid = 0

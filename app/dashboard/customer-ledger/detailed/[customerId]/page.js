@@ -116,9 +116,27 @@ const DetailedCustomerLedgerPage = () => {
     }
   }, [customerId, loadDetailedLedger])
 
+  const billAmountForRow = (transaction) => {
+    const type = String(transaction.transaction_type || '').toUpperCase()
+    const pt = transaction.payment_type || ''
+    if (type === 'SETTLEMENT' || pt === 'OUTSTANDING_SETTLEMENT' || pt === 'CREDIT_REFUND_SETTLEMENT') return 0
+    const amount = parseFloat(transaction.amount || 0)
+    const total = parseFloat(transaction.total || 0)
+    const subtotal = parseFloat(transaction.subtotal || 0)
+    if (type === 'RETURN' || (transaction.payment_method === 'REFUND' && pt === 'REFUND')) {
+      const mag = Math.abs(amount) > 0.01 ? Math.abs(amount) : (Math.abs(total) > 0.01 ? Math.abs(total) : Math.abs(subtotal))
+      return -mag
+    }
+    if (Math.abs(amount) > 0.01) return amount
+    if (type === 'SALE' || type === 'BILTY' || type === 'EXPENSE') {
+      return Math.abs(total) > 0.01 ? total : subtotal
+    }
+    return amount
+  }
+
   const calculateSummaryStats = (transactions) => {
     const stats = transactions.reduce((acc, transaction) => {
-      const currentAmount = parseFloat(transaction.amount || 0)
+      const currentAmount = billAmountForRow(transaction)
       const paidAmount    = parseFloat(transaction.corrected_paid || transaction.paid_amount || 0)
       const balPick = pickTransactionBalance(transaction)
       const balance = balPick !== null ? balPick : parseFloat(transaction.balance || transaction.running_balance || 0)
