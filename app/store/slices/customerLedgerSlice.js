@@ -22,6 +22,11 @@ function excelBalanceCell(transaction) {
   return parseFloat(transaction.balance ?? transaction.running_balance ?? transaction.credit_amount ?? 0).toFixed(2)
 }
 
+/** `'false'` is truthy in JS — only treat explicit true / 'true' as detailed export. */
+function isDetailedExport(params) {
+  return params?.detailed === true || params?.detailed === 'true'
+}
+
 // Async thunks
 export const fetchCustomerLedger = createAsyncThunk(
   'customerLedger/fetchCustomerLedger',
@@ -55,7 +60,7 @@ export const exportCustomerLedger = createAsyncThunk(
       if (params.startDate) queryParams.append('startDate', params.startDate)
       if (params.endDate) queryParams.append('endDate', params.endDate)
       if (params.format) queryParams.append('format', params.format)
-      if (params.detailed) queryParams.append('detailed', 'true')
+      if (isDetailedExport(params)) queryParams.append('detailed', 'true')
       
       const url = `/customer-ledger/${customerId}/export?${queryParams.toString()}`
       const response = await api.get(url)
@@ -106,7 +111,7 @@ export const exportCustomerLedger = createAsyncThunk(
 
             let rows = []
 
-            if (params.detailed === 'true') {
+            if (isDetailedExport(params)) {
               transactions.forEach((transaction) => {
                 const amount = parseFloat(transaction.amount ?? transaction.subtotal ?? transaction.total ?? 0)
                 const oldPick = pickTransactionOldBalance(transaction)
@@ -204,7 +209,7 @@ export const exportCustomerLedger = createAsyncThunk(
           const url = window.URL.createObjectURL(blob)
           const link = document.createElement('a')
           link.href = url
-          const filePrefix = params.detailed === 'true' ? 'detailed-all-customers-ledger' : 'all-customers-ledger'
+          const filePrefix = isDetailedExport(params) ? 'detailed-all-customers-ledger' : 'all-customers-ledger'
           link.download = `${filePrefix}-${new Date().toISOString().split('T')[0]}.xlsx`
           document.body.appendChild(link)
           link.click()
@@ -214,7 +219,7 @@ export const exportCustomerLedger = createAsyncThunk(
           return { success: true }
         }
         
-        if (params.detailed === 'true' && payload) {
+        if (isDetailedExport(params) && payload) {
           const detailedTransactions = Array.isArray(payload) ? payload : (payload.transactions || [])
           const sortedTransactions = [...detailedTransactions].sort((a, b) =>
             new Date(a.transaction_date || a.created_at) - new Date(b.transaction_date || b.created_at)
@@ -308,7 +313,7 @@ export const exportCustomerLedger = createAsyncThunk(
         const url = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        const filePrefix = params.detailed === 'true' ? 'detailed-customer-ledger' : 'customer-ledger'
+        const filePrefix = isDetailedExport(params) ? 'detailed-customer-ledger' : 'customer-ledger'
         link.download = `${filePrefix}-${customerId}-${new Date().toISOString().split('T')[0]}.xlsx`
         document.body.appendChild(link)
         link.click()
