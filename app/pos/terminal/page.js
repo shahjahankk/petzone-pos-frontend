@@ -322,7 +322,6 @@ function POSTerminal() {
   const [saleDate, setSaleDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
-  const [posCatalogMode, setPosCatalogMode] = useState('products') // 'products' | 'clinic'
   const [clinicServices, setClinicServices] = useState([])
   const [clinicCategories, setClinicCategories] = useState([])
   const [showSettings, setShowSettings] = useState(false)
@@ -459,20 +458,6 @@ function POSTerminal() {
     }
     updateCurrentTab({ cart: newCart })
   }, [currentCart, updateCurrentTab])
-
-  const addClinicServiceToCart = useCallback((service) => {
-    addToCart({
-      isService: true,
-      clinicServiceId: service.id,
-      id: `service-${service.id}`,
-      name: service.name,
-      price: parseFloat(service.defaultPrice ?? 0),
-      defaultPrice: parseFloat(service.defaultPrice ?? 0),
-      category: service.categoryName || 'Clinic',
-      sku: service.code || `CLINIC-${service.id}`,
-      stock: null,
-    })
-  }, [addToCart])
 
   const handleBarcodeScan = useCallback((barcode) => {
     const product = inventoryItems.find(p => {
@@ -752,40 +737,32 @@ function POSTerminal() {
     }
     const normalizedQuery = normalize(query)
     if (query.length >= 2) {
-      if (posCatalogMode === 'clinic') {
-        let matches = clinicServices.filter((s) =>
-          normalize(s.name).includes(normalizedQuery) ||
-          normalize(s.categoryName).includes(normalizedQuery) ||
-          normalize(s.code).includes(normalizedQuery)
-        )
-        if (selectedCategory !== 'all') {
-          matches = matches.filter((s) => String(s.categoryId) === selectedCategory)
-        }
-        setSearchResults(matches.map((s) => ({
-          isService: true,
-          clinicServiceId: s.id,
-          id: `service-${s.id}`,
-          name: s.name,
-          price: s.defaultPrice,
-          defaultPrice: s.defaultPrice,
-          category: s.categoryName || 'Clinic',
-          sku: s.code || `CLINIC-${s.id}`,
-          stock: null,
-        })))
-        setShowSearchResults(true)
-        return
-      }
-      let matches = inventoryItems.filter(p =>
+      let productMatches = inventoryItems.filter((p) =>
         normalize(p.name).includes(normalizedQuery) ||
         normalize(p.sku).includes(normalizedQuery) ||
         normalize(p.barcode).includes(normalizedQuery) ||
         normalize(p.category).includes(normalizedQuery) ||
         normalize(p.description).includes(normalizedQuery)
       )
+      let clinicMatches = clinicServices.filter((s) =>
+        normalize(s.name).includes(normalizedQuery) ||
+        normalize(s.categoryName).includes(normalizedQuery) ||
+        normalize(s.code).includes(normalizedQuery)
+      )
+
       if (selectedCategory !== 'all') {
-        matches = matches.filter(p => p.category === selectedCategory)
+        if (selectedCategory.startsWith('product:')) {
+          const categoryName = selectedCategory.slice('product:'.length)
+          productMatches = productMatches.filter((p) => p.category === categoryName)
+          clinicMatches = []
+        } else if (selectedCategory.startsWith('clinic:')) {
+          const categoryId = selectedCategory.slice('clinic:'.length)
+          productMatches = []
+          clinicMatches = clinicMatches.filter((s) => String(s.categoryId) === categoryId)
+        }
       }
-      setSearchResults(matches.map(item => ({
+
+      const productResults = productMatches.map((item) => ({
         id: item.id,
         name: item.name,
         price: item.sellingPrice,
@@ -794,8 +771,27 @@ function POSTerminal() {
         sku: item.sku,
         barcode: item.barcode,
         unit: item.unit,
-        description: item.description
-      })))
+        description: item.description,
+        isService: false,
+      }))
+
+      const clinicResults = clinicMatches.map((s) => ({
+        isService: true,
+        clinicServiceId: s.id,
+        id: `service-${s.id}`,
+        name: s.name,
+        price: s.defaultPrice,
+        defaultPrice: s.defaultPrice,
+        category: s.categoryName || 'Clinic',
+        sku: s.code || `CLINIC-${s.id}`,
+        stock: null,
+      }))
+
+      const combined = [...productResults, ...clinicResults]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 25)
+
+      setSearchResults(combined)
       setShowSearchResults(true)
     } else {
       setSearchResults([])
@@ -887,13 +883,13 @@ function POSTerminal() {
   }, [searchOutstandingPayments])
 
   const getCategories = () => {
-    if (posCatalogMode === 'clinic') {
-      return clinicCategories
-        .map((c) => ({ id: String(c.id), label: c.name }))
-        .sort((a, b) => a.label.localeCompare(b.label))
-    }
-    const categories = [...new Set(inventoryItems.map(item => item.category).filter(Boolean))]
-    return categories.sort().map((c) => ({ id: c, label: c }))
+    const productCategories = [...new Set(inventoryItems.map((item) => item.category).filter(Boolean))]
+      .sort()
+      .map((name) => ({ id: `product:${name}`, label: name }))
+    const clinicCategoryOptions = clinicCategories
+      .map((c) => ({ id: `clinic:${c.id}`, label: `${c.name} (Clinic)` }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+    return [...productCategories, ...clinicCategoryOptions]
   }
 
   const printBill = async (billData) => {
@@ -2791,32 +2787,14 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'grey.50', overflow: 'auto' }}>
 
-        {/* Search Bar */}
+        {/* Search Bar — products + clinic services in one bill */}
         <Paper sx={{ mb: 1, p: 1, bgcolor: theme.palette.background.default, position: 'relative' }}>
-          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-            <Button
-              size="small"
-              variant={posCatalogMode === 'products' ? 'contained' : 'outlined'}
-              startIcon={<InventoryIcon />}
-              onClick={() => { setPosCatalogMode('products'); setSelectedCategory('all'); setShowSearchResults(false); setManualInput('') }}
-            >
-              Products
-            </Button>
-            <Button
-              size="small"
-              variant={posCatalogMode === 'clinic' ? 'contained' : 'outlined'}
-              startIcon={<ClinicIcon />}
-              onClick={() => { setPosCatalogMode('clinic'); setSelectedCategory('all'); setShowSearchResults(false); setManualInput('') }}
-            >
-              Clinic Services
-            </Button>
-          </Box>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
             <Box sx={{ flex: 1, position: 'relative' }}>
               <TextField
                 fullWidth
                 size="small"
-                label={posCatalogMode === 'clinic' ? 'Search clinic services' : 'Search products by name or category'}
+                label="Search products & clinic services"
                 value={manualInput}
                 onChange={(e) => { setManualInput(e.target.value); handleManualSearch(e.target.value) }}
                 onKeyPress={handleKeyPress}
@@ -2824,7 +2802,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'primary.main', fontSize: 18 }} />,
                   sx: { fontFamily: 'monospace', fontSize: '0.9rem' }
                 }}
-                placeholder="Type to search..."
+                placeholder="Type product name, SKU, barcode, or service..."
               />
               {showSearchResults && searchResults.length > 0 && (
                 <Paper sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, maxHeight: 300, overflowY: 'auto', mt: 1, boxShadow: 3, border: `1px solid ${theme.palette.divider}` }}>
@@ -2834,14 +2812,22 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                       sx={{ p: 2, cursor: 'pointer', borderBottom: `1px solid ${theme.palette.divider}`, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }, '&:last-child': { borderBottom: 'none' } }}
                       onClick={() => { addToCart(product); setShowSearchResults(false); setManualInput(''); setSearchQuery('') }}
                     >
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-                        {product.name} - {product.price}
-                        {product.isService ? ' (Service)' : ''}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
+                          {product.name} — {product.price}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          icon={product.isService ? <ClinicIcon sx={{ fontSize: '14px !important' }} /> : <InventoryIcon sx={{ fontSize: '14px !important' }} />}
+                          label={product.isService ? 'Clinic' : 'Product'}
+                          color={product.isService ? 'info' : 'default'}
+                          sx={{ height: 22, fontSize: '0.7rem' }}
+                        />
+                      </Box>
                       <Typography variant="caption" color="text.secondary">
                         {product.isService
                           ? `${product.category || 'Clinic'} · Default: ${product.defaultPrice ?? product.price}`
-                          : `Stock: ${product.stock} ${product.unit || 'units'}`}
+                          : `${product.category || 'Uncategorized'} · Stock: ${product.stock} ${product.unit || 'units'}`}
                       </Typography>
                     </Box>
                   ))}
@@ -2849,7 +2835,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               )}
               {showSearchResults && searchResults.length === 0 && searchQuery.length >= 2 && (
                 <Paper sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, mt: 1, boxShadow: 3, border: `1px solid ${theme.palette.divider}`, p: 2, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">No products found for &quot;{searchQuery}&quot;</Typography>
+                  <Typography variant="body2" color="text.secondary">No products or services found for &quot;{searchQuery}&quot;</Typography>
                 </Paper>
               )}
             </Box>
@@ -2858,7 +2844,10 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               size="small"
               label="Category"
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value)
+                if (manualInput.length >= 2) handleManualSearch(manualInput)
+              }}
               SelectProps={{ startAdornment: <CategoryIcon sx={{ mr: 1, color: 'primary.main', fontSize: 18 }} /> }}
               sx={{ minWidth: 120 }}
             >
@@ -3506,7 +3495,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               <Typography variant="h6" gutterBottom>Search Settings</Typography>
               <TextField fullWidth label="Default Category Filter" select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
                 <MenuItem value="all">All Categories</MenuItem>
-                {getCategories().map(category => <MenuItem key={category} value={category}>{category}</MenuItem>)}
+                {getCategories().map((category) => (
+                  <MenuItem key={category.id} value={category.id}>{category.label}</MenuItem>
+                ))}
               </TextField>
             </Box>
           </DialogContent>
