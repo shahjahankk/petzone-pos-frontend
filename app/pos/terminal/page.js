@@ -76,7 +76,8 @@ import {
   CheckBox as CheckBoxIcon,
   CheckBoxOutlineBlank as CheckBoxOutlineBlankIcon,
   Inventory as InventoryIcon,
-  OpenInNew as OpenInNewIcon
+  OpenInNew as OpenInNewIcon,
+  MedicalServices as ClinicIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../../components/print/PrintDialog'
 import RouteGuard from '../../../components/auth/RouteGuard'
@@ -171,6 +172,37 @@ const createEmptyTabState = (overrides = {}) => ({
   saleDate: '',
   ...overrides
 })
+
+/** Map cart row → sale API line (inventory or clinic service). */
+const mapCartLineForSale = (item) => {
+  const unitPrice = parseFloat(
+    item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0
+  )
+  const qty = parseFloat(item.quantity)
+  const discount = parseFloat(item.discount || 0)
+  if (item.isService) {
+    return {
+      inventoryItemId: null,
+      clinicServiceId: item.clinicServiceId,
+      sku: item.sku || `CLINIC-${item.clinicServiceId}`,
+      name: item.name,
+      quantity: qty,
+      unitPrice,
+      originalPrice: parseFloat(item.price ?? item.defaultPrice ?? unitPrice),
+      discount,
+      total: unitPrice * qty - discount,
+    }
+  }
+  return {
+    inventoryItemId: parseInt(item.id, 10),
+    name: item.name,
+    quantity: qty,
+    unitPrice,
+    originalPrice: parseFloat(item.price || unitPrice),
+    discount,
+    total: unitPrice * qty - discount,
+  }
+}
 
 function POSTerminal() {
   const theme = useTheme()
@@ -290,6 +322,9 @@ function POSTerminal() {
   const [saleDate, setSaleDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [posCatalogMode, setPosCatalogMode] = useState('products') // 'products' | 'clinic'
+  const [clinicServices, setClinicServices] = useState([])
+  const [clinicCategories, setClinicCategories] = useState([])
   const [showSettings, setShowSettings] = useState(false)
   const [showPrinterDialog, setShowPrinterDialog] = useState(false)
   const [showPrintDialog, setShowPrintDialog] = useState(false)
@@ -401,19 +436,43 @@ function POSTerminal() {
   ])
 
   const addToCart = useCallback((product) => {
-    const existingItem = currentCart.find(item => item.id === product.id)
+    const cartId = product.isService ? `service-${product.clinicServiceId || product.id}` : product.id
+    const existingItem = currentCart.find(item => item.id === cartId)
+    const listPrice = parseFloat(product.price ?? product.sellingPrice ?? product.defaultPrice ?? 0)
     let newCart
     if (existingItem) {
       newCart = currentCart.map(item =>
-        item.id === product.id
+        item.id === cartId
           ? { ...item, quantity: existingItem.quantity + 1 }
           : item
       )
     } else {
-      newCart = [...currentCart, { ...product, quantity: 1, discount: 0, customPrice: product.sellingPrice }]
+      newCart = [...currentCart, {
+        ...product,
+        id: cartId,
+        quantity: 1,
+        discount: 0,
+        price: listPrice,
+        customPrice: listPrice,
+        isService: !!product.isService,
+      }]
     }
     updateCurrentTab({ cart: newCart })
   }, [currentCart, updateCurrentTab])
+
+  const addClinicServiceToCart = useCallback((service) => {
+    addToCart({
+      isService: true,
+      clinicServiceId: service.id,
+      id: `service-${service.id}`,
+      name: service.name,
+      price: parseFloat(service.defaultPrice ?? 0),
+      defaultPrice: parseFloat(service.defaultPrice ?? 0),
+      category: service.categoryName || 'Clinic',
+      sku: service.code || `CLINIC-${service.id}`,
+      stock: null,
+    })
+  }, [addToCart])
 
   const handleBarcodeScan = useCallback((barcode) => {
     const product = inventoryItems.find(p => {
@@ -567,6 +626,16 @@ function POSTerminal() {
     }
     dispatch(fetchSales())
     loadAvailablePrinters()
+    api.get('/clinic-services/billing')
+      .then((res) => {
+        const data = res.data?.data || {}
+        setClinicServices(data.services || [])
+        setClinicCategories(data.categories || [])
+      })
+      .catch(() => {
+        setClinicServices([])
+        setClinicCategories([])
+      })
   }, [dispatch, user, loadAvailablePrinters, isAdminMode])
 
   const buildPosScopeParams = useCallback(() => {
@@ -683,6 +752,29 @@ function POSTerminal() {
     }
     const normalizedQuery = normalize(query)
     if (query.length >= 2) {
+      if (posCatalogMode === 'clinic') {
+        let matches = clinicServices.filter((s) =>
+          normalize(s.name).includes(normalizedQuery) ||
+          normalize(s.categoryName).includes(normalizedQuery) ||
+          normalize(s.code).includes(normalizedQuery)
+        )
+        if (selectedCategory !== 'all') {
+          matches = matches.filter((s) => String(s.categoryId) === selectedCategory)
+        }
+        setSearchResults(matches.map((s) => ({
+          isService: true,
+          clinicServiceId: s.id,
+          id: `service-${s.id}`,
+          name: s.name,
+          price: s.defaultPrice,
+          defaultPrice: s.defaultPrice,
+          category: s.categoryName || 'Clinic',
+          sku: s.code || `CLINIC-${s.id}`,
+          stock: null,
+        })))
+        setShowSearchResults(true)
+        return
+      }
       let matches = inventoryItems.filter(p =>
         normalize(p.name).includes(normalizedQuery) ||
         normalize(p.sku).includes(normalizedQuery) ||
@@ -795,8 +887,13 @@ function POSTerminal() {
   }, [searchOutstandingPayments])
 
   const getCategories = () => {
+    if (posCatalogMode === 'clinic') {
+      return clinicCategories
+        .map((c) => ({ id: String(c.id), label: c.name }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    }
     const categories = [...new Set(inventoryItems.map(item => item.category).filter(Boolean))]
-    return categories.sort()
+    return categories.sort().map((c) => ({ id: c, label: c }))
   }
 
   const printBill = async (billData) => {
@@ -1540,14 +1637,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }
 
       const saleData = {
-        items: currentCart.map(item => ({
-          inventoryItemId: parseInt(item.id),
-          name: item.name,
-          quantity: parseFloat(item.quantity),
-          unitPrice: parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0),
-          discount: parseFloat(item.discount || 0),
-          total: (parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0) * parseFloat(item.quantity)) - parseFloat(item.discount || 0)
-        })),
+        items: currentCart.map(mapCartLineForSale),
         scopeType: scopeInfo?.scopeType || (user.role === 'CASHIER' ? 'BRANCH' : 'WAREHOUSE'),
         scopeId: scopeInfo?.scopeId || (user.role === 'CASHIER' ? String(user.branchId) : String(user.warehouseId)),
         subtotal: parseFloat(subtotal),
@@ -1697,14 +1787,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }
 
       const saleData = {
-        items: currentCart.map(item => ({
-          inventoryItemId: parseInt(item.id),
-          name: item.name,
-          quantity: parseFloat(item.quantity),
-          unitPrice: parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0),
-          discount: parseFloat(item.discount || 0),
-          total: (parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0) * parseFloat(item.quantity)) - parseFloat(item.discount || 0)
-        })),
+        items: currentCart.map(mapCartLineForSale),
         scopeType: scopeInfo?.scopeType || (user.role === 'CASHIER' ? 'BRANCH' : 'WAREHOUSE'),
         scopeId: scopeInfo?.scopeId || (user.role === 'CASHIER' ? String(user.branchId) : String(user.warehouseId)),
         subtotal: parseFloat(subtotal),
@@ -1982,14 +2065,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }
 
       const saleData = {
-        items: currentCart.map(item => ({
-          inventoryItemId: parseInt(item.id),
-          name: item.name,
-          quantity: parseFloat(item.quantity),
-          unitPrice: parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0),
-          discount: parseFloat(item.discount || 0),
-          total: (parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0) * parseFloat(item.quantity)) - parseFloat(item.discount || 0)
-        })),
+        items: currentCart.map(mapCartLineForSale),
         scopeType: scopeInfo?.scopeType || (user.role === 'CASHIER' ? 'BRANCH' : 'WAREHOUSE'),
         scopeId: scopeInfo?.scopeId || (user.role === 'CASHIER' ? String(user.branchId) : String(user.warehouseId)),
         subtotal: parseFloat(subtotal),
@@ -2576,15 +2652,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         status: 'COMPLETED',
         customerInfo: { name: customerName || '', email: '', phone: customerPhone || '', address: '' },
         notes: notes || `POS Terminal Print Receipt - Tab: ${currentTab?.name || 'Unknown'}`,
-        items: currentCart.map(item => ({
-          inventoryItemId: parseInt(item.id),
-          sku: item.sku || '',
-          name: item.name || '',
-          quantity: item.quantity,
-          unitPrice: parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0),
-          discount: parseFloat(item.discount || 0),
-          total: (parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0) * item.quantity) - parseFloat(item.discount || 0)
-        }))
+        items: currentCart.map(mapCartLineForSale)
       }
 
       const result = await dispatch(createSale({ ...saleData, __idempotencyKey: makeSaleIdempotencyKey() }))
@@ -2725,12 +2793,30 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
         {/* Search Bar */}
         <Paper sx={{ mb: 1, p: 1, bgcolor: theme.palette.background.default, position: 'relative' }}>
+          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+            <Button
+              size="small"
+              variant={posCatalogMode === 'products' ? 'contained' : 'outlined'}
+              startIcon={<InventoryIcon />}
+              onClick={() => { setPosCatalogMode('products'); setSelectedCategory('all'); setShowSearchResults(false); setManualInput('') }}
+            >
+              Products
+            </Button>
+            <Button
+              size="small"
+              variant={posCatalogMode === 'clinic' ? 'contained' : 'outlined'}
+              startIcon={<ClinicIcon />}
+              onClick={() => { setPosCatalogMode('clinic'); setSelectedCategory('all'); setShowSearchResults(false); setManualInput('') }}
+            >
+              Clinic Services
+            </Button>
+          </Box>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
             <Box sx={{ flex: 1, position: 'relative' }}>
               <TextField
                 fullWidth
                 size="small"
-                label="Search products by name or category"
+                label={posCatalogMode === 'clinic' ? 'Search clinic services' : 'Search products by name or category'}
                 value={manualInput}
                 onChange={(e) => { setManualInput(e.target.value); handleManualSearch(e.target.value) }}
                 onKeyPress={handleKeyPress}
@@ -2748,8 +2834,15 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                       sx={{ p: 2, cursor: 'pointer', borderBottom: `1px solid ${theme.palette.divider}`, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }, '&:last-child': { borderBottom: 'none' } }}
                       onClick={() => { addToCart(product); setShowSearchResults(false); setManualInput(''); setSearchQuery('') }}
                     >
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{product.name} - {product.price}</Typography>
-                      <Typography variant="caption" color="text.secondary">Stock: {product.stock} {product.unit || 'units'}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
+                        {product.name} - {product.price}
+                        {product.isService ? ' (Service)' : ''}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {product.isService
+                          ? `${product.category || 'Clinic'} · Default: ${product.defaultPrice ?? product.price}`
+                          : `Stock: ${product.stock} ${product.unit || 'units'}`}
+                      </Typography>
                     </Box>
                   ))}
                 </Paper>
@@ -2770,7 +2863,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               sx={{ minWidth: 120 }}
             >
               <MenuItem value="all">All Categories</MenuItem>
-              {getCategories().map(category => <MenuItem key={category} value={category}>{category}</MenuItem>)}
+              {getCategories().map((category) => (
+                <MenuItem key={category.id} value={category.id}>{category.label}</MenuItem>
+              ))}
             </TextField>
           </Box>
 
@@ -3279,8 +3374,17 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                     <TableRow key={item.id} sx={{ '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) } }}>
                       <TableCell sx={{ fontFamily: 'monospace', minWidth: 120, width: '30%' }}>
                         <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 'medium', wordBreak: 'break-word' }}>{item.name}</Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>Stock: {item.stock} {item.unit || 'units'}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 'medium', wordBreak: 'break-word' }}>
+                            {item.name}
+                            {item.isService && (
+                              <Chip label="Clinic" size="small" color="info" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
+                            )}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {item.isService
+                              ? (item.category || 'Clinic service')
+                              : `Stock: ${item.stock} ${item.unit || 'units'}`}
+                          </Typography>
                         </Box>
                       </TableCell>
                       <TableCell sx={{ fontFamily: 'monospace', minWidth: 60, width: '15%', textAlign: 'right' }}>
@@ -3293,8 +3397,13 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                             sx={{ width: '90px', '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5 }, '& .MuiInputLabel-root': { fontSize: '0.7rem', transform: 'translate(14px, -9px) scale(0.75)' }, '& .MuiOutlinedInput-root': { backgroundColor: item.customPrice && item.customPrice !== item.price ? '#fff3cd' : 'transparent', border: item.customPrice && item.customPrice !== item.price ? '2px solid #ffc107' : '1px solid rgba(0,0,0,0.23)' }, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } }}
                           />
                         </Tooltip>
+                        {item.price != null && item.customPrice != null && Math.abs(parseFloat(item.customPrice) - parseFloat(item.price)) > 0.009 && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem', mt: 0.25 }}>
+                            Default: {parseFloat(item.price).toFixed(2)}
+                          </Typography>
+                        )}
                         {item.customPrice && item.customPrice !== item.price && (
-                          <IconButton size="small" onClick={() => resetItemPrice(item.id)} sx={{ p: 0.5, fontSize: '0.7rem', color: '#ffc107', '&:hover': { backgroundColor: '#fff3cd' } }} title="Reset to original price">↶</IconButton>
+                          <IconButton size="small" onClick={() => resetItemPrice(item.id)} sx={{ p: 0.5, fontSize: '0.7rem', color: '#ffc107', '&:hover': { backgroundColor: '#fff3cd' } }} title="Reset to default price">↶</IconButton>
                         )}
                       </TableCell>
                       <TableCell sx={{ minWidth: 50, width: '10%' }}>

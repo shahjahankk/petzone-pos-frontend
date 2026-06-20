@@ -26,6 +26,7 @@ import {
   LocalShipping,
   ShoppingBag,
   PersonAdd,
+  MedicalServices,
   AccountBalanceWallet,
   ShoppingCartCheckout,
 } from '@mui/icons-material'
@@ -133,6 +134,14 @@ export const menuConfig = [
         path: '/dashboard/categories',
         roles: ['ADMIN'],
         order: 5,
+      },
+      {
+        id: 'clinic-services',
+        label: 'Clinic Services',
+        icon: <MedicalServices />,
+        path: '/dashboard/clinic-services',
+        roles: ['ADMIN'],
+        order: 6,
       },
     ],
   },
