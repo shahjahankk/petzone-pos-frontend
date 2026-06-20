@@ -321,6 +321,7 @@ function POSTerminal() {
   const [notes, setNotes] = useState('')
   const [saleDate, setSaleDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchHighlightedIndex, setSearchHighlightedIndex] = useState(-1)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [clinicServices, setClinicServices] = useState([])
   const [clinicCategories, setClinicCategories] = useState([])
@@ -354,6 +355,7 @@ function POSTerminal() {
 
   const barcodeInputRef = useRef(null)
   const manualInputRef = useRef(null)
+  const searchDropdownRef = useRef(null)
   const customerDropdownRef = useRef(null)
   const customerSearchTimerRef = useRef(null)
   const lastScanTimeRef = useRef(0)
@@ -458,6 +460,14 @@ function POSTerminal() {
     }
     updateCurrentTab({ cart: newCart })
   }, [currentCart, updateCurrentTab])
+
+  const selectSearchResult = useCallback((product) => {
+    addToCart(product)
+    setShowSearchResults(false)
+    setManualInput('')
+    setSearchQuery('')
+    setSearchHighlightedIndex(-1)
+  }, [addToCart])
 
   const handleBarcodeScan = useCallback((barcode) => {
     const product = inventoryItems.find(p => {
@@ -727,6 +737,7 @@ function POSTerminal() {
     setBarcodeInput('')
     setManualInput('')
     setShowSearchResults(false)
+    setSearchHighlightedIndex(-1)
   }
 
   const handleSearch = (query) => {
@@ -793,13 +804,60 @@ function POSTerminal() {
 
       setSearchResults(combined)
       setShowSearchResults(true)
+      setSearchHighlightedIndex(-1)
     } else {
       setSearchResults([])
       setShowSearchResults(false)
+      setSearchHighlightedIndex(-1)
     }
   }
 
   const handleManualSearch = (query) => handleSearch(query)
+
+  const handleManualSearchKeyDown = (e) => {
+    if (showSearchResults && searchResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSearchHighlightedIndex((prev) => {
+          const next = prev < searchResults.length - 1 ? prev + 1 : 0
+          setTimeout(() => {
+            if (searchDropdownRef.current) {
+              const items = searchDropdownRef.current.querySelectorAll('[data-search-item]')
+              if (items[next]) items[next].scrollIntoView({ block: 'nearest' })
+            }
+          }, 0)
+          return next
+        })
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSearchHighlightedIndex((prev) => {
+          const next = prev <= 0 ? searchResults.length - 1 : prev - 1
+          setTimeout(() => {
+            if (searchDropdownRef.current) {
+              const items = searchDropdownRef.current.querySelectorAll('[data-search-item]')
+              if (items[next]) items[next].scrollIntoView({ block: 'nearest' })
+            }
+          }, 0)
+          return next
+        })
+        return
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        const index = searchHighlightedIndex >= 0 ? searchHighlightedIndex : 0
+        selectSearchResult(searchResults[index])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowSearchResults(false)
+        setSearchHighlightedIndex(-1)
+        return
+      }
+    }
+  }
 
   const searchCustomers = useCallback(async (query) => {
     const trimmed = (query || '').trim()
@@ -2717,7 +2775,6 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       if (e.target === barcodeInputRef.current && barcodeInput.trim()) handleBarcodeScan(barcodeInput.trim())
-      else if (e.target === manualInputRef.current && manualInput.trim()) handleManualSearch(manualInput.trim())
     }
     if (e.ctrlKey && e.key === 't') { e.preventDefault(); createNewTab() }
     if (e.ctrlKey && e.key === 'w') { e.preventDefault(); if (activeTabId) closeTab(activeTabId) }
@@ -2792,12 +2849,13 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
             <Box sx={{ flex: 1, position: 'relative' }}>
               <TextField
+                ref={manualInputRef}
                 fullWidth
                 size="small"
                 label="Search products & clinic services"
                 value={manualInput}
                 onChange={(e) => { setManualInput(e.target.value); handleManualSearch(e.target.value) }}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleManualSearchKeyDown}
                 InputProps={{
                   startAdornment: <SearchIcon sx={{ mr: 1, color: 'primary.main', fontSize: 18 }} />,
                   sx: { fontFamily: 'monospace', fontSize: '0.9rem' }
@@ -2805,12 +2863,22 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                 placeholder="Type product name, SKU, barcode, or service..."
               />
               {showSearchResults && searchResults.length > 0 && (
-                <Paper sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, maxHeight: 300, overflowY: 'auto', mt: 1, boxShadow: 3, border: `1px solid ${theme.palette.divider}` }}>
-                  {searchResults.map((product) => (
+                <Paper ref={searchDropdownRef} sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, maxHeight: 300, overflowY: 'auto', mt: 1, boxShadow: 3, border: `1px solid ${theme.palette.divider}` }}>
+                  {searchResults.map((product, index) => (
                     <Box
                       key={product.id}
-                      sx={{ p: 2, cursor: 'pointer', borderBottom: `1px solid ${theme.palette.divider}`, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }, '&:last-child': { borderBottom: 'none' } }}
-                      onClick={() => { addToCart(product); setShowSearchResults(false); setManualInput(''); setSearchQuery('') }}
+                      data-search-item
+                      onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setSearchHighlightedIndex(index)}
+                      sx={{
+                        p: 2,
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                        bgcolor: index === searchHighlightedIndex ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) },
+                        '&:last-child': { borderBottom: 'none' },
+                      }}
+                      onClick={() => selectSearchResult(product)}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
