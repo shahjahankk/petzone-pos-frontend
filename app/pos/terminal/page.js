@@ -333,8 +333,6 @@ function POSTerminal() {
   const [printData, setPrintData] = useState(null)
   const [saleConfirmDialog, setSaleConfirmDialog] = useState(false)
   const [pendingSaleData, setPendingSaleData] = useState(null)
-  const [completedSaleData, setCompletedSaleData] = useState(null)
-  const [postSaleDialog, setPostSaleDialog] = useState(false)
   const [selectedLayout, setSelectedLayout] = useState('thermal')
   const [availablePrinters, setAvailablePrinters] = useState([])
   const [scannerStatus, setScannerStatus] = useState({
@@ -1970,16 +1968,11 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               footerMessage: 'Thank you for your payment!'
             }
 
-            setCompletedSaleData({
-              sale: { invoice_no: settlementSale.invoice_no },
-              printData: settlementPrintData,
-              isSettlement: true,
-              settlementPaymentValue,
-              settlementCreditValue
-            })
-            setPostSaleDialog(true)
             clearAllPOSState()
             setTimeout(() => refreshOutstandingPayments(), 2000)
+            showToast(`Settlement recorded. Invoice: ${settlementSale.invoice_no}`, 'success')
+            await printThermalReceiptDirect(settlementPrintData, 'Settlement receipt')
+            if (barcodeInputRef.current) barcodeInputRef.current.focus()
           }
         } catch (error) {
           alert(`❌ Error processing outstanding payment settlement: ${error.message}`)
@@ -2015,10 +2008,11 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           receiptNumber: sale.invoice_no || `POS-${Date.now()}`
         }
 
-        setCompletedSaleData({ sale, printData: finalPrintData, isSettlement: false, finalPaymentAmount, finalCreditAmount, totalWithOutstanding })
         clearAllPOSState()
         setTimeout(() => refreshOutstandingPayments(), 2000)
-        setPostSaleDialog(true)
+        showToast(`Sale saved. Invoice: ${sale.invoice_no}`, 'success')
+        await printThermalReceiptDirect(finalPrintData, 'Post-sale receipt')
+        if (barcodeInputRef.current) barcodeInputRef.current.focus()
 
       } else if (createSale.rejected.match(result)) {
         const error = result.payload || result.error
@@ -2647,6 +2641,31 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     return { success, message, usedBrowserFallback }
   }
 
+  /** Print straight to thermal/Electron — no PrintDialog, no browser print popup. */
+  const printThermalReceiptDirect = async (printData, contextLabel = 'receipt') => {
+    try {
+      if (window.electronAPI?.printReceipt) {
+        const electronResult = await window.electronAPI.printReceipt(printData)
+        if (electronResult?.success) {
+          showToast('Receipt printed successfully', 'success')
+          return true
+        }
+      }
+
+      const thermalResult = await printToThermalPrinter(printData)
+      if (thermalResult?.success) {
+        showToast('Receipt printed successfully', 'success')
+        return true
+      }
+
+      showToast(thermalResult?.message || 'Thermal print failed. Check printer connection.', 'warning')
+      return false
+    } catch (error) {
+      showToast(error?.message || 'Thermal print failed', 'error')
+      return false
+    }
+  }
+
   const printReceipt = async () => {
     if (isProcessingSale) return
     setIsProcessingSale(true)
@@ -2748,7 +2767,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         }
 
         setPrintData(receiptPrintData)
-        setShowPrintDialog(true)
+        await printThermalReceiptDirect(receiptPrintData, 'POS receipt')
         updateCurrentTab({ cart: [], customerName: '', customerPhone: '' })
         setCustomerName('')
         setCustomerPhone('')
@@ -3718,62 +3737,6 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               {isProcessingSaleOnly ? 'Creating Sale...' : 'Confirm & Create Sale'}
             </Button>
           </DialogActions>
-        </Dialog>
-
-        {/* Post-Sale Dialog */}
-        <Dialog open={postSaleDialog} onClose={() => { setPostSaleDialog(false); setCompletedSaleData(null) }} maxWidth="sm" fullWidth sx={{ zIndex: 1400 }}>
-          <DialogTitle sx={{ bgcolor: 'success.main', color: 'success.contrastText' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CheckIcon />
-              <Typography variant="h6">{completedSaleData?.isSettlement ? 'Settlement Complete!' : 'Sale Created!'}</Typography>
-            </Box>
-          </DialogTitle>
-          <DialogContent sx={{ mt: 2 }}>
-            <Typography variant="body1" gutterBottom align="center">
-              {completedSaleData?.isSettlement
-                ? `Settlement recorded. Invoice: ${completedSaleData?.sale?.invoice_no || 'N/A'}`
-                : `Sale saved. Invoice: ${completedSaleData?.sale?.invoice_no || 'N/A'}`}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>Would you like to print the receipt?</Typography>
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" sx={{ mb: 2, color: 'primary.main' }}>Select Print Option:</Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Button variant="contained" size="large" startIcon={<PrintIcon />} color="primary" sx={{ py: 1.5, fontSize: '1rem', width: '100%' }}
-                  onClick={() => { setPostSaleDialog(false); if (completedSaleData?.printData) { setPrintData(completedSaleData.printData); setSelectedLayout('thermal'); setShowPrintDialog(true) }; setCompletedSaleData(null); if (barcodeInputRef.current) barcodeInputRef.current.focus() }}>
-                  Thermal Receipt (80mm)
-                </Button>
-                <Button variant="outlined" size="large" startIcon={<PrintIcon />} color="secondary" sx={{ py: 1.5, fontSize: '1rem', width: '100%' }}
-                  onClick={() => { setPostSaleDialog(false); if (completedSaleData?.printData) { setPrintData(completedSaleData.printData); setSelectedLayout('color'); setShowPrintDialog(true) }; setCompletedSaleData(null); if (barcodeInputRef.current) barcodeInputRef.current.focus() }}>
-                  Color Receipt (A4/Letter)
-                </Button>
-                <Button variant="outlined" size="large" startIcon={<PrintIcon />} color="info" sx={{ py: 1.5, fontSize: '1rem', width: '100%' }}
-                  onClick={async () => {
-                    setPostSaleDialog(false)
-                    if (completedSaleData?.printData) {
-                      try {
-                        const { success, message, usedBrowserFallback } = await attemptReceiptPrint(completedSaleData.printData, 'Post-sale receipt')
-                        if (success) { alert(usedBrowserFallback ? '✅ Receipt opened in browser print dialog!' : '✅ Receipt printed successfully!') }
-                        else { alert(`❌ Print failed: ${message || 'Unknown error'}`) }
-                      } catch (error) { alert(`❌ Print failed: ${error.message}`) }
-                    }
-                    setCompletedSaleData(null)
-                    if (barcodeInputRef.current) barcodeInputRef.current.focus()
-                  }}>
-                  Direct Print (Auto-detect)
-                </Button>
-              </Box>
-            </Box>
-            <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 2 }}>
-              <Button size="small" variant="text" startIcon={<PrintIcon />} onClick={async () => { const status = await checkPrinterStatus(); alert(`Printer Status:\n\n${status.message}\n\n${status.hasSerialPorts ? `✅ Found ${status.portCount} serial port(s)` : '❌ No serial printers detected\n\nTry using Thermal Receipt or Browser Print option.'}`) }} sx={{ width: '100%' }}>
-                Check Printer Status
-              </Button>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Button variant="text" color="inherit" onClick={() => { setPostSaleDialog(false); setCompletedSaleData(null); if (barcodeInputRef.current) barcodeInputRef.current.focus() }}>
-                Skip Printing
-              </Button>
-            </Box>
-          </DialogContent>
         </Dialog>
 
       </Box>
