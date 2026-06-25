@@ -82,17 +82,21 @@ export const createWarehouseSale = createAsyncThunk(
       return response.data
     } catch (error) {
       const status = error.response?.status
-      const apiMessage = error.response?.data?.message || error.response?.data?.errors
-      const defaultMessage = 'Failed to create warehouse sale'
+      const data = error.response?.data
+      let apiMessage = data?.message || error.message || 'Failed to create warehouse sale'
+      if (Array.isArray(data?.errors) && data.errors.length > 0) {
+        const detail = data.errors.map((e) => e.msg || e.message).filter(Boolean).join('; ')
+        if (detail) apiMessage = `${apiMessage}: ${detail}`
+      } else if (data?.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+        apiMessage = JSON.stringify(data.errors)
+      }
 
       if (status === 403) {
-        const permissionMessage =
-          apiMessage || 'Permission denied. You may not have access to this warehouse.'
-        return rejectWithValue({ message: permissionMessage, status })
+        return rejectWithValue({ message: apiMessage || 'Permission denied. You may not have access to this warehouse.', status })
       }
 
       return rejectWithValue({
-        message: apiMessage || error.message || defaultMessage,
+        message: apiMessage,
         status
       })
     }

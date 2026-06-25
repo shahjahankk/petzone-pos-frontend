@@ -1290,6 +1290,8 @@ function WarehouseBillingPage() {
 
     const payload = {
       retailerId: retailerInfo.id,
+      scopeId: scopeInfo?.scopeId || user?.warehouseId || null,
+      scopeWarehouseId: scopeInfo?.scopeId || user?.warehouseId || null,
       salespersonId: salespersonInfo?.id,
       salespersonName: salespersonInfo?.name,
       salespersonPhone: salespersonInfo?.phone,
@@ -1318,7 +1320,8 @@ function WarehouseBillingPage() {
     return { payload, retailerInfo, salespersonInfo }
   }, [
     currentCart, notes, saleDate, retailerDisplayName, retailerDisplayPhone,
-    selectedOutstandingPayments, selectedRetailer, selectedSalesperson, taxRate, totalDiscount
+    selectedOutstandingPayments, selectedRetailer, selectedSalesperson, taxRate, totalDiscount,
+    scopeInfo, user
   ])
 
   const calculateWarehousePaymentDetails = ({
@@ -1963,6 +1966,12 @@ function WarehouseBillingPage() {
         const clearRid = selectedRetailer?.id ?? null
         clearAllPOSState()
         if (clearPhone || clearName) setTimeout(() => refreshOutstandingPayments(clearPhone, clearName, clearRid), 500)
+      } else if (createWarehouseSale.rejected.match(result)) {
+        const err = result.payload
+        const msg = typeof err === 'string'
+          ? err
+          : (err?.message || 'Unknown server error')
+        alert(`❌ Sale could not be saved.\n\n${msg}`)
       } else {
         alert('❌ Sale could not be saved. Please try again.')
       }
