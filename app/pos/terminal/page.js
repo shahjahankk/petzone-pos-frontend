@@ -85,16 +85,16 @@ import PhysicalScanner from '../../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../../store/slices/inventorySlice'
 import { createSale, fetchSales } from '../../store/slices/salesSlice'
 import {
-  acquireSerialPort,
-  closeSerialPortIfOpen,
-  connectSerialPrinter,
-  getGrantedSerialPortCount,
-  isWebSerialSupported,
-  openSerialPort,
-  resetCachedSerialPort,
-  restoreCachedSerialPort,
-  writeToSerialPort,
-} from '../../../utils/thermalSerialPrinter'
+  acquirePrinter,
+  connectThermalPrinter,
+  getGrantedPrinterCount,
+  getPrinterSupportMessage,
+  isThermalPrintingSupported,
+  resetCachedPrinter,
+  restoreCachedPrinter,
+  testPrinterConnection,
+  writeToThermalPrinter,
+} from '../../../utils/thermalPrinter'
 
 const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 const generateTabName = (tabNumber) => `Sale ${tabNumber}`
@@ -223,12 +223,12 @@ function POSTerminal() {
       try { return sessionStorage.getItem('printerPermissionGranted') } catch (e) { return null }
     })()
 
-    if (user && permissionFlag === '1' && isWebSerialSupported()) {
-      restoreCachedSerialPort().catch(() => {})
+    if (user && permissionFlag === '1' && isThermalPrintingSupported()) {
+      restoreCachedPrinter().catch(() => {})
     }
 
     if (!user) {
-      resetCachedSerialPort()
+      resetCachedPrinter()
       try { sessionStorage.removeItem('printerPermissionGranted') } catch (e) { /* ignore */ }
     }
   }, [user])
@@ -393,29 +393,29 @@ function POSTerminal() {
   ])
 
   const refreshPrinterStatus = useCallback(async () => {
-    if (!isWebSerialSupported()) {
+    if (!isThermalPrintingSupported()) {
       setPrinterStatus({
         connected: false,
         supported: false,
         portCount: 0,
-        message: 'Use Chrome or Edge on desktop for USB thermal printing',
+        message: getPrinterSupportMessage(),
         connecting: false,
       })
       return
     }
 
     try {
-      const portCount = await getGrantedSerialPortCount()
+      const portCount = await getGrantedPrinterCount()
       if (portCount > 0) {
-        await restoreCachedSerialPort()
+        await restoreCachedPrinter()
       }
       setPrinterStatus({
         connected: portCount > 0,
         supported: true,
         portCount,
         message: portCount > 0
-          ? `${portCount} USB printer port(s) paired`
-          : 'Click Connect Printer to pair your USB thermal printer',
+          ? `${portCount} USB printer device(s) paired`
+          : getPrinterSupportMessage(),
         connecting: false,
       })
     } catch (error) {
@@ -430,21 +430,20 @@ function POSTerminal() {
   }, [])
 
   const handleConnectPrinter = useCallback(async () => {
-    if (!isWebSerialSupported()) {
-      showToast('Use Chrome or Edge on desktop for USB thermal printing', 'warning')
+    if (!isThermalPrintingSupported()) {
+      showToast(getPrinterSupportMessage(), 'warning')
       return
     }
 
     setPrinterStatus((prev) => ({ ...prev, connecting: true }))
     try {
-      const port = await connectSerialPrinter()
-      await openSerialPort(port)
-      await closeSerialPortIfOpen(port)
+      await connectThermalPrinter()
+      const testResult = await testPrinterConnection()
       await refreshPrinterStatus()
-      showToast('Printer connected successfully', 'success')
+      showToast(testResult?.message || 'Printer connected successfully', 'success')
     } catch (error) {
       if (error?.name === 'NotFoundError') {
-        showToast('No printer selected', 'warning')
+        showToast('No Epson USB printer found. Check USB cable and use Chrome/Edge.', 'warning')
       } else {
         showToast(error?.message || 'Failed to connect printer', 'error')
       }
@@ -596,21 +595,41 @@ function POSTerminal() {
     ]
 
     try {
-      if (isWebSerialSupported()) {
-        const ports = await navigator.serial.getPorts()
-        const serialPrinters = ports.map((port) => {
-          const info = port.getInfo?.() || {}
-          return {
-            id: `${info.usbVendorId || 'unknown'}-${info.usbProductId || 'unknown'}`,
-            name: `USB Thermal (${info.usbVendorId ? `Vendor ${info.usbVendorId}` : 'Serial'})`,
-            type: 'thermal',
-            port,
-            info,
-          }
-        })
-        setAvailablePrinters([...serialPrinters, ...defaultPrinters])
-        return
+      const detected = []
+      if (isThermalPrintingSupported()) {
+        try {
+          const usbDevices = await navigator.usb?.getDevices?.() || []
+          usbDevices.forEach((device) => {
+            detected.push({
+              id: `usb-${device.vendorId}-${device.productId}`,
+              name: `USB Thermal (Epson/vendor ${device.vendorId})`,
+              type: 'thermal',
+              transport: 'usb',
+              device,
+            })
+          })
+        } catch (e) {
+          /* ignore */
+        }
+        try {
+          const ports = await navigator.serial?.getPorts?.() || []
+          ports.forEach((port) => {
+            const info = port.getInfo?.() || {}
+            detected.push({
+              id: `${info.usbVendorId || 'unknown'}-${info.usbProductId || 'unknown'}`,
+              name: `Serial Thermal (${info.usbVendorId ? `Vendor ${info.usbVendorId}` : 'COM'})`,
+              type: 'thermal',
+              transport: 'serial',
+              port,
+              info,
+            })
+          })
+        } catch (e) {
+          /* ignore */
+        }
       }
+      setAvailablePrinters([...detected, ...defaultPrinters])
+      return
     } catch (error) {
       /* fall through to defaults */
     }
@@ -977,18 +996,14 @@ function POSTerminal() {
   const printThermalBill = async (billData, printer) => {
     const printContent = generateThermalPrintContent(billData)
 
-    if (isWebSerialSupported()) {
-      let port
+    if (isThermalPrintingSupported()) {
       try {
-        port = await acquireSerialPort({ allowRequest: true })
-        await openSerialPort(port)
+        await acquirePrinter({ allowRequest: true })
         const encoder = new TextEncoder()
-        await writeToSerialPort(port, encoder.encode(printContent))
-        await closeSerialPortIfOpen(port)
+        await writeToThermalPrinter(encoder.encode(printContent))
         return
       } catch (serialError) {
-        if (port) await closeSerialPortIfOpen(port)
-        resetCachedSerialPort()
+        resetCachedPrinter()
       }
     }
 
@@ -2245,15 +2260,12 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
   }
 
   const printToThermalPrinter = async (printData, { allowPortRequest = false } = {}) => {
-    if (!isWebSerialSupported()) {
-      throw new Error('Web Serial is not supported. Use Chrome or Edge on desktop for USB thermal printing.')
+    if (!isThermalPrintingSupported()) {
+      throw new Error(getPrinterSupportMessage())
     }
 
-    let port
-
     try {
-      port = await acquireSerialPort({ allowRequest: allowPortRequest })
-      await openSerialPort(port)
+      await acquirePrinter({ allowRequest: allowPortRequest })
 
       const fmt = (v) => String(Math.round(Number(v || 0)))
 
@@ -2404,27 +2416,25 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         0x1D, 0x56, 0x00
       )
 
-      await writeToSerialPort(port, new Uint8Array(commands))
-      await closeSerialPortIfOpen(port)
+      await writeToThermalPrinter(new Uint8Array(commands))
 
       return { success: true, message: 'Printed to thermal printer' }
     } catch (error) {
-      if (port) await closeSerialPortIfOpen(port)
-      resetCachedSerialPort()
+      resetCachedPrinter()
       throw error
     }
   }
 
   const checkPrinterStatus = async () => {
     try {
-      if (isWebSerialSupported()) {
-        const ports = await navigator.serial.getPorts()
-        if (ports.length > 0) {
-          return { hasSerialPorts: true, portCount: ports.length, message: `Found ${ports.length} paired USB printer port(s)` }
-        }
-        return { hasSerialPorts: false, portCount: 0, message: 'No printer paired. Click Connect Printer first.' }
+      if (!isThermalPrintingSupported()) {
+        return { hasSerialPorts: false, portCount: 0, message: getPrinterSupportMessage() }
       }
-      return { hasSerialPorts: false, portCount: 0, message: 'Web Serial not supported in this browser' }
+      const count = await getGrantedPrinterCount()
+      if (count > 0) {
+        return { hasSerialPorts: true, portCount: count, message: `Found ${count} paired USB printer device(s)` }
+      }
+      return { hasSerialPorts: false, portCount: 0, message: 'No printer paired. Click Connect Printer and select your Epson from the USB list.' }
     } catch (error) {
       return { hasSerialPorts: false, portCount: 0, message: 'Error checking printer status' }
     }
