@@ -84,6 +84,17 @@ import RouteGuard from '../../../components/auth/RouteGuard'
 import PhysicalScanner from '../../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../../store/slices/inventorySlice'
 import { createSale, fetchSales } from '../../store/slices/salesSlice'
+import {
+  acquireSerialPort,
+  closeSerialPortIfOpen,
+  connectSerialPrinter,
+  getGrantedSerialPortCount,
+  isWebSerialSupported,
+  openSerialPort,
+  resetCachedSerialPort,
+  restoreCachedSerialPort,
+  writeToSerialPort,
+} from '../../../utils/thermalSerialPrinter'
 
 const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 const generateTabName = (tabNumber) => `Sale ${tabNumber}`
@@ -94,59 +105,6 @@ const DEFAULT_COMPANY_INFO = {
   phone: '03111100355',
   email: 'info@petzone.com',
   logoUrl: '/petzonelogo.png'
-}
-
-let cachedSerialPort = null
-let cachedSerialPortInfo = null
-
-const resetCachedSerialPort = () => {
-  cachedSerialPort = null
-  cachedSerialPortInfo = null
-}
-
-const acquireSerialPort = async () => {
-  if (typeof navigator === 'undefined' || !navigator.serial) {
-    throw new Error('Web Serial API not supported')
-  }
-
-  if (cachedSerialPort) return cachedSerialPort
-
-  const grantedPorts = await navigator.serial.getPorts?.()
-
-  if (grantedPorts && grantedPorts.length > 0) {
-    try { sessionStorage.setItem('printerPermissionGranted', '1') } catch (e) { /* ignore */ }
-
-    if (cachedSerialPortInfo) {
-      const matchedPort = grantedPorts.find(port => {
-        if (typeof port.getInfo !== 'function') return false
-        const info = port.getInfo()
-        return info &&
-          info.usbVendorId === cachedSerialPortInfo.usbVendorId &&
-          info.usbProductId === cachedSerialPortInfo.usbProductId
-      })
-      if (matchedPort) {
-        cachedSerialPort = matchedPort
-        return cachedSerialPort
-      }
-    }
-
-    cachedSerialPort = grantedPorts[0]
-    if (cachedSerialPort && typeof cachedSerialPort.getInfo === 'function') {
-      cachedSerialPortInfo = cachedSerialPort.getInfo()
-    }
-    return cachedSerialPort
-  }
-
-  const requestedPort = await navigator.serial.requestPort()
-  if (!requestedPort) throw new Error('No port selected by user')
-
-  try { sessionStorage.setItem('printerPermissionGranted', '1') } catch (e) { /* ignore */ }
-
-  cachedSerialPort = requestedPort
-  if (typeof requestedPort.getInfo === 'function') {
-    cachedSerialPortInfo = requestedPort.getInfo()
-  }
-  return cachedSerialPort
 }
 
 const createEmptyTabState = (overrides = {}) => ({
@@ -265,15 +223,8 @@ function POSTerminal() {
       try { return sessionStorage.getItem('printerPermissionGranted') } catch (e) { return null }
     })()
 
-    if (user && permissionFlag === '1' && typeof navigator !== 'undefined' && navigator.serial) {
-      navigator.serial.getPorts?.()
-        .then(ports => {
-          if (ports && ports.length > 0) {
-            cachedSerialPort = ports[0]
-            try { cachedSerialPortInfo = cachedSerialPort.getInfo() } catch (e) { cachedSerialPortInfo = null }
-          }
-        })
-        .catch(() => {})
+    if (user && permissionFlag === '1' && isWebSerialSupported()) {
+      restoreCachedSerialPort().catch(() => {})
     }
 
     if (!user) {
@@ -340,6 +291,13 @@ function POSTerminal() {
     lastScan: null,
     scanCount: 0,
     errors: []
+  })
+  const [printerStatus, setPrinterStatus] = useState({
+    connected: false,
+    supported: false,
+    portCount: 0,
+    message: 'Checking printer...',
+    connecting: false,
   })
   const [outstandingPayments, setOutstandingPayments] = useState([])
   const [selectedOutstandingPayments, setSelectedOutstandingPayments] = useState([])
@@ -433,6 +391,66 @@ function POSTerminal() {
     isSettlementPartial, isSettlementFullyCredit, showSettlementOptions,
     taxRate, totalDiscount, notes, saleDate, updateCurrentTab
   ])
+
+  const refreshPrinterStatus = useCallback(async () => {
+    if (!isWebSerialSupported()) {
+      setPrinterStatus({
+        connected: false,
+        supported: false,
+        portCount: 0,
+        message: 'Use Chrome or Edge on desktop for USB thermal printing',
+        connecting: false,
+      })
+      return
+    }
+
+    try {
+      const portCount = await getGrantedSerialPortCount()
+      if (portCount > 0) {
+        await restoreCachedSerialPort()
+      }
+      setPrinterStatus({
+        connected: portCount > 0,
+        supported: true,
+        portCount,
+        message: portCount > 0
+          ? `${portCount} USB printer port(s) paired`
+          : 'Click Connect Printer to pair your USB thermal printer',
+        connecting: false,
+      })
+    } catch (error) {
+      setPrinterStatus({
+        connected: false,
+        supported: true,
+        portCount: 0,
+        message: error?.message || 'Could not detect printer',
+        connecting: false,
+      })
+    }
+  }, [])
+
+  const handleConnectPrinter = useCallback(async () => {
+    if (!isWebSerialSupported()) {
+      showToast('Use Chrome or Edge on desktop for USB thermal printing', 'warning')
+      return
+    }
+
+    setPrinterStatus((prev) => ({ ...prev, connecting: true }))
+    try {
+      const port = await connectSerialPrinter()
+      await openSerialPort(port)
+      await closeSerialPortIfOpen(port)
+      await refreshPrinterStatus()
+      showToast('Printer connected successfully', 'success')
+    } catch (error) {
+      if (error?.name === 'NotFoundError') {
+        showToast('No printer selected', 'warning')
+      } else {
+        showToast(error?.message || 'Failed to connect printer', 'error')
+      }
+      await refreshPrinterStatus()
+    }
+  }, [refreshPrinterStatus, showToast])
 
   const addToCart = useCallback((product) => {
     const cartId = product.isService ? `service-${product.clinicServiceId || product.id}` : product.id
@@ -570,35 +588,34 @@ function POSTerminal() {
   }, [tabCounter])
 
   const loadAvailablePrinters = useCallback(async () => {
+    const defaultPrinters = [
+      { id: 'default', name: 'Default Printer', type: 'default' },
+      { id: 'thermal-80mm', name: 'Thermal 80mm', type: 'thermal' },
+      { id: 'thermal-58mm', name: 'Thermal 58mm', type: 'thermal' },
+      { id: 'browser-print', name: 'Browser Print Dialog', type: 'browser' },
+    ]
+
     try {
-      if (navigator.serial) {
+      if (isWebSerialSupported()) {
         const ports = await navigator.serial.getPorts()
-        setAvailablePrinters(ports.map(port => {
-          const info = port.getInfo()
+        const serialPrinters = ports.map((port) => {
+          const info = port.getInfo?.() || {}
           return {
-            id: info.usbVendorId || info.usbProductId || 'unknown',
-            name: `Serial Printer (${info.usbVendorId ? `Vendor: ${info.usbVendorId}` : 'Unknown'})`,
+            id: `${info.usbVendorId || 'unknown'}-${info.usbProductId || 'unknown'}`,
+            name: `USB Thermal (${info.usbVendorId ? `Vendor ${info.usbVendorId}` : 'Serial'})`,
             type: 'thermal',
-            port: port,
-            info: info
+            port,
+            info,
           }
-        }))
+        })
+        setAvailablePrinters([...serialPrinters, ...defaultPrinters])
+        return
       }
-      setAvailablePrinters(prev => [
-        ...prev,
-        { id: 'default', name: 'Default Printer', type: 'default' },
-        { id: 'thermal-80mm', name: 'Thermal 80mm', type: 'thermal' },
-        { id: 'thermal-58mm', name: 'Thermal 58mm', type: 'thermal' },
-        { id: 'browser-print', name: 'Browser Print Dialog', type: 'browser' }
-      ])
     } catch (error) {
-      setAvailablePrinters([
-        { id: 'default', name: 'Default Printer', type: 'default' },
-        { id: 'thermal-80mm', name: 'Thermal 80mm', type: 'thermal' },
-        { id: 'thermal-58mm', name: 'Thermal 58mm', type: 'thermal' },
-        { id: 'browser-print', name: 'Browser Print Dialog', type: 'browser' }
-      ])
+      /* fall through to defaults */
     }
+
+    setAvailablePrinters(defaultPrinters)
   }, [])
 
   useEffect(() => {
@@ -619,6 +636,7 @@ function POSTerminal() {
     }
     dispatch(fetchSales())
     loadAvailablePrinters()
+    refreshPrinterStatus()
     api.get('/clinic-services/billing')
       .then((res) => {
         const data = res.data?.data || {}
@@ -629,7 +647,7 @@ function POSTerminal() {
         setClinicServices([])
         setClinicCategories([])
       })
-  }, [dispatch, user, loadAvailablePrinters, isAdminMode])
+  }, [dispatch, user, loadAvailablePrinters, refreshPrinterStatus, isAdminMode])
 
   const buildPosScopeParams = useCallback(() => {
     if (scopeInfo?.scopeType && scopeInfo?.scopeId != null) {
@@ -959,27 +977,17 @@ function POSTerminal() {
   const printThermalBill = async (billData, printer) => {
     const printContent = generateThermalPrintContent(billData)
 
-    if (navigator.serial) {
+    if (isWebSerialSupported()) {
       let port
       try {
-        port = await acquireSerialPort()
-        if (!port) throw new Error('No port selected by user')
-
-        if (port.readable || port.writable) {
-          try { await port.close() } catch (e) {}
-        }
-
-        await port.open({ baudRate: 9600 })
-        const writer = port.writable.getWriter()
+        port = await acquireSerialPort({ allowRequest: true })
+        await openSerialPort(port)
         const encoder = new TextEncoder()
-        await writer.write(encoder.encode(printContent))
-        writer.releaseLock()
-        await port.close()
+        await writeToSerialPort(port, encoder.encode(printContent))
+        await closeSerialPortIfOpen(port)
         return
       } catch (serialError) {
-        if (port) {
-          try { if (port.readable || port.writable) await port.close() } catch (e) {}
-        }
+        if (port) await closeSerialPortIfOpen(port)
         resetCachedSerialPort()
       }
     }
@@ -2236,39 +2244,17 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     }
   }
 
-  const printToThermalPrinter = async (printData) => {
-    if (typeof navigator === 'undefined' || !navigator.serial) {
-      throw new Error('Web Serial API not supported')
+  const printToThermalPrinter = async (printData, { allowPortRequest = false } = {}) => {
+    if (!isWebSerialSupported()) {
+      throw new Error('Web Serial is not supported. Use Chrome or Edge on desktop for USB thermal printing.')
     }
 
     let port
 
     try {
-      port = await acquireSerialPort()
-      if (!port) throw new Error('No port selected by user')
+      port = await acquireSerialPort({ allowRequest: allowPortRequest })
+      await openSerialPort(port)
 
-      if (port.readable || port.writable) {
-        try { await port.close() } catch (e) {}
-      }
-
-      const baudRates = [9600, 19200, 38400, 57600, 115200]
-      let connected = false
-
-      for (const baudRate of baudRates) {
-        try {
-          await port.open({ baudRate })
-          connected = true
-          break
-        } catch (error) {
-          if (port.readable || port.writable) {
-            try { await port.close() } catch (e) {}
-          }
-        }
-      }
-
-      if (!connected) throw new Error('Could not connect to printer at any baud rate')
-
-      const writer = port.writable.getWriter()
       const fmt = (v) => String(Math.round(Number(v || 0)))
 
       const commands = [
@@ -2418,15 +2404,12 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         0x1D, 0x56, 0x00
       )
 
-      await writer.write(new Uint8Array(commands))
-      writer.releaseLock()
-      await port.close()
+      await writeToSerialPort(port, new Uint8Array(commands))
+      await closeSerialPortIfOpen(port)
 
       return { success: true, message: 'Printed to thermal printer' }
     } catch (error) {
-      if (port) {
-        try { if (port.readable || port.writable) await port.close() } catch (e) {}
-      }
+      if (port) await closeSerialPortIfOpen(port)
       resetCachedSerialPort()
       throw error
     }
@@ -2434,13 +2417,14 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
   const checkPrinterStatus = async () => {
     try {
-      if (navigator.serial) {
+      if (isWebSerialSupported()) {
         const ports = await navigator.serial.getPorts()
         if (ports.length > 0) {
-          return { hasSerialPorts: true, portCount: ports.length, message: `Found ${ports.length} serial port(s)` }
+          return { hasSerialPorts: true, portCount: ports.length, message: `Found ${ports.length} paired USB printer port(s)` }
         }
+        return { hasSerialPorts: false, portCount: 0, message: 'No printer paired. Click Connect Printer first.' }
       }
-      return { hasSerialPorts: false, portCount: 0, message: 'No serial ports detected' }
+      return { hasSerialPorts: false, portCount: 0, message: 'Web Serial not supported in this browser' }
     } catch (error) {
       return { hasSerialPorts: false, portCount: 0, message: 'Error checking printer status' }
     }
@@ -2619,7 +2603,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }
     } else {
       try {
-        const thermalResult = await printToThermalPrinter(printData)
+        const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: true })
         success = !!thermalResult?.success
         message = thermalResult?.message || ''
       } catch (serialError) {
@@ -2652,16 +2636,16 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         }
       }
 
-      const thermalResult = await printToThermalPrinter(printData)
+      const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: false })
       if (thermalResult?.success) {
         showToast('Receipt printed successfully', 'success')
         return true
       }
 
-      showToast(thermalResult?.message || 'Thermal print failed. Check printer connection.', 'warning')
+      showToast(thermalResult?.message || 'Thermal print failed. Click Connect Printer first.', 'warning')
       return false
     } catch (error) {
-      showToast(error?.message || 'Thermal print failed', 'error')
+      showToast(error?.message || 'Thermal print failed. Click Connect Printer first.', 'warning')
       return false
     }
   }
@@ -2802,9 +2786,6 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
   const TabComponent = ({ tab, isActive, onClose, onClick }) => {
     const itemCount = tab.cart.reduce((sum, item) => sum + item.quantity, 0)
     const hasItems = itemCount > 0
-
-    useEffect(() => { resetCachedSerialPort() }, [])
-    useEffect(() => { return () => { resetCachedSerialPort() } }, [])
 
     return (
       <Paper
@@ -2968,6 +2949,25 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                 variant="outlined"
               />
             </Tooltip>
+            <Tooltip title={printerStatus.message}>
+              <Chip
+                icon={printerStatus.connected ? <CheckIcon /> : <ErrorIcon />}
+                label={printerStatus.connected ? 'Printer OK' : 'No Printer'}
+                color={printerStatus.connected ? 'success' : 'warning'}
+                size="small"
+                variant="outlined"
+              />
+            </Tooltip>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={printerStatus.connecting ? <CircularProgress size={14} /> : <PrintIcon />}
+              onClick={handleConnectPrinter}
+              disabled={printerStatus.connecting || !printerStatus.supported}
+              sx={{ fontFamily: 'monospace', minWidth: 130, height: 40, whiteSpace: 'nowrap' }}
+            >
+              {printerStatus.connecting ? 'Connecting...' : 'Connect Printer'}
+            </Button>
             <Button variant="contained" size="small" onClick={() => handleBarcodeScan(barcodeInput)} disabled={!barcodeInput.trim()} sx={{ fontFamily: 'monospace', minWidth: 100, height: 40 }}>
               ADD PRODUCT
             </Button>
@@ -3646,7 +3646,10 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                 </Grid>
                 <Grid item xs={12}>
                   <Typography variant="subtitle1" gutterBottom>Test Print Options</Typography>
-                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                    <Button variant="contained" startIcon={<PrintIcon />} onClick={handleConnectPrinter} disabled={printerStatus.connecting || !printerStatus.supported} sx={{ flex: 1 }}>
+                      {printerStatus.connecting ? 'Connecting...' : 'Connect USB Printer'}
+                    </Button>
                     <Button variant="outlined" startIcon={<PrintIcon />} onClick={handleDirectPrint} disabled={currentCart.length === 0} sx={{ flex: 1 }}>Test Print Current Cart</Button>
                     <Button variant="outlined" onClick={async () => { const status = await checkPrinterStatus(); alert(`Printer Status Check:\n\n${status.message}\n\nSerial Ports: ${status.portCount}`) }} sx={{ flex: 1 }}>Check Printer Status</Button>
                   </Box>
