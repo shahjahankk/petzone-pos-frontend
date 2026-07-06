@@ -7,6 +7,10 @@ const SERIAL_STORAGE_KEY = 'thermalSerialPortInfo'
 const USB_STORAGE_KEY = 'thermalUsbDeviceInfo'
 const PERMISSION_KEY = 'printerPermissionGranted'
 const TRANSPORT_KEY = 'thermalPrinterTransport'
+const PRINTER_MODE_KEY = 'posPrinterMode'
+
+export const PRINTER_MODE_DIRECT = 'direct'
+export const PRINTER_MODE_SYSTEM = 'system'
 
 export const BAUD_RATES = [9600, 19200, 38400, 57600, 115200]
 
@@ -217,6 +221,8 @@ export async function restoreCachedPrinter() {
 export const restoreCachedSerialPort = restoreCachedPrinter
 
 export async function getGrantedPrinterCount() {
+  if (isSystemPrinterMode()) return 1
+
   let count = 0
   if (isWebUsbSupported()) {
     try {
@@ -239,7 +245,68 @@ export async function getGrantedPrinterCount() {
 
 export const getGrantedSerialPortCount = getGrantedPrinterCount
 
+export function getPrinterMode() {
+  try {
+    return sessionStorage.getItem(PRINTER_MODE_KEY) || PRINTER_MODE_DIRECT
+  } catch (e) {
+    return PRINTER_MODE_DIRECT
+  }
+}
+
+export function isSystemPrinterMode() {
+  return getPrinterMode() === PRINTER_MODE_SYSTEM
+}
+
+export function setPrinterMode(mode) {
+  try {
+    sessionStorage.setItem(PRINTER_MODE_KEY, mode)
+    if (mode === PRINTER_MODE_SYSTEM) {
+      persistPermission('system')
+    }
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+export function getPrinterBlockedHelp() {
+  const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent)
+  const isWin = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent)
+
+  if (isMac) {
+    return (
+      'Epson not in USB list — macOS is using the printer driver and hiding USB from Chrome. ' +
+      'Fix option A: Click "Use System Printer" in POS (easiest — uses your installed Epson). ' +
+      'Fix option B: System Settings → Printers → remove Epson → unplug USB 10 sec → replug → Connect Printer in Chrome again.'
+    )
+  }
+
+  if (isWin) {
+    return (
+      'Epson not in USB list — Windows USB Print driver is blocking browser access. ' +
+      'Fix option A: Click "Use System Printer" in POS (uses installed Epson driver). ' +
+      'Fix option B: Install WinUSB via Zadig (zadig.akeo.ie) for your Epson, then Connect Printer again.'
+    )
+  }
+
+  return (
+    'Epson not in USB list — the system printer driver is blocking browser USB access. ' +
+    'Click "Use System Printer" in POS, or remove the printer from system settings and try Connect Printer again.'
+  )
+}
+
+/** Use when direct USB is blocked — prints via Mac/Windows print dialog. */
+export function connectSystemPrinter() {
+  resetCachedPrinter()
+  setPrinterMode(PRINTER_MODE_SYSTEM)
+  persistPermission('system')
+  return {
+    transport: 'system',
+    message: 'System printer mode enabled. Add Epson in laptop settings if needed; receipts will use the print dialog.',
+  }
+}
+
 export function getActivePrinterTransport() {
+  if (isSystemPrinterMode()) return 'system'
   return cachedTransport
 }
 
@@ -248,18 +315,27 @@ async function requestUsbPrinter() {
     throw new Error('WebUSB is not supported in this browser. Use Chrome or Edge on desktop.')
   }
 
+  setPrinterMode(PRINTER_MODE_DIRECT)
+
   let device
   try {
-    device = await navigator.usb.requestDevice({ filters: THERMAL_USB_FILTERS })
+    // Single dialog — list every USB device Chrome can access.
+    device = await navigator.usb.requestDevice({ filters: [] })
   } catch (error) {
     if (error?.name === 'NotFoundError') {
-      device = await navigator.usb.requestDevice({ filters: [] })
-    } else {
-      throw error
+      const blocked = new Error(getPrinterBlockedHelp())
+      blocked.name = 'PrinterBlockedError'
+      blocked.cause = error
+      throw blocked
     }
+    throw error
   }
 
-  if (!device) throw new Error('No USB printer selected')
+  if (!device) {
+    const blocked = new Error(getPrinterBlockedHelp())
+    blocked.name = 'PrinterBlockedError'
+    throw blocked
+  }
 
   try {
     const endpointInfo = await openUsbDevice(device)
@@ -311,6 +387,7 @@ async function requestSerialPrinter() {
  */
 export async function connectThermalPrinter() {
   resetCachedPrinter()
+  setPrinterMode(PRINTER_MODE_DIRECT)
 
   const errors = []
 
@@ -318,11 +395,10 @@ export async function connectThermalPrinter() {
     try {
       return { transport: 'usb', device: await requestUsbPrinter() }
     } catch (error) {
-      if (error?.name === 'NotFoundError') {
-        errors.push('No USB thermal printer found in the USB list.')
-      } else {
+      if (error?.name === 'NotFoundError' || error?.name === 'PrinterBlockedError') {
         throw error
       }
+      errors.push(error?.message || 'USB connection failed.')
     }
   } else {
     errors.push('WebUSB not available in this browser.')
@@ -333,7 +409,7 @@ export async function connectThermalPrinter() {
       return { transport: 'serial', port: await requestSerialPrinter() }
     } catch (error) {
       if (error?.name === 'NotFoundError') {
-        errors.push('No serial/COM port found for the printer.')
+        errors.push('No serial/COM port found.')
       } else {
         throw error
       }
@@ -342,9 +418,9 @@ export async function connectThermalPrinter() {
     errors.push('Web Serial not available in this browser.')
   }
 
-  throw new Error(
-    `${errors.join(' ')} Make sure the Epson is plugged in via USB, powered on, and you are using Chrome or Edge. Epson thermal printers usually appear in the USB list, not as a COM port. On Mac, remove the printer from System Settings → Printers if it was added there.`
-  )
+  const blocked = new Error(`${errors.join(' ')} ${getPrinterBlockedHelp()}`)
+  blocked.name = 'PrinterBlockedError'
+  throw blocked
 }
 
 export const connectSerialPrinter = connectThermalPrinter
@@ -451,6 +527,10 @@ async function writeToUsbDevice(device, data) {
 
 /** Send raw ESC/POS bytes using whichever transport is connected. */
 export async function writeToThermalPrinter(data) {
+  if (isSystemPrinterMode()) {
+    throw new Error('System printer mode — use browser print instead of direct USB.')
+  }
+
   await restoreCachedPrinter()
 
   if (cachedTransport === 'usb' && cachedUsbDevice) {
@@ -513,11 +593,11 @@ async function deviceClaimRelease(device, interfaceNumber) {
 }
 
 export function getPrinterSupportMessage() {
+  if (isSystemPrinterMode()) {
+    return 'System printer mode — receipts print via Mac/Windows print dialog (choose Epson).'
+  }
   if (!isThermalPrintingSupported()) {
     return 'Use Chrome or Edge on a laptop/desktop. Safari and iPhone/iPad cannot connect USB thermal printers.'
   }
-  if (isWebUsbSupported()) {
-    return 'Click Connect Printer — select your Epson from the USB device list (not 9-pin/24-pin).'
-  }
-  return 'Click Connect Printer to pair your USB thermal printer.'
+  return 'Connect Printer = direct USB. If Epson does not appear, click Use System Printer instead.'
 }

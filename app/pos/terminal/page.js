@@ -86,9 +86,12 @@ import { fetchInventory } from '../../store/slices/inventorySlice'
 import { createSale, fetchSales } from '../../store/slices/salesSlice'
 import {
   acquirePrinter,
+  connectSystemPrinter,
   connectThermalPrinter,
   getGrantedPrinterCount,
+  getPrinterBlockedHelp,
   getPrinterSupportMessage,
+  isSystemPrinterMode,
   isThermalPrintingSupported,
   resetCachedPrinter,
   restoreCachedPrinter,
@@ -298,7 +301,10 @@ function POSTerminal() {
     portCount: 0,
     message: 'Checking printer...',
     connecting: false,
+    mode: 'direct',
   })
+  const [showPrinterHelpDialog, setShowPrinterHelpDialog] = useState(false)
+  const [printerHelpMessage, setPrinterHelpMessage] = useState('')
   const [outstandingPayments, setOutstandingPayments] = useState([])
   const [selectedOutstandingPayments, setSelectedOutstandingPayments] = useState([])
   const [isSearchingOutstanding, setIsSearchingOutstanding] = useState(false)
@@ -393,6 +399,18 @@ function POSTerminal() {
   ])
 
   const refreshPrinterStatus = useCallback(async () => {
+    if (isSystemPrinterMode()) {
+      setPrinterStatus({
+        connected: true,
+        supported: true,
+        portCount: 1,
+        message: getPrinterSupportMessage(),
+        connecting: false,
+        mode: 'system',
+      })
+      return
+    }
+
     if (!isThermalPrintingSupported()) {
       setPrinterStatus({
         connected: false,
@@ -400,6 +418,7 @@ function POSTerminal() {
         portCount: 0,
         message: getPrinterSupportMessage(),
         connecting: false,
+        mode: 'direct',
       })
       return
     }
@@ -417,6 +436,7 @@ function POSTerminal() {
           ? `${portCount} USB printer device(s) paired`
           : getPrinterSupportMessage(),
         connecting: false,
+        mode: 'direct',
       })
     } catch (error) {
       setPrinterStatus({
@@ -425,9 +445,16 @@ function POSTerminal() {
         portCount: 0,
         message: error?.message || 'Could not detect printer',
         connecting: false,
+        mode: 'direct',
       })
     }
   }, [])
+
+  const handleUseSystemPrinter = useCallback(async () => {
+    const result = connectSystemPrinter()
+    await refreshPrinterStatus()
+    showToast(result.message, 'success')
+  }, [refreshPrinterStatus, showToast])
 
   const handleConnectPrinter = useCallback(async () => {
     if (!isThermalPrintingSupported()) {
@@ -443,7 +470,13 @@ function POSTerminal() {
       showToast(testResult?.message || 'Printer connected successfully', 'success')
     } catch (error) {
       if (error?.name === 'NotFoundError') {
-        showToast('No Epson USB printer found. Check USB cable and use Chrome/Edge.', 'warning')
+        setPrinterHelpMessage(getPrinterBlockedHelp())
+        setShowPrinterHelpDialog(true)
+        showToast('Epson not found in USB list — see help dialog', 'warning')
+      } else if (error?.name === 'PrinterBlockedError') {
+        setPrinterHelpMessage(error.message || getPrinterBlockedHelp())
+        setShowPrinterHelpDialog(true)
+        showToast('Use System Printer instead (recommended on Mac/Windows)', 'warning')
       } else {
         showToast(error?.message || 'Failed to connect printer', 'error')
       }
@@ -2427,6 +2460,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
   const checkPrinterStatus = async () => {
     try {
+      if (isSystemPrinterMode()) {
+        return { hasSerialPorts: true, portCount: 1, message: 'System printer mode — Epson via Mac/Windows print dialog' }
+      }
       if (!isThermalPrintingSupported()) {
         return { hasSerialPorts: false, portCount: 0, message: getPrinterSupportMessage() }
       }
@@ -2646,6 +2682,16 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         }
       }
 
+      if (isSystemPrinterMode()) {
+        const browserResult = await printToBrowser(printData)
+        if (browserResult?.success) {
+          showToast('Print dialog opened — select your Epson printer', 'success')
+          return true
+        }
+        showToast(browserResult?.message || 'Could not open print dialog', 'warning')
+        return false
+      }
+
       const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: false })
       if (thermalResult?.success) {
         showToast('Receipt printed successfully', 'success')
@@ -2655,7 +2701,11 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       showToast(thermalResult?.message || 'Thermal print failed. Click Connect Printer first.', 'warning')
       return false
     } catch (error) {
-      showToast(error?.message || 'Thermal print failed. Click Connect Printer first.', 'warning')
+      if (error?.name === 'PrinterBlockedError' || /not in USB list|blocked/i.test(error?.message || '')) {
+        setPrinterHelpMessage(error.message || getPrinterBlockedHelp())
+        setShowPrinterHelpDialog(true)
+      }
+      showToast(error?.message || 'Thermal print failed. Try Use System Printer.', 'warning')
       return false
     }
   }
@@ -2962,7 +3012,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
             <Tooltip title={printerStatus.message}>
               <Chip
                 icon={printerStatus.connected ? <CheckIcon /> : <ErrorIcon />}
-                label={printerStatus.connected ? 'Printer OK' : 'No Printer'}
+                label={printerStatus.mode === 'system' ? 'System Print' : printerStatus.connected ? 'Printer OK' : 'No Printer'}
                 color={printerStatus.connected ? 'success' : 'warning'}
                 size="small"
                 variant="outlined"
@@ -2973,10 +3023,20 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               size="small"
               startIcon={printerStatus.connecting ? <CircularProgress size={14} /> : <PrintIcon />}
               onClick={handleConnectPrinter}
-              disabled={printerStatus.connecting || !printerStatus.supported}
+              disabled={printerStatus.connecting}
+              sx={{ fontFamily: 'monospace', minWidth: 120, height: 40, whiteSpace: 'nowrap' }}
+            >
+              {printerStatus.connecting ? 'Connecting...' : 'Connect USB'}
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="small"
+              startIcon={<PrintIcon />}
+              onClick={handleUseSystemPrinter}
               sx={{ fontFamily: 'monospace', minWidth: 130, height: 40, whiteSpace: 'nowrap' }}
             >
-              {printerStatus.connecting ? 'Connecting...' : 'Connect Printer'}
+              Use System Printer
             </Button>
             <Button variant="contained" size="small" onClick={() => handleBarcodeScan(barcodeInput)} disabled={!barcodeInput.trim()} sx={{ fontFamily: 'monospace', minWidth: 100, height: 40 }}>
               ADD PRODUCT
@@ -3657,12 +3717,18 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                 <Grid item xs={12}>
                   <Typography variant="subtitle1" gutterBottom>Test Print Options</Typography>
                   <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                    <Button variant="contained" startIcon={<PrintIcon />} onClick={handleConnectPrinter} disabled={printerStatus.connecting || !printerStatus.supported} sx={{ flex: 1 }}>
+                    <Button variant="outlined" startIcon={<PrintIcon />} onClick={handleConnectPrinter} disabled={printerStatus.connecting} sx={{ flex: 1 }}>
                       {printerStatus.connecting ? 'Connecting...' : 'Connect USB Printer'}
                     </Button>
+                    <Button variant="contained" color="secondary" startIcon={<PrintIcon />} onClick={handleUseSystemPrinter} sx={{ flex: 1 }}>
+                      Use System Printer (Mac/Windows)
+                    </Button>
                     <Button variant="outlined" startIcon={<PrintIcon />} onClick={handleDirectPrint} disabled={currentCart.length === 0} sx={{ flex: 1 }}>Test Print Current Cart</Button>
-                    <Button variant="outlined" onClick={async () => { const status = await checkPrinterStatus(); alert(`Printer Status Check:\n\n${status.message}\n\nSerial Ports: ${status.portCount}`) }} sx={{ flex: 1 }}>Check Printer Status</Button>
+                    <Button variant="outlined" onClick={async () => { const status = await checkPrinterStatus(); alert(`Printer Status Check:\n\n${status.message}\n\nDevices: ${status.portCount}`) }} sx={{ flex: 1 }}>Check Printer Status</Button>
                   </Box>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    If Epson does not appear in the USB popup, click <strong>Use System Printer</strong> — add Epson in laptop Settings → Printers first, then print via the normal print dialog.
+                  </Alert>
                   <Button variant="outlined" onClick={() => { setShowPrinterDialog(false); alert('✅ Printer settings saved!') }} sx={{ width: '100%' }}>Save Settings</Button>
                 </Grid>
               </Grid>
@@ -3696,6 +3762,25 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         <Snackbar open={toast.open} autoHideDuration={4000} onClose={handleToastClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>
+
+        <Dialog open={showPrinterHelpDialog} onClose={() => setShowPrinterHelpDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Epson not showing in USB list</DialogTitle>
+          <DialogContent>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              This is normal when Mac or Windows already controls the Epson via its printer driver. The browser cannot see the printer in that case.
+            </Alert>
+            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>{printerHelpMessage || getPrinterBlockedHelp()}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Recommended: click <strong>Use System Printer</strong>, make sure Epson is added in your laptop printer settings, then complete a sale — the print dialog will open and you choose Epson.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowPrinterHelpDialog(false)}>Close</Button>
+            <Button variant="contained" color="secondary" onClick={() => { setShowPrinterHelpDialog(false); handleUseSystemPrinter() }}>
+              Use System Printer
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Sale Confirmation Dialog */}
         <Dialog open={saleConfirmDialog} onClose={() => { setSaleConfirmDialog(false); setPendingSaleData(null) }} maxWidth="sm" fullWidth sx={{ zIndex: 1400 }}>
