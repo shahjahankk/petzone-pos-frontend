@@ -28,6 +28,7 @@ import {
   PersonAdd,
   MedicalServices,
   AccountBalanceWallet,
+  ShoppingCartCheckout,
   ConfirmationNumber,
 } from '@mui/icons-material'
 
