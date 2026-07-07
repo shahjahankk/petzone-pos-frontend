@@ -12,6 +12,11 @@ export const config = {
   // API Configuration
   API_BASE_URL: process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api',
   API_TIMEOUT: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT) || 30000,
+
+  // Standalone Queue Management API (queue-management.petzone.pk)
+  QMS_API_URL: process.env.NEXT_PUBLIC_QMS_API_URL || 'http://localhost:4050/api',
+  QMS_ORG_SLUG: process.env.NEXT_PUBLIC_QMS_ORG_SLUG || 'petzone',
+  QMS_BRANCH_SLUG: process.env.NEXT_PUBLIC_QMS_BRANCH_SLUG || 'main',
   
   // Database Configuration
   DATABASE_URL: process.env.DATABASE_URL || 'mysql://localhost:3306/petzonepos',

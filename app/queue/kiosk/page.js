@@ -2,8 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import {
-  Box, Typography, Button, Card, CardContent, Grid, TextField, Alert, Snackbar,
-  CircularProgress, Chip, Dialog, DialogTitle, DialogContent, DialogActions
+  Box, Typography, Button, Alert, Snackbar, CircularProgress, Chip,
 } from '@mui/material'
 import { ConfirmationNumber, Print, Usb } from '@mui/icons-material'
 import { useSelector } from 'react-redux'
@@ -13,16 +12,13 @@ import {
   connectThermalPrinter, getPrinterSupportMessage, isThermalPrintingSupported,
   getGrantedPrinterCount, isSystemPrinterMode, connectSystemPrinter,
 } from '../../../utils/thermalPrinter'
-import { resolveQueueBranch, getQueueBranchInfo, issueTicket } from '../../../utils/queueApi'
+import { resolveQueueBranch, issueToken } from '../../../utils/queueApi'
 import { printQueueTicket } from '../../../utils/queueThermalPrinter'
+import { config } from '../../../config/environment'
 
 function QueueKioskPage() {
   const { user } = useSelector((s) => s.auth)
   const [branchCtx, setBranchCtx] = useState(null)
-  const [services, setServices] = useState([])
-  const [selected, setSelected] = useState(null)
-  const [petName, setPetName] = useState('')
-  const [ownerName, setOwnerName] = useState('')
   const [loading, setLoading] = useState(true)
   const [issuing, setIssuing] = useState(false)
   const [lastTicket, setLastTicket] = useState(null)
@@ -32,16 +28,19 @@ function QueueKioskPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const ctx = await resolveQueueBranch()
+      const posBranchId = user?.branchId || user?.branch_id
+      const ctx = await resolveQueueBranch(posBranchId).catch(() => ({
+        orgSlug: config.QMS_ORG_SLUG,
+        branchSlug: config.QMS_BRANCH_SLUG,
+        branchName: 'PetZone Clinic',
+      }))
       setBranchCtx(ctx)
-      const info = await getQueueBranchInfo(ctx.orgSlug, ctx.branchSlug)
-      setServices(info.services || [])
     } catch (err) {
-      setToast({ open: true, message: err?.response?.data?.message || err.message, severity: 'error' })
+      setToast({ open: true, message: err.message, severity: 'error' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => { load() }, [load])
 
@@ -65,15 +64,11 @@ function QueueKioskPage() {
     setToast({ open: true, message: 'System printer mode enabled', severity: 'success' })
   }
 
-  const handleIssue = async () => {
-    if (!selected || !branchCtx) return
+  const handlePrintToken = async () => {
+    if (!branchCtx) return
     setIssuing(true)
     try {
-      const ticket = await issueTicket(branchCtx.orgSlug, branchCtx.branchSlug, {
-        service_type_id: selected.id,
-        pet_name: petName.trim() || null,
-        owner_name: ownerName.trim() || null,
-      })
+      const ticket = await issueToken(branchCtx.orgSlug, branchCtx.branchSlug)
       setLastTicket(ticket)
       const printResult = await printQueueTicket(ticket)
       setToast({
@@ -81,9 +76,6 @@ function QueueKioskPage() {
         message: printResult.message || `Token ${ticket.ticket_code} printed`,
         severity: 'success',
       })
-      setSelected(null)
-      setPetName('')
-      setOwnerName('')
     } catch (err) {
       setToast({ open: true, message: err?.response?.data?.message || err.message, severity: 'error' })
     } finally {
@@ -100,91 +92,56 @@ function QueueKioskPage() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f0f4ff', p: 3 }}>
-      <Box sx={{ maxWidth: 900, mx: 'auto' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box>
-            <Typography variant="h4" fontWeight={800} color="primary">
-              PetZone Queue Kiosk
-            </Typography>
-            <Typography color="text.secondary">
-              {branchCtx?.branchName} — {user?.username || user?.email}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            {!printerReady && isThermalPrintingSupported() && (
-              <Button variant="outlined" startIcon={<Usb />} onClick={handleConnectPrinter} size="small">
-                Connect Printer
-              </Button>
-            )}
-            {!printerReady && (
-              <Button variant="text" onClick={handleUseSystemPrinter} size="small">
-                System Printer
-              </Button>
-            )}
-            {printerReady && <Chip label="Printer Ready" color="success" size="small" />}
-          </Box>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f0f4ff', p: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
+        <Box component="img" src="/petzonelogo.svg" alt="PetZone" sx={{ height: 56, mb: 2 }} />
+
+        <Typography variant="h5" fontWeight={800} color="primary" gutterBottom>
+          Queue Token
+        </Typography>
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          {branchCtx?.branchName || 'PetZone Clinic'}
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mb: 2 }}>
+          {!printerReady && isThermalPrintingSupported() && (
+            <Button variant="outlined" size="small" startIcon={<Usb />} onClick={handleConnectPrinter}>
+              Connect Printer
+            </Button>
+          )}
+          {!printerReady && (
+            <Button variant="text" size="small" onClick={handleUseSystemPrinter}>System Printer</Button>
+          )}
+          {printerReady && <Chip label="Printer Ready" color="success" size="small" />}
         </Box>
 
         {!printerReady && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            {getPrinterSupportMessage()} Connect your Epson thermal printer before issuing tokens.
+          <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
+            {getPrinterSupportMessage()}
           </Alert>
         )}
 
-        {!selected ? (
-          <>
-            <Typography variant="h6" sx={{ mb: 2, textAlign: 'center' }}>
-              Select a service to issue a queue token
-            </Typography>
-            <Grid container spacing={2}>
-              {services.map((svc) => (
-                <Grid item xs={12} sm={6} md={4} key={svc.id}>
-                  <Card
-                    sx={{
-                      cursor: 'pointer', textAlign: 'center', p: 2,
-                      border: `3px solid ${svc.color}30`,
-                      '&:hover': { borderColor: svc.color, transform: 'translateY(-2px)' },
-                      transition: 'all 0.2s',
-                    }}
-                    onClick={() => setSelected(svc)}
-                  >
-                    <Typography variant="h2" fontWeight={900} sx={{ color: svc.color }}>
-                      {svc.prefix}
-                    </Typography>
-                    <Typography variant="h6">{svc.name}</Typography>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </>
-        ) : (
-          <Card sx={{ maxWidth: 480, mx: 'auto', p: 2 }}>
-            <CardContent>
-              <Typography variant="h6" color="primary" gutterBottom>
-                {selected.name}
-              </Typography>
-              <TextField fullWidth label="Pet Name (optional)" value={petName} onChange={(e) => setPetName(e.target.value)} sx={{ mb: 2, mt: 1 }} />
-              <TextField fullWidth label="Owner Name (optional)" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} sx={{ mb: 3 }} />
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Button variant="outlined" onClick={() => setSelected(null)} fullWidth>Back</Button>
-                <Button
-                  variant="contained" fullWidth size="large"
-                  startIcon={issuing ? <CircularProgress size={20} color="inherit" /> : <Print />}
-                  onClick={handleIssue}
-                  disabled={issuing}
-                >
-                  Print Token
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
+        {lastTicket && (
+          <Typography variant="h2" fontWeight={900} color="primary" sx={{ mb: 2 }}>
+            {lastTicket.ticket_code}
+          </Typography>
         )}
+
+        <Button
+          variant="contained"
+          size="large"
+          fullWidth
+          sx={{ py: 3, fontSize: 22, borderRadius: 3 }}
+          startIcon={issuing ? <CircularProgress size={24} color="inherit" /> : <Print />}
+          onClick={handlePrintToken}
+          disabled={issuing}
+        >
+          Print Token
+        </Button>
 
         {lastTicket && (
           <Alert severity="success" sx={{ mt: 3 }} icon={<ConfirmationNumber />}>
-            Last issued: <strong>{lastTicket.ticket_code}</strong> — {lastTicket.service_name}
-            {lastTicket.waiting_ahead > 0 && ` (${lastTicket.waiting_ahead} ahead)`}
+            Last token: <strong>{lastTicket.ticket_code}</strong>
           </Alert>
         )}
       </Box>

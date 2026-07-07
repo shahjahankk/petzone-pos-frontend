@@ -145,7 +145,7 @@ export const menuConfig = [
       },
       {
         id: 'clinic-queue',
-        label: 'Clinic Queue',
+        label: 'Queue Token',
         icon: <ConfirmationNumber />,
         path: '/dashboard/queue',
         roles: ['ADMIN', 'CASHIER'],
@@ -183,20 +183,12 @@ export const menuConfig = [
       },
       {
         id: 'queue-kiosk',
-        label: 'Queue Kiosk',
+        label: 'Queue Token',
         icon: <ConfirmationNumber />,
         path: '/queue/kiosk',
         roles: ['ADMIN', 'CASHIER'],
         order: 1.5,
         newWindow: true,
-      },
-      {
-        id: 'queue-counter',
-        label: 'Queue Counter',
-        icon: <ConfirmationNumber />,
-        path: '/queue/counter',
-        roles: ['ADMIN', 'CASHIER'],
-        order: 1.6,
       },
       {
         id: 'sales-management',
