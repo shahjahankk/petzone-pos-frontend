@@ -28,7 +28,7 @@ import {
   PersonAdd,
   MedicalServices,
   AccountBalanceWallet,
-  ShoppingCartCheckout,
+  ConfirmationNumber,
 } from '@mui/icons-material'
 
 // Centralized menu configuration organized by sections
@@ -143,6 +143,14 @@ export const menuConfig = [
         roles: ['ADMIN'],
         order: 6,
       },
+      {
+        id: 'clinic-queue',
+        label: 'Clinic Queue',
+        icon: <ConfirmationNumber />,
+        path: '/dashboard/queue',
+        roles: ['ADMIN', 'CASHIER'],
+        order: 7,
+      },
     ],
   },
 
@@ -172,6 +180,23 @@ export const menuConfig = [
         roles: ['ADMIN', 'CASHIER'],
         order: 1,
         newWindow: true,
+      },
+      {
+        id: 'queue-kiosk',
+        label: 'Queue Kiosk',
+        icon: <ConfirmationNumber />,
+        path: '/queue/kiosk',
+        roles: ['ADMIN', 'CASHIER'],
+        order: 1.5,
+        newWindow: true,
+      },
+      {
+        id: 'queue-counter',
+        label: 'Queue Counter',
+        icon: <ConfirmationNumber />,
+        path: '/queue/counter',
+        roles: ['ADMIN', 'CASHIER'],
+        order: 1.6,
       },
       {
         id: 'sales-management',

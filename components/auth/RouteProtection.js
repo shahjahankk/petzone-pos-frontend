@@ -6,7 +6,7 @@ import { useSelector } from 'react-redux'
 import { Box, Typography, CircularProgress, Button } from '@mui/material'
 
 // Public paths that never need auth checks
-const PUBLIC_PATHS = ['/login', '/register', '/download']
+const PUBLIC_PATHS = ['/login', '/register', '/download', '/queue/display']
 
 const RouteProtection = ({ children }) => {
   const router = useRouter()
