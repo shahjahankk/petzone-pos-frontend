@@ -1,71 +1,28 @@
-import {
-  acquirePrinter,
-  isThermalPrintingSupported,
-  isSystemPrinterMode,
-  resetCachedPrinter,
-  writeToThermalPrinter,
-  getPrinterSupportMessage,
-} from './thermalPrinter'
-
-function esc(...bytes) {
-  return bytes
-}
-
-function line(str = '') {
-  return [...new TextEncoder().encode(str), 0x0A]
-}
-
-const LOGO_URL = '/petzonelogo.svg'
+import { PETZONE_LOGO_PNG, PETZONE_LOGO_SVG, resolvePetzoneLogoUrl } from './brandAssets'
 
 /**
- * Minimal queue slip: PetZone logo + token number only (28, 29, …)
+ * Print queue token slip with the same PetZone logo as POS receipts + number (28, 29, …)
  */
-export async function printQueueTicket(ticket, { allowPortRequest = true } = {}) {
+export async function printQueueTicket(ticket) {
   const ticketCode = String(ticket.ticket_code || ticket.ticket_number || '---')
-
-  if (isSystemPrinterMode() || !isThermalPrintingSupported()) {
-    return printQueueTicketBrowser(ticketCode)
-  }
-
-  try {
-    await acquirePrinter({ allowRequest: allowPortRequest })
-
-    const commands = [
-      ...esc(0x1B, 0x40),
-      ...esc(0x1B, 0x61, 0x01),
-      ...esc(0x1B, 0x21, 0x30),
-      ...line('PetZone'),
-      ...esc(0x1B, 0x21, 0x00),
-      ...line(''),
-      ...esc(0x1B, 0x21, 0x38),
-      ...line(ticketCode),
-      ...esc(0x1B, 0x21, 0x00),
-      ...line(''),
-      ...line(''),
-      ...esc(0x1D, 0x56, 0x00),
-    ]
-
-    await writeToThermalPrinter(new Uint8Array(commands))
-    return { success: true, message: `Token ${ticketCode} printed` }
-  } catch (err) {
-    resetCachedPrinter()
-    const fallback = await printQueueTicketBrowser(ticketCode)
-    if (fallback.success) return { success: true, message: 'Printed via browser', usedFallback: true }
-    throw new Error(err.message || getPrinterSupportMessage())
-  }
+  return printQueueTicketBrowser(ticketCode)
 }
 
 function printQueueTicketBrowser(ticketCode) {
   return new Promise((resolve) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const logoPng = resolvePetzoneLogoUrl(origin)
+    const logoSvg = origin ? `${origin}${PETZONE_LOGO_SVG}` : PETZONE_LOGO_SVG
+
     const html = `<!DOCTYPE html>
 <html><head><title>Token ${ticketCode}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
   body { margin: 0; padding: 8mm 4mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; }
-  img { width: 140px; height: auto; margin-bottom: 8px; }
+  img { max-width: 100px; width: 100px; height: auto; filter: grayscale(100%); display: block; margin: 0 auto 12px; }
   .num { font-size: 72px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 16px 0; }
 </style></head><body>
-  <img src="${LOGO_URL}" alt="PetZone" onerror="this.style.display='none'">
+  <img src="${logoPng}" alt="PetZone" onerror="this.onerror=null;this.src='${logoSvg}'">
   <div class="num">${ticketCode}</div>
 </body></html>`
 
@@ -77,7 +34,7 @@ function printQueueTicketBrowser(ticketCode) {
     w.document.write(html)
     w.document.close()
     w.focus()
-    setTimeout(() => { w.print(); setTimeout(() => w.close(), 400) }, 300)
-    resolve({ success: true, message: 'Print dialog opened' })
+    setTimeout(() => { w.print(); setTimeout(() => w.close(), 400) }, 400)
+    resolve({ success: true, message: `Token ${ticketCode} sent to printer` })
   })
 }

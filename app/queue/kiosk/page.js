@@ -14,6 +14,7 @@ import {
 } from '../../../utils/thermalPrinter'
 import { resolveQueueBranch, issueToken } from '../../../utils/queueApi'
 import { printQueueTicket } from '../../../utils/queueThermalPrinter'
+import { PETZONE_LOGO_PNG, PETZONE_LOGO_SVG } from '../../../utils/brandAssets'
 import { config } from '../../../config/environment'
 
 function QueueKioskPage() {
@@ -94,7 +95,13 @@ function QueueKioskPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f0f4ff', p: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <Box sx={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-        <Box component="img" src="/petzonelogo.svg" alt="PetZone" sx={{ height: 56, mb: 2 }} />
+        <Box
+          component="img"
+          src={PETZONE_LOGO_PNG}
+          alt="PetZone"
+          onError={(e) => { e.currentTarget.src = PETZONE_LOGO_SVG }}
+          sx={{ height: 56, mb: 2, objectFit: 'contain' }}
+        />
 
         <Typography variant="h5" fontWeight={800} color="primary" gutterBottom>
           Queue Token
