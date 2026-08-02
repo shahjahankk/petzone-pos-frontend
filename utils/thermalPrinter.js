@@ -364,11 +364,16 @@ async function requestSerialPrinter() {
     throw new Error('Web Serial is not supported in this browser.')
   }
 
+  setPrinterMode(PRINTER_MODE_DIRECT)
+
   let port
   try {
-    port = await navigator.serial.requestPort({ filters: THERMAL_USB_FILTERS.map((f) => ({
-      usbVendorId: f.vendorId,
-    })) })
+    // Prefer known thermal vendors, then fall back to any COM/serial port
+    port = await navigator.serial.requestPort({
+      filters: THERMAL_USB_FILTERS.map((f) => ({
+        usbVendorId: f.vendorId,
+      })),
+    })
   } catch (error) {
     if (error?.name === 'NotFoundError') {
       port = await navigator.serial.requestPort()
@@ -379,6 +384,28 @@ async function requestSerialPrinter() {
 
   if (!port) throw new Error('No serial printer port selected')
   return cacheSerialPort(port)
+}
+
+/**
+ * Connect via WebUSB (direct Epson/Star/Bixolon USB).
+ * Must be called from a user click.
+ */
+export async function connectUsbPrinter() {
+  resetCachedPrinter()
+  setPrinterMode(PRINTER_MODE_DIRECT)
+  const device = await requestUsbPrinter()
+  return { transport: 'usb', device }
+}
+
+/**
+ * Connect via Web Serial (COM port / virtual serial / USB-serial adapters).
+ * Must be called from a user click.
+ */
+export async function connectSerialPrinter() {
+  resetCachedPrinter()
+  setPrinterMode(PRINTER_MODE_DIRECT)
+  const port = await requestSerialPrinter()
+  return { transport: 'serial', port }
 }
 
 /**
@@ -393,12 +420,20 @@ export async function connectThermalPrinter() {
 
   if (isWebUsbSupported()) {
     try {
-      return { transport: 'usb', device: await requestUsbPrinter() }
+      return await connectUsbPrinter()
     } catch (error) {
       if (error?.name === 'NotFoundError' || error?.name === 'PrinterBlockedError') {
-        throw error
+        // USB picker cancelled / blocked — still allow serial attempt below unless user cancelled
+        if (error?.name === 'PrinterBlockedError') {
+          errors.push(error.message)
+        } else {
+          errors.push('No USB printer selected.')
+        }
+      } else if (error?.name === 'NotAllowedError') {
+        errors.push('USB permission denied.')
+      } else {
+        errors.push(error?.message || 'USB connection failed.')
       }
-      errors.push(error?.message || 'USB connection failed.')
     }
   } else {
     errors.push('WebUSB not available in this browser.')
@@ -406,10 +441,12 @@ export async function connectThermalPrinter() {
 
   if (isWebSerialSupported()) {
     try {
-      return { transport: 'serial', port: await requestSerialPrinter() }
+      return await connectSerialPrinter()
     } catch (error) {
       if (error?.name === 'NotFoundError') {
         errors.push('No serial/COM port found.')
+      } else if (error?.name === 'NotAllowedError') {
+        errors.push('Serial permission denied.')
       } else {
         throw error
       }
@@ -422,8 +459,6 @@ export async function connectThermalPrinter() {
   blocked.name = 'PrinterBlockedError'
   throw blocked
 }
-
-export const connectSerialPrinter = connectThermalPrinter
 
 export async function acquirePrinter(options = {}) {
   const { allowRequest = true } = options
@@ -461,10 +496,25 @@ export async function closeSerialPortIfOpen(port) {
 export async function openSerialPort(port, baudRates = BAUD_RATES) {
   await closeSerialPortIfOpen(port)
 
+  // Prefer last successful baud if stored
+  let preferred = []
+  try {
+    const raw = sessionStorage.getItem('thermalSerialBaud')
+    if (raw) preferred = [parseInt(raw, 10)].filter((n) => Number.isFinite(n))
+  } catch (e) {
+    /* ignore */
+  }
+  const rates = [...new Set([...preferred, ...baudRates])]
+
   let lastError
-  for (const baudRate of baudRates) {
+  for (const baudRate of rates) {
     try {
       await port.open({ ...SERIAL_OPEN_BASE, baudRate })
+      try {
+        sessionStorage.setItem('thermalSerialBaud', String(baudRate))
+      } catch (e) {
+        /* ignore */
+      }
       return baudRate
     } catch (error) {
       lastError = error
@@ -594,10 +644,10 @@ async function deviceClaimRelease(device, interfaceNumber) {
 
 export function getPrinterSupportMessage() {
   if (isSystemPrinterMode()) {
-    return 'System printer mode — receipts print via Mac/Windows print dialog (choose Epson).'
+    return 'System printer mode — tokens print via Mac/Windows print dialog (choose Epson).'
   }
   if (!isThermalPrintingSupported()) {
-    return 'Use Chrome or Edge on a laptop/desktop. Safari and iPhone/iPad cannot connect USB thermal printers.'
+    return 'Use Chrome or Edge on a laptop/desktop. Safari and iPhone/iPad cannot connect USB/serial thermal printers.'
   }
-  return 'Connect Printer = direct USB. If Epson does not appear, click Use System Printer instead.'
+  return 'Connect USB = direct Epson WebUSB. Connect Serial/COM = COM port or USB-serial adapter. System Printer = OS print dialog.'
 }
