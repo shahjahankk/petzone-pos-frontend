@@ -88,13 +88,21 @@ import {
   acquirePrinter,
   connectSystemPrinter,
   connectThermalPrinter,
+  connectUsbPrinter,
+  connectSerialPrinter,
   getGrantedPrinterCount,
+  getActivePrinterTransport,
   getPrinterBlockedHelp,
   getPrinterSupportMessage,
+  hasDirectPrinterPaired,
   isSystemPrinterMode,
   isThermalPrintingSupported,
+  isWebUsbSupported,
+  isWebSerialSupported,
   resetCachedPrinter,
   restoreCachedPrinter,
+  setPrinterMode,
+  PRINTER_MODE_DIRECT,
   testPrinterConnection,
   writeToThermalPrinter,
 } from '../../../utils/thermalPrinter'
@@ -302,6 +310,7 @@ function POSTerminal() {
     message: 'Checking printer...',
     connecting: false,
     mode: 'direct',
+    transport: null,
   })
   const [showPrinterHelpDialog, setShowPrinterHelpDialog] = useState(false)
   const [printerHelpMessage, setPrinterHelpMessage] = useState('')
@@ -399,19 +408,7 @@ function POSTerminal() {
   ])
 
   const refreshPrinterStatus = useCallback(async () => {
-    if (isSystemPrinterMode()) {
-      setPrinterStatus({
-        connected: true,
-        supported: true,
-        portCount: 1,
-        message: getPrinterSupportMessage(),
-        connecting: false,
-        mode: 'system',
-      })
-      return
-    }
-
-    if (!isThermalPrintingSupported()) {
+    if (!isThermalPrintingSupported() && !isSystemPrinterMode()) {
       setPrinterStatus({
         connected: false,
         supported: false,
@@ -419,24 +416,51 @@ function POSTerminal() {
         message: getPrinterSupportMessage(),
         connecting: false,
         mode: 'direct',
+        transport: null,
       })
       return
     }
 
     try {
-      const portCount = await getGrantedPrinterCount()
-      if (portCount > 0) {
+      const directPaired = await hasDirectPrinterPaired()
+      if (directPaired) {
         await restoreCachedPrinter()
+        const transport = getActivePrinterTransport()
+        setPrinterStatus({
+          connected: true,
+          supported: true,
+          portCount: 1,
+          message: transport === 'serial'
+            ? 'Serial/COM thermal printer connected — silent print on sale'
+            : 'USB thermal printer connected — silent print on sale',
+          connecting: false,
+          mode: 'direct',
+          transport,
+        })
+        return
       }
+
+      if (isSystemPrinterMode()) {
+        setPrinterStatus({
+          connected: true,
+          supported: true,
+          portCount: 1,
+          message: 'System printer mode — OS print dialog will open on sale',
+          connecting: false,
+          mode: 'system',
+          transport: 'system',
+        })
+        return
+      }
+
       setPrinterStatus({
-        connected: portCount > 0,
-        supported: true,
-        portCount,
-        message: portCount > 0
-          ? `${portCount} USB printer device(s) paired`
-          : getPrinterSupportMessage(),
+        connected: false,
+        supported: isThermalPrintingSupported(),
+        portCount: 0,
+        message: getPrinterSupportMessage(),
         connecting: false,
         mode: 'direct',
+        transport: null,
       })
     } catch (error) {
       setPrinterStatus({
@@ -446,6 +470,7 @@ function POSTerminal() {
         message: error?.message || 'Could not detect printer',
         connecting: false,
         mode: 'direct',
+        transport: null,
       })
     }
   }, [])
@@ -454,6 +479,44 @@ function POSTerminal() {
     const result = connectSystemPrinter()
     await refreshPrinterStatus()
     showToast(result.message, 'success')
+  }, [refreshPrinterStatus, showToast])
+
+  const handleConnectUsb = useCallback(async () => {
+    if (!isWebUsbSupported()) {
+      showToast('WebUSB not supported. Use Chrome/Edge, or try Serial/COM.', 'warning')
+      return
+    }
+    setPrinterStatus((prev) => ({ ...prev, connecting: true }))
+    try {
+      await connectUsbPrinter()
+      await testPrinterConnection().catch(() => null)
+      await refreshPrinterStatus()
+      showToast('USB thermal connected — sales will print silently', 'success')
+    } catch (error) {
+      if (error?.name === 'NotFoundError' || error?.name === 'PrinterBlockedError') {
+        setPrinterHelpMessage(error.message || getPrinterBlockedHelp())
+        setShowPrinterHelpDialog(true)
+      }
+      showToast(error?.message || 'USB connect failed — try Serial/COM', 'warning')
+      await refreshPrinterStatus()
+    }
+  }, [refreshPrinterStatus, showToast])
+
+  const handleConnectSerial = useCallback(async () => {
+    if (!isWebSerialSupported()) {
+      showToast('Web Serial not supported. Use Chrome/Edge on desktop.', 'warning')
+      return
+    }
+    setPrinterStatus((prev) => ({ ...prev, connecting: true }))
+    try {
+      await connectSerialPrinter()
+      await testPrinterConnection().catch(() => null)
+      await refreshPrinterStatus()
+      showToast('Serial/COM thermal connected — sales will print silently', 'success')
+    } catch (error) {
+      showToast(error?.message || 'Serial/COM connect failed', 'warning')
+      await refreshPrinterStatus()
+    }
   }, [refreshPrinterStatus, showToast])
 
   const handleConnectPrinter = useCallback(async () => {
@@ -467,16 +530,16 @@ function POSTerminal() {
       await connectThermalPrinter()
       const testResult = await testPrinterConnection()
       await refreshPrinterStatus()
-      showToast(testResult?.message || 'Printer connected successfully', 'success')
+      showToast(testResult?.message || 'Printer connected — sales will print silently', 'success')
     } catch (error) {
       if (error?.name === 'NotFoundError') {
         setPrinterHelpMessage(getPrinterBlockedHelp())
         setShowPrinterHelpDialog(true)
-        showToast('Epson not found in USB list — see help dialog', 'warning')
+        showToast('Epson not found — try Serial/COM or see help', 'warning')
       } else if (error?.name === 'PrinterBlockedError') {
         setPrinterHelpMessage(error.message || getPrinterBlockedHelp())
         setShowPrinterHelpDialog(true)
-        showToast('Use System Printer instead (recommended on Mac/Windows)', 'warning')
+        showToast('USB blocked — try Serial/COM instead', 'warning')
       } else {
         showToast(error?.message || 'Failed to connect printer', 'error')
       }
@@ -2298,6 +2361,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     }
 
     try {
+      setPrinterMode(PRINTER_MODE_DIRECT)
       await acquirePrinter({ allowRequest: allowPortRequest })
 
       const fmt = (v) => String(Math.round(Number(v || 0)))
@@ -2649,11 +2713,16 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }
     } else {
       try {
+        // Silent direct when USB/Serial paired — never open OS dialog in that case
+        if (await hasDirectPrinterPaired()) {
+          setPrinterMode(PRINTER_MODE_DIRECT)
+        }
         const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: true })
         success = !!thermalResult?.success
         message = thermalResult?.message || ''
       } catch (serialError) {
-        if (typeof window !== 'undefined' && typeof window.print === 'function') {
+        const allowBrowser = isSystemPrinterMode() || !(await hasDirectPrinterPaired())
+        if (allowBrowser && typeof window !== 'undefined' && typeof window.print === 'function') {
           usedBrowserFallback = true
           try {
             const browserResult = await printToBrowser(printData)
@@ -2671,7 +2740,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     return { success, message, usedBrowserFallback }
   }
 
-  /** Print straight to thermal/Electron — no PrintDialog, no browser print popup. */
+  /** Print straight to thermal/Electron — no PrintDialog, no browser print popup when USB/Serial is connected. */
   const printThermalReceiptDirect = async (printData, contextLabel = 'receipt') => {
     try {
       if (window.electronAPI?.printReceipt) {
@@ -2682,7 +2751,34 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         }
       }
 
-      if (isSystemPrinterMode()) {
+      // Prefer silent direct thermal whenever a USB/Serial printer is paired
+      const directReady = await hasDirectPrinterPaired()
+      if (directReady) {
+        setPrinterMode(PRINTER_MODE_DIRECT)
+        try {
+          const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: false })
+          if (thermalResult?.success) {
+            const via = getActivePrinterTransport() === 'serial' ? 'Serial/COM' : 'USB'
+            showToast(`Receipt printed via ${via} (no dialog)`, 'success')
+            await refreshPrinterStatus()
+            return true
+          }
+        } catch (directErr) {
+          // Only fall through to system dialog if user explicitly wants system mode
+          // and direct failed — otherwise surface the error.
+          if (!isSystemPrinterMode()) {
+            if (directErr?.name === 'PrinterBlockedError' || /not in USB list|blocked/i.test(directErr?.message || '')) {
+              setPrinterHelpMessage(directErr.message || getPrinterBlockedHelp())
+              setShowPrinterHelpDialog(true)
+            }
+            showToast(directErr?.message || 'Thermal print failed. Reconnect USB/Serial.', 'warning')
+            return false
+          }
+        }
+      }
+
+      // System printer mode (or no direct device): OS print dialog
+      if (isSystemPrinterMode() || !isThermalPrintingSupported()) {
         const browserResult = await printToBrowser(printData)
         if (browserResult?.success) {
           showToast('Print dialog opened — select your Epson printer', 'success')
@@ -2692,20 +2788,21 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         return false
       }
 
+      // No paired printer yet — try one silent attempt without prompting mid-sale
       const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: false })
       if (thermalResult?.success) {
         showToast('Receipt printed successfully', 'success')
         return true
       }
 
-      showToast(thermalResult?.message || 'Thermal print failed. Click Connect Printer first.', 'warning')
+      showToast(thermalResult?.message || 'Connect USB or Serial/COM first for silent thermal print.', 'warning')
       return false
     } catch (error) {
       if (error?.name === 'PrinterBlockedError' || /not in USB list|blocked/i.test(error?.message || '')) {
         setPrinterHelpMessage(error.message || getPrinterBlockedHelp())
         setShowPrinterHelpDialog(true)
       }
-      showToast(error?.message || 'Thermal print failed. Try Use System Printer.', 'warning')
+      showToast(error?.message || 'Thermal print failed. Connect USB/Serial for silent print.', 'warning')
       return false
     }
   }
@@ -3012,21 +3109,55 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
             <Tooltip title={printerStatus.message}>
               <Chip
                 icon={printerStatus.connected ? <CheckIcon /> : <ErrorIcon />}
-                label={printerStatus.mode === 'system' ? 'System Print' : printerStatus.connected ? 'Printer OK' : 'No Printer'}
+                label={
+                  printerStatus.transport === 'serial'
+                    ? 'Serial OK'
+                    : printerStatus.transport === 'usb'
+                      ? 'USB OK'
+                      : printerStatus.mode === 'system'
+                        ? 'System Print'
+                        : printerStatus.connected
+                          ? 'Printer OK'
+                          : 'No Printer'
+                }
                 color={printerStatus.connected ? 'success' : 'warning'}
                 size="small"
                 variant="outlined"
               />
             </Tooltip>
+            {isWebUsbSupported() && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={printerStatus.connecting ? <CircularProgress size={14} /> : <PrintIcon />}
+                onClick={handleConnectUsb}
+                disabled={printerStatus.connecting}
+                sx={{ fontFamily: 'monospace', minWidth: 100, height: 40, whiteSpace: 'nowrap' }}
+              >
+                {printerStatus.connecting ? '...' : 'USB'}
+              </Button>
+            )}
+            {isWebSerialSupported() && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<PrintIcon />}
+                onClick={handleConnectSerial}
+                disabled={printerStatus.connecting}
+                sx={{ fontFamily: 'monospace', minWidth: 110, height: 40, whiteSpace: 'nowrap' }}
+              >
+                Serial/COM
+              </Button>
+            )}
             <Button
               variant="outlined"
               size="small"
               startIcon={printerStatus.connecting ? <CircularProgress size={14} /> : <PrintIcon />}
               onClick={handleConnectPrinter}
               disabled={printerStatus.connecting}
-              sx={{ fontFamily: 'monospace', minWidth: 120, height: 40, whiteSpace: 'nowrap' }}
+              sx={{ fontFamily: 'monospace', minWidth: 100, height: 40, whiteSpace: 'nowrap' }}
             >
-              {printerStatus.connecting ? 'Connecting...' : 'Connect USB'}
+              {printerStatus.connecting ? '...' : 'Auto'}
             </Button>
             <Button
               variant="contained"
@@ -3034,9 +3165,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               size="small"
               startIcon={<PrintIcon />}
               onClick={handleUseSystemPrinter}
-              sx={{ fontFamily: 'monospace', minWidth: 130, height: 40, whiteSpace: 'nowrap' }}
+              sx={{ fontFamily: 'monospace', minWidth: 120, height: 40, whiteSpace: 'nowrap' }}
             >
-              Use System Printer
+              System Print
             </Button>
             <Button variant="contained" size="small" onClick={() => handleBarcodeScan(barcodeInput)} disabled={!barcodeInput.trim()} sx={{ fontFamily: 'monospace', minWidth: 100, height: 40 }}>
               ADD PRODUCT

@@ -577,11 +577,20 @@ async function writeToUsbDevice(device, data) {
 
 /** Send raw ESC/POS bytes using whichever transport is connected. */
 export async function writeToThermalPrinter(data) {
-  if (isSystemPrinterMode()) {
-    throw new Error('System printer mode — use browser print instead of direct USB.')
+  // If a USB/serial device is paired, always prefer silent direct print
+  // even if the user previously chose system-print mode.
+  const restored = await restoreCachedPrinter()
+  if (!restored) {
+    if (isSystemPrinterMode()) {
+      throw new Error('System printer mode — use browser print instead of direct USB.')
+    }
+    throw new Error(
+      'Printer not connected. Click "Connect USB" or "Serial/COM" and select your Epson, then try again.'
+    )
   }
 
-  await restoreCachedPrinter()
+  // Switch back to direct mode so confirm-sale stays silent
+  setPrinterMode(PRINTER_MODE_DIRECT)
 
   if (cachedTransport === 'usb' && cachedUsbDevice) {
     await writeToUsbDevice(cachedUsbDevice, data)
@@ -600,8 +609,35 @@ export async function writeToThermalPrinter(data) {
   }
 
   throw new Error(
-    'Printer not connected. Click "Connect Printer" and select your Epson from the USB device list.'
+    'Printer not connected. Click "Connect USB" or "Serial/COM" and select your Epson from the list.'
   )
+}
+
+/** True when a WebUSB or Web Serial printer is already paired in this browser. */
+export async function hasDirectPrinterPaired() {
+  if (!isThermalPrintingSupported()) return false
+  if (await restoreCachedPrinter()) return true
+  const count = await getGrantedPrinterCount()
+  // getGrantedPrinterCount returns 1 for system mode — only count real USB/serial devices
+  if (isSystemPrinterMode()) {
+    let real = 0
+    if (isWebUsbSupported()) {
+      try {
+        real += (await navigator.usb.getDevices())?.length || 0
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    if (isWebSerialSupported()) {
+      try {
+        real += (await navigator.serial.getPorts())?.length || 0
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    return real > 0
+  }
+  return count > 0
 }
 
 export async function testPrinterConnection() {
