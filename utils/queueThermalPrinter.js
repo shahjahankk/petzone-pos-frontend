@@ -1,13 +1,15 @@
 import {
   acquirePrinter,
   isThermalPrintingSupported,
-  isSystemPrinterMode,
   resetCachedPrinter,
   writeToThermalPrinter,
   getPrinterSupportMessage,
   getActivePrinterTransport,
+  hasDirectPrinterPaired,
+  setPrinterMode,
+  PRINTER_MODE_DIRECT,
 } from './thermalPrinter'
-import { PETZONE_LOGO_SVG, resolvePetzoneLogoUrl } from './brandAssets'
+import { logoToEscPosRaster } from './receiptEscPos'
 
 function esc(...bytes) {
   return bytes
@@ -17,68 +19,100 @@ function line(str = '') {
   return [...new TextEncoder().encode(str), 0x0a]
 }
 
-/**
- * Print queue token to connected thermal printer (WebUSB / Serial ESC/POS).
- * Falls back to browser print dialog for system-printer mode or when direct print fails.
- */
-export async function printQueueTicket(ticket, { allowPortRequest = true } = {}) {
-  const ticketCode = String(ticket.ticket_code || ticket.ticket_number || '---')
+async function buildTokenCommands(ticketCode, extra = {}) {
+  const out = []
+  out.push(...esc(0x1b, 0x40))
+  out.push(...esc(0x1b, 0x61, 0x01))
 
-  if (isSystemPrinterMode() || !isThermalPrintingSupported()) {
-    return printQueueTicketBrowser(ticketCode)
+  try {
+    const logo = await logoToEscPosRaster('/petzonelogo.png', 200)
+    if (logo.length) {
+      out.push(...logo)
+      out.push(...line(''))
+    }
+  } catch (e) {
+    /* logo optional */
+  }
+
+  out.push(...esc(0x1b, 0x21, 0x30))
+  out.push(...line('PetZone'))
+  out.push(...esc(0x1b, 0x21, 0x00))
+  if (extra.serviceName) out.push(...line(String(extra.serviceName)))
+  out.push(...line(''))
+  out.push(...esc(0x1b, 0x21, 0x38))
+  out.push(...line(ticketCode))
+  out.push(...esc(0x1b, 0x21, 0x00))
+  out.push(...line(''))
+  if (extra.branchName) out.push(...line(String(extra.branchName)))
+  out.push(...line(new Date().toLocaleString()))
+  out.push(...line(''))
+  out.push(...line('Please wait to be called'))
+  out.push(...line(''))
+  out.push(...line(''))
+  out.push(...esc(0x1d, 0x56, 0x00))
+  return new Uint8Array(out)
+}
+
+/**
+ * Silent USB/Serial token print. Does NOT open Chrome print dialog
+ * unless preferBrowser is explicitly true and no direct printer is paired.
+ */
+export async function printQueueTicket(ticket, { allowPortRequest = true, preferBrowser = false } = {}) {
+  const ticketCode = String(ticket.ticket_code || ticket.ticket_number || '---')
+  const extra = {
+    serviceName: ticket.service_name,
+    branchName: ticket.branch_name,
+  }
+
+  if (!isThermalPrintingSupported()) {
+    if (preferBrowser) return printQueueTicketBrowser(ticketCode)
+    return {
+      success: false,
+      message: 'Use Chrome/Edge on desktop and connect USB or Serial/COM for silent print.',
+    }
   }
 
   try {
-    await acquirePrinter({ allowRequest: allowPortRequest })
-
-    const commands = [
-      ...esc(0x1b, 0x40),
-      ...esc(0x1b, 0x61, 0x01),
-      ...esc(0x1b, 0x21, 0x30),
-      ...line('PetZone'),
-      ...esc(0x1b, 0x21, 0x00),
-      ...line(''),
-      ...esc(0x1b, 0x21, 0x38),
-      ...line(ticketCode),
-      ...esc(0x1b, 0x21, 0x00),
-      ...line(''),
-      ...line(''),
-      ...esc(0x1d, 0x56, 0x00),
-    ]
-
-    await writeToThermalPrinter(new Uint8Array(commands))
+    setPrinterMode(PRINTER_MODE_DIRECT)
+    const paired = await hasDirectPrinterPaired()
+    await acquirePrinter({ allowRequest: allowPortRequest || !paired })
+    const commands = await buildTokenCommands(ticketCode, extra)
+    await writeToThermalPrinter(commands)
     const transport = getActivePrinterTransport()
     const via = transport === 'serial' ? 'serial/COM' : transport === 'usb' ? 'USB' : 'thermal'
-    return { success: true, message: `Token ${ticketCode} printed via ${via}`, transport }
+    return { success: true, message: `Token ${ticketCode} printed via ${via} (no dialog)`, transport }
   } catch (err) {
     resetCachedPrinter()
-    const fallback = await printQueueTicketBrowser(ticketCode)
-    if (fallback.success) {
-      return {
-        success: true,
-        message: `Token ${ticketCode} printed via browser (${err.message || 'direct print failed'})`,
-        usedFallback: true,
+    if (preferBrowser) {
+      const fallback = await printQueueTicketBrowser(ticketCode)
+      if (fallback.success) {
+        return {
+          success: true,
+          message: `Token ${ticketCode} via Chrome dialog (${err.message || 'direct failed'})`,
+          usedFallback: true,
+        }
       }
     }
-    throw new Error(err.message || getPrinterSupportMessage())
+    return {
+      success: false,
+      message:
+        err.message ||
+        getPrinterSupportMessage() ||
+        'Silent print failed. If USB is blocked by Windows, click Serial/COM.',
+    }
   }
 }
 
 function printQueueTicketBrowser(ticketCode) {
   return new Promise((resolve) => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : ''
-    const logoPng = resolvePetzoneLogoUrl(origin)
-    const logoSvg = origin ? `${origin}${PETZONE_LOGO_SVG}` : PETZONE_LOGO_SVG
-
     const html = `<!DOCTYPE html>
 <html><head><title>Token ${ticketCode}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
   body { margin: 0; padding: 8mm 4mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; }
-  img { max-width: 100px; width: 100px; height: auto; filter: grayscale(100%); display: block; margin: 0 auto 12px; }
   .num { font-size: 72px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 16px 0; }
 </style></head><body>
-  <img src="${logoPng}" alt="PetZone" onerror="this.onerror=null;this.src='${logoSvg}'">
+  <div style="font-weight:900;font-size:22px;">PetZone</div>
   <div class="num">${ticketCode}</div>
 </body></html>`
 
@@ -90,29 +124,17 @@ function printQueueTicketBrowser(ticketCode) {
     w.document.write(html)
     w.document.close()
     w.focus()
-
-    let settled = false
-    const finish = (ok, message) => {
-      if (settled) return
-      settled = true
-      try {
-        w.close()
-      } catch (e) {
-        /* ignore */
-      }
-      resolve({ success: ok, message })
-    }
-
-    w.onafterprint = () => finish(true, `Token ${ticketCode} sent to system printer`)
-
     setTimeout(() => {
       try {
         w.print()
       } catch (e) {
-        finish(false, e.message || 'Print failed')
+        resolve({ success: false, message: e.message || 'Print failed' })
         return
       }
-      setTimeout(() => finish(true, `Token ${ticketCode} sent to system printer`), 5000)
-    }, 500)
+      setTimeout(() => {
+        try { w.close() } catch (e) { /* ignore */ }
+        resolve({ success: true, message: `Token ${ticketCode} sent to system printer` })
+      }, 800)
+    }, 400)
   })
 }

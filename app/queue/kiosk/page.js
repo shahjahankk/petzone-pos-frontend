@@ -17,10 +17,11 @@ import {
   isThermalPrintingSupported,
   isWebUsbSupported,
   isWebSerialSupported,
-  getGrantedPrinterCount,
-  isSystemPrinterMode,
+  hasDirectPrinterPaired,
   getActivePrinterTransport,
   restoreCachedPrinter,
+  setPrinterMode,
+  PRINTER_MODE_DIRECT,
 } from '../../../utils/thermalPrinter'
 import { resolveQueueBranch, issueToken } from '../../../utils/queueApi'
 import { printQueueTicket } from '../../../utils/queueThermalPrinter'
@@ -28,9 +29,9 @@ import { PETZONE_LOGO_PNG, PETZONE_LOGO_SVG } from '../../../utils/brandAssets'
 import { config } from '../../../config/environment'
 
 function transportLabel(transport) {
-  if (transport === 'usb') return 'USB Ready'
-  if (transport === 'serial') return 'Serial/COM Ready'
-  if (transport === 'system') return 'System Printer'
+  if (transport === 'usb') return 'USB Ready (silent)'
+  if (transport === 'serial') return 'Serial/COM Ready (silent)'
+  if (transport === 'system') return 'System Print (dialog)'
   return 'Printer Ready'
 }
 
@@ -42,6 +43,8 @@ function QueueKioskPage() {
   const [lastTicket, setLastTicket] = useState(null)
   const [printerReady, setPrinterReady] = useState(false)
   const [transport, setTransport] = useState(null)
+  const [preferBrowser, setPreferBrowser] = useState(false)
+  const [usbBlocked, setUsbBlocked] = useState(false)
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' })
 
   const refreshPrinter = useCallback(async () => {
@@ -50,12 +53,18 @@ function QueueKioskPage() {
     } catch (e) {
       /* ignore */
     }
-    const n = await getGrantedPrinterCount()
-    const modeSystem = isSystemPrinterMode()
-    const active = getActivePrinterTransport()
-    setPrinterReady(n > 0 || modeSystem)
-    setTransport(modeSystem ? 'system' : active)
-  }, [])
+    const paired = await hasDirectPrinterPaired()
+    if (paired) {
+      setPrinterMode(PRINTER_MODE_DIRECT)
+      setPreferBrowser(false)
+      setUsbBlocked(false)
+      setPrinterReady(true)
+      setTransport(getActivePrinterTransport())
+      return
+    }
+    setPrinterReady(preferBrowser)
+    setTransport(preferBrowser ? 'system' : null)
+  }, [preferBrowser])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -77,45 +86,69 @@ function QueueKioskPage() {
   useEffect(() => { load() }, [load])
   useEffect(() => { refreshPrinter() }, [refreshPrinter])
 
+  const noteUsbBlock = (msg) => {
+    if (/blocked by Windows|WinUSB|Zadig|access|denied|claim/i.test(msg || '')) {
+      setUsbBlocked(true)
+    }
+  }
+
   const handleConnectUsb = async () => {
     try {
       await connectUsbPrinter()
+      setPreferBrowser(false)
+      setUsbBlocked(false)
       await refreshPrinter()
-      setToast({ open: true, message: 'USB printer connected', severity: 'success' })
+      setToast({ open: true, message: 'USB connected — silent token print', severity: 'success' })
     } catch (err) {
+      noteUsbBlock(err.message)
+      setPreferBrowser(false)
       setToast({ open: true, message: err.message, severity: 'warning' })
+      await refreshPrinter()
     }
   }
 
   const handleConnectSerial = async () => {
     try {
       await connectSerialPrinter()
+      setPreferBrowser(false)
+      setUsbBlocked(false)
       await refreshPrinter()
-      setToast({ open: true, message: 'Serial/COM printer connected', severity: 'success' })
+      setToast({ open: true, message: 'Serial/COM connected — silent token print', severity: 'success' })
     } catch (err) {
       setToast({ open: true, message: err.message, severity: 'warning' })
+      await refreshPrinter()
     }
   }
 
   const handleConnectAuto = async () => {
     try {
       const result = await connectThermalPrinter()
+      setPreferBrowser(false)
+      setUsbBlocked(false)
       await refreshPrinter()
       setToast({
         open: true,
-        message: result.transport === 'serial' ? 'Serial/COM printer connected' : 'USB printer connected',
+        message: result.transport === 'serial' ? 'Serial/COM connected' : 'USB connected',
         severity: 'success',
       })
     } catch (err) {
+      noteUsbBlock(err.message)
+      setPreferBrowser(false)
       setToast({ open: true, message: err.message, severity: 'warning' })
+      await refreshPrinter()
     }
   }
 
   const handleUseSystemPrinter = () => {
     connectSystemPrinter()
+    setPreferBrowser(true)
     setPrinterReady(true)
     setTransport('system')
-    setToast({ open: true, message: 'System printer mode enabled', severity: 'success' })
+    setToast({
+      open: true,
+      message: 'System Print opens Chrome dialog (not silent). Prefer Serial/COM if USB is blocked.',
+      severity: 'warning',
+    })
   }
 
   const handlePrintToken = async () => {
@@ -124,16 +157,21 @@ function QueueKioskPage() {
     try {
       const ticket = await issueToken(branchCtx.orgSlug, branchCtx.branchSlug)
       setLastTicket(ticket)
-      const printResult = await printQueueTicket(ticket, { allowPortRequest: !printerReady })
+      const printResult = await printQueueTicket(ticket, {
+        allowPortRequest: !printerReady || preferBrowser,
+        preferBrowser,
+      })
       setToast({
         open: true,
-        message: printResult.message || `Token ${ticket.ticket_code} printed`,
+        message: printResult.message || `Token ${ticket.ticket_code}`,
         severity: printResult.success ? 'success' : 'error',
       })
-      if (printResult.success) {
+      if (!printResult.success) noteUsbBlock(printResult.message)
+      if (printResult.success && !printResult.usedFallback) {
         await refreshPrinter()
       }
     } catch (err) {
+      noteUsbBlock(err.message)
       setToast({ open: true, message: err?.response?.data?.message || err.message, severity: 'error' })
     } finally {
       setIssuing(false)
@@ -150,7 +188,7 @@ function QueueKioskPage() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f0f4ff', p: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Box sx={{ maxWidth: 440, width: '100%', textAlign: 'center' }}>
+      <Box sx={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
         <Box
           component="img"
           src={PETZONE_LOGO_PNG}
@@ -162,12 +200,20 @@ function QueueKioskPage() {
         <Typography variant="h5" fontWeight={800} color="primary" gutterBottom>
           Queue Token
         </Typography>
-        <Typography color="text.secondary" sx={{ mb: 3 }}>
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
           {branchCtx?.branchName || 'PetZone Clinic'}
         </Typography>
 
+        {usbBlocked && (
+          <Alert severity="error" sx={{ mb: 2, textAlign: 'left' }}>
+            USB is blocked by the Windows printer driver. For <strong>silent print</strong>, click
+            {' '}<strong>Serial / COM</strong>. If Epson is not listed, install WinUSB with Zadig.
+            System Print always shows the Chrome dialog.
+          </Alert>
+        )}
+
         <Stack spacing={1} sx={{ mb: 2 }} alignItems="center">
-          {printerReady ? (
+          {printerReady && transport && transport !== 'system' ? (
             <Chip label={transportLabel(transport)} color="success" size="small" />
           ) : (
             <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="center">
@@ -177,7 +223,13 @@ function QueueKioskPage() {
                 </Button>
               )}
               {isWebSerialSupported() && (
-                <Button variant="outlined" size="small" startIcon={<Cable />} onClick={handleConnectSerial}>
+                <Button
+                  variant={usbBlocked ? 'contained' : 'outlined'}
+                  color={usbBlocked ? 'success' : 'primary'}
+                  size="small"
+                  startIcon={<Cable />}
+                  onClick={handleConnectSerial}
+                >
                   Serial / COM
                 </Button>
               )}
@@ -195,14 +247,16 @@ function QueueKioskPage() {
 
         {!printerReady && (
           <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
-            {getPrinterSupportMessage()}
+            {usbBlocked
+              ? 'Next step: click Serial / COM and pick the Epson if it appears.'
+              : getPrinterSupportMessage()}
           </Alert>
         )}
 
-        {printerReady && transport && transport !== 'system' && (
-          <Button size="small" sx={{ mb: 2 }} onClick={handleUseSystemPrinter}>
-            Switch to System Printer
-          </Button>
+        {printerReady && transport === 'system' && (
+          <Alert severity="warning" sx={{ mb: 2, textAlign: 'left' }}>
+            System Print mode uses the Chrome dialog. Connect Serial/COM or USB for silent printing.
+          </Alert>
         )}
 
         {lastTicket && (
@@ -230,7 +284,7 @@ function QueueKioskPage() {
         )}
       </Box>
 
-      <Snackbar open={toast.open} autoHideDuration={4000} onClose={() => setToast({ ...toast, open: false })}>
+      <Snackbar open={toast.open} autoHideDuration={5000} onClose={() => setToast({ ...toast, open: false })}>
         <Alert severity={toast.severity} onClose={() => setToast({ ...toast, open: false })}>{toast.message}</Alert>
       </Snackbar>
     </Box>
