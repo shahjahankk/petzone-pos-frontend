@@ -2385,7 +2385,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           companyEmail: printData.companyEmail || DEFAULT_COMPANY_INFO.email,
           logoUrl: printData.logoUrl || companyInfo?.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
         },
-        { includeLogo: true, logoWidth: 448, width: 42 }
+        { includeLogo: true, logoWidth: 320, width: 48 }
       )
 
       await writeToThermalPrinter(payload)

@@ -27,15 +27,11 @@ function boldOff() {
   return esc(0x1b, 0x45, 0x00)
 }
 
-function feed(n = 1) {
-  return esc(0x1b, 0x64, Math.max(0, Math.min(255, n)))
-}
-
 function cutSafe() {
   return [
-    0x0a, 0x0a, 0x0a,
-    0x1b, 0x64, 0x0c,
-    0x1d, 0x56, 0x41, 0xff,
+    0x0a, 0x0a,
+    0x1b, 0x64, 0x06,
+    0x1d, 0x56, 0x41, 0x40,
   ]
 }
 
@@ -45,33 +41,31 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...esc(0x1b, 0x61, 0x01))
 
   try {
-    const logo = await logoToEscPosRaster('/petzonelogo.png', 448)
-    if (logo.length) {
-      out.push(...logo)
-      out.push(...feed(1))
-    }
+    const logo = await logoToEscPosRaster('/petzonelogo.png', 320)
+    if (logo.length) out.push(...logo)
   } catch (e) {
     /* logo optional */
   }
 
-  out.push(...esc(0x1b, 0x21, 0x18))
+  out.push(...esc(0x1b, 0x4d, 0x01)) // Font B
+  out.push(...boldOn())
   out.push(...line('PetZone'))
-  out.push(...esc(0x1b, 0x21, 0x00))
+  out.push(...boldOff())
 
   if (extra.serviceName) {
-    out.push(...line(String(extra.serviceName).slice(0, 42)))
+    out.push(...line(String(extra.serviceName).slice(0, 48)))
   }
 
-  out.push(...feed(1))
+  out.push(...esc(0x1b, 0x4d, 0x00))
   out.push(...esc(0x1b, 0x21, 0x30))
   out.push(...boldOn())
   out.push(...line(String(ticketCode)))
   out.push(...boldOff())
   out.push(...esc(0x1b, 0x21, 0x00))
-  out.push(...feed(1))
+  out.push(...esc(0x1b, 0x4d, 0x01))
 
-  if (extra.branchName) out.push(...line(String(extra.branchName).slice(0, 42)))
-  if (extra.petName) out.push(...line(`Pet: ${String(extra.petName).slice(0, 36)}`))
+  if (extra.branchName) out.push(...line(String(extra.branchName).slice(0, 48)))
+  if (extra.petName) out.push(...line(`Pet: ${String(extra.petName).slice(0, 42)}`))
 
   const ahead = Number(extra.waitingAhead)
   if (Number.isFinite(ahead) && ahead > 0) {
@@ -82,18 +76,13 @@ async function buildTokenCommands(ticketCode, extra = {}) {
 
   const when = extra.issuedAt ? new Date(extra.issuedAt) : new Date()
   out.push(...line(when.toLocaleString()))
-  out.push(...feed(1))
   out.push(...line('Please wait for your number to be called'))
-  out.push(...feed(1))
   out.push(...line('Powered by Tychora'))
+  out.push(...esc(0x1b, 0x4d, 0x00))
   out.push(...cutSafe())
   return new Uint8Array(out)
 }
 
-/**
- * Silent USB/Serial token print. Does NOT open Chrome print dialog
- * unless preferBrowser is explicitly true and no direct printer is paired.
- */
 export async function printQueueTicket(ticket, { allowPortRequest = true, preferBrowser = false } = {}) {
   const ticketCode = String(ticket.ticket_code || ticket.ticket_number || '---')
   const extra = {
@@ -149,17 +138,15 @@ function printQueueTicketBrowser(ticketCode) {
 <html><head><title>Token ${ticketCode}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
-  body { margin: 0; padding: 8mm 4mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; }
-  .brand { font-weight:900; font-size:24px; margin-bottom: 8px; }
-  .num { font-size: 72px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 16px 0; }
-  .hint { font-weight: 700; margin-top: 12px; }
-  .footer { margin-top: 16px; font-size: 12px; padding-bottom: 24px; }
+  body { margin: 0; padding: 6mm 3mm 16mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; font-size: 12px; }
+  .brand { font-weight:700; font-size:16px; }
+  .num { font-size: 48px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 8px 0; }
 </style></head><body>
-  <img src="/petzonelogo.svg" alt="PetZone" style="max-width:180px;margin:0 auto 8px;display:block;" onerror="this.style.display='none'">
+  <img src="/petzonelogo.png" alt="PetZone" style="max-width:140px;margin:0 auto 4px;display:block;" onerror="this.style.display='none'">
   <div class="brand">PetZone</div>
   <div class="num">${ticketCode}</div>
-  <div class="hint">Please wait for your number to be called</div>
-  <div class="footer">Powered by Tychora</div>
+  <div>Please wait for your number to be called</div>
+  <div style="margin-top:8px;font-size:11px;">Powered by Tychora</div>
 </body></html>`
 
     const w = window.open('', '_blank', 'width=320,height=400')
