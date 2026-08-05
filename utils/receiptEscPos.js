@@ -51,10 +51,6 @@ function feed(n = 1) {
   return bytes(0x1b, 0x64, Math.max(0, Math.min(255, n)))
 }
 
-function cut() {
-  return bytes(0x1d, 0x56, 0x00)
-}
-
 function pad(str, len, align = 'left') {
   const s = String(str ?? '').slice(0, len)
   if (align === 'right') return s.padStart(len, ' ')
@@ -103,13 +99,88 @@ function itemBlock(item, width = 42) {
   return lines
 }
 
+function canvasToEscPosRaster(canvas) {
+  const w = Math.floor(canvas.width / 8) * 8
+  const h = canvas.height
+  if (w < 8 || h < 1) return []
+
+  const ctx = canvas.getContext('2d')
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const bytesPerRow = w / 8
+  const raster = new Uint8Array(bytesPerRow * h)
+  let blackCount = 0
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * canvas.width + x) * 4
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      const a = data[i + 3]
+      const nearWhite = r > 245 && g > 245 && b > 245
+      if (a > 40 && !nearWhite) {
+        raster[y * bytesPerRow + (x >> 3)] |= 0x80 >> (x & 7)
+        blackCount += 1
+      }
+    }
+  }
+  if (blackCount < 20) return []
+
+  const xL = bytesPerRow & 0xff
+  const xH = (bytesPerRow >> 8) & 0xff
+  const yL = h & 0xff
+  const yH = (h >> 8) & 0xff
+  return [0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster]
+}
+
+/**
+ * Draw PetZone mark (pink paw circle + Petzone / POS) — reliable on thermal.
+ * SVG <text> often fails to rasterize in Chrome → broken/missing logo.
+ */
+export function drawPetzoneLogoCanvas(maxWidthDots = 384) {
+  const w = Math.floor(maxWidthDots / 8) * 8
+  const h = Math.max(64, Math.round(w * 0.28))
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, w, h)
+
+  const cy = h / 2
+  const r = Math.round(h * 0.38)
+  const cx = r + 4
+
+  // Outer circle (prints as solid black — pink becomes black on thermal)
+  ctx.fillStyle = '#000000'
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Inner white circle (paw highlight)
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.arc(cx, cy - r * 0.12, r * 0.42, 0, Math.PI * 2)
+  ctx.fill()
+
+  const textX = cx + r + Math.round(w * 0.04)
+  ctx.fillStyle = '#000000'
+  ctx.textBaseline = 'middle'
+  ctx.font = `bold ${Math.round(h * 0.42)}px Arial, Helvetica, sans-serif`
+  ctx.fillText('Petzone', textX, cy - h * 0.12)
+  ctx.font = `${Math.round(h * 0.22)}px Arial, Helvetica, sans-serif`
+  ctx.fillText('POS', textX, cy + h * 0.28)
+
+  return canvas
+}
+
 function resolveLogoCandidates(logoUrl) {
   const list = []
   const push = (u) => {
     if (u && !list.includes(u)) list.push(u)
   }
   push(logoUrl)
-  // Repo ships SVG; many call sites still request missing .png
   if (logoUrl?.includes('petzonelogo.png')) push('/petzonelogo.svg')
   if (logoUrl?.includes('petzonelogo.svg')) push('/petzonelogo.png')
   push('/petzonelogo.svg')
@@ -140,11 +211,27 @@ async function loadImage(absolute) {
 }
 
 /**
- * Convert image URL to ESC/POS raster (GS v 0).
- * Tries PNG then SVG; treats any non-near-white pixel as black (thermal-friendly).
+ * Prefer drawn PetZone mark; fall back to image URL if custom branch logo.
+ * Custom logos (non-petzone) still load from URL.
  */
 export async function logoToEscPosRaster(logoUrl, maxWidthDots = 384) {
   if (typeof window === 'undefined') return []
+
+  const isDefaultPetzone =
+    !logoUrl ||
+    /petzonelogo\.(svg|png)/i.test(String(logoUrl)) ||
+    String(logoUrl).endsWith('/petzonelogo.svg') ||
+    String(logoUrl).endsWith('/petzonelogo.png')
+
+  // Always use vector-drawn mark for default brand (matches kiosk UI on thermal)
+  if (isDefaultPetzone) {
+    try {
+      const drawn = canvasToEscPosRaster(drawPetzoneLogoCanvas(maxWidthDots))
+      if (drawn.length) return drawn
+    } catch (e) {
+      console.warn('Drawn logo failed:', e)
+    }
+  }
 
   const candidates = resolveLogoCandidates(logoUrl)
   let lastError = null
@@ -157,19 +244,17 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 384) {
 
       let w = img.naturalWidth || img.width
       let h = img.naturalHeight || img.height
-      if (!w || !h) continue
-
-      // SVG often reports 0 until drawn — use intrinsic attrs / fallback
-      if ((!w || !h) && candidate.endsWith('.svg')) {
-        w = 512
-        h = 128
+      if (!w || !h) {
+        if (candidate.endsWith('.svg')) {
+          w = 512
+          h = 128
+        } else continue
       }
 
       if (w > maxWidthDots) {
         h = Math.round((h * maxWidthDots) / w)
         w = maxWidthDots
       }
-      // Keep a readable logo height on 80mm paper
       if (h < 48) {
         const scale = 48 / h
         h = 48
@@ -186,45 +271,26 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 384) {
       ctx.fillRect(0, 0, w, h)
       ctx.drawImage(img, 0, 0, w, h)
 
-      const { data } = ctx.getImageData(0, 0, w, h)
-      const bytesPerRow = w / 8
-      const raster = new Uint8Array(bytesPerRow * h)
-      let blackCount = 0
-
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const i = (y * w + x) * 4
-          const r = data[i]
-          const g = data[i + 1]
-          const b = data[i + 2]
-          const a = data[i + 3]
-          // Near-white → paper; everything else → black (captures light pink logos)
-          const nearWhite = r > 245 && g > 245 && b > 245
-          const black = a > 40 && !nearWhite
-          if (black) {
-            raster[y * bytesPerRow + (x >> 3)] |= 0x80 >> (x & 7)
-            blackCount += 1
-          }
-        }
-      }
-
-      // Empty/white logo → skip (try next candidate)
-      if (blackCount < 20) continue
-
-      const xL = bytesPerRow & 0xff
-      const xH = (bytesPerRow >> 8) & 0xff
-      const yL = h & 0xff
-      const yH = (h >> 8) & 0xff
-
-      // GS v 0 m=0 normal density
-      return [0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster]
+      const raster = canvasToEscPosRaster(canvas)
+      if (raster.length) return raster
     } catch (e) {
       lastError = e
     }
   }
 
-  if (lastError) console.warn('Logo raster failed:', lastError)
-  return []
+  // Last resort: drawn brand
+  try {
+    return canvasToEscPosRaster(drawPetzoneLogoCanvas(maxWidthDots))
+  } catch (e) {
+    if (lastError) console.warn('Logo raster failed:', lastError)
+    return []
+  }
+}
+
+/** Feed past cutter, then full cut — prevents footer (Tychora) being sliced. */
+function cutSafe() {
+  // GS V 65 n — feed n × vertical units then full cut (Epson TM-T88V)
+  return bytes(0x1d, 0x56, 0x41, 0x68) // ~ enough margin below last line
 }
 
 /**
@@ -368,8 +434,11 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   out.push(...textLine('='.repeat(width)))
   out.push(...textLine('Powered by Tychora'))
   out.push(...textLine('www.tychora.com'))
-  out.push(...feed(3))
-  out.push(...cut())
+  // Extra blank lines + feed-and-cut so cutter does not slice the footer
+  out.push(...textLine(''))
+  out.push(...textLine(''))
+  out.push(...feed(4))
+  out.push(...cutSafe())
 
   return new Uint8Array(out)
 }

@@ -35,18 +35,20 @@ function feed(n = 1) {
   return esc(0x1b, 0x64, Math.max(0, Math.min(255, n)))
 }
 
+function cutSafe() {
+  return esc(0x1d, 0x56, 0x41, 0x68)
+}
+
 async function buildTokenCommands(ticketCode, extra = {}) {
   const out = []
   out.push(...esc(0x1b, 0x40))
   out.push(...esc(0x1b, 0x61, 0x01))
 
-  let logoPrinted = false
   try {
     const logo = await logoToEscPosRaster('/petzonelogo.svg', 384)
     if (logo.length) {
       out.push(...logo)
       out.push(...feed(1))
-      logoPrinted = true
     }
   } catch (e) {
     /* logo optional */
@@ -58,43 +60,38 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...boldOff())
   out.push(...charSize(0x00))
 
-  if (!logoPrinted) {
-    out.push(...boldOn())
-    out.push(...line('QUEUE TOKEN'))
-    out.push(...boldOff())
-  }
-
   if (extra.serviceName) {
-    out.push(...boldOn())
     out.push(...line(String(extra.serviceName).slice(0, 42)))
-    out.push(...boldOff())
   }
 
-  out.push(...line('=========================================='))
   out.push(...feed(1))
-
   out.push(...charSize(0x22))
   out.push(...boldOn())
   out.push(...line(String(ticketCode)))
   out.push(...boldOff())
   out.push(...charSize(0x00))
   out.push(...feed(1))
-  out.push(...line('=========================================='))
 
-  if (extra.branchName) {
-    out.push(...boldOn())
-    out.push(...line(String(extra.branchName).slice(0, 42)))
-    out.push(...boldOff())
+  if (extra.branchName) out.push(...line(String(extra.branchName).slice(0, 42)))
+  if (extra.petName) out.push(...line(`Pet: ${String(extra.petName).slice(0, 36)}`))
+
+  const ahead = Number(extra.waitingAhead)
+  if (Number.isFinite(ahead) && ahead > 0) {
+    out.push(...line(`${ahead} patient(s) ahead of you`))
+  } else if (Number.isFinite(ahead) && ahead === 0) {
+    out.push(...line('You are next in queue!'))
   }
-  out.push(...line(new Date().toLocaleString()))
+
+  const when = extra.issuedAt ? new Date(extra.issuedAt) : new Date()
+  out.push(...line(when.toLocaleString()))
   out.push(...feed(1))
-  out.push(...boldOn())
-  out.push(...line('Please wait to be called'))
-  out.push(...boldOff())
-  out.push(...line(''))
+  out.push(...line('Please wait for your number to be called'))
+  out.push(...feed(1))
   out.push(...line('Powered by Tychora'))
-  out.push(...feed(3))
-  out.push(...esc(0x1d, 0x56, 0x00))
+  out.push(...line(''))
+  out.push(...line(''))
+  out.push(...feed(4))
+  out.push(...cutSafe())
   return new Uint8Array(out)
 }
 
@@ -107,6 +104,9 @@ export async function printQueueTicket(ticket, { allowPortRequest = true, prefer
   const extra = {
     serviceName: ticket.service_name,
     branchName: ticket.branch_name,
+    waitingAhead: ticket.waiting_ahead,
+    issuedAt: ticket.issued_at,
+    petName: ticket.pet_name,
   }
 
   if (!isThermalPrintingSupported()) {
@@ -158,11 +158,13 @@ function printQueueTicketBrowser(ticketCode) {
   .brand { font-weight:900; font-size:24px; margin-bottom: 8px; }
   .num { font-size: 72px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 16px 0; }
   .hint { font-weight: 700; margin-top: 12px; }
+  .footer { margin-top: 16px; font-size: 12px; padding-bottom: 24px; }
 </style></head><body>
   <img src="/petzonelogo.svg" alt="PetZone" style="max-width:180px;margin:0 auto 8px;display:block;" onerror="this.style.display='none'">
   <div class="brand">PetZone</div>
   <div class="num">${ticketCode}</div>
-  <div class="hint">Please wait to be called</div>
+  <div class="hint">Please wait for your number to be called</div>
+  <div class="footer">Powered by Tychora</div>
 </body></html>`
 
     const w = window.open('', '_blank', 'width=320,height=400')
