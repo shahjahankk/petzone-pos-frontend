@@ -17,6 +17,15 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material'
 import PrintLayout from './PrintLayout'
+import {
+  hasDirectPrinterPaired,
+  acquirePrinter,
+  writeToThermalPrinter,
+  setPrinterMode,
+  PRINTER_MODE_DIRECT,
+  resetCachedPrinter,
+} from '../../utils/thermalPrinter'
+import { buildReceiptEscPos } from '../../utils/receiptEscPos'
 
 /**
  * PrintDialog — full version with Item Sheet toggle
@@ -88,23 +97,40 @@ export default function PrintDialog({
     setPrintSettings(prev => ({ ...prev, [key]: value }))
   }
 
-  // ── Browser print ─────────────────────────────────────────────────────────
-  const handlePrint = () => {
-    // Persist "direct print" preference
+  // ── Print: silent USB/Serial first, browser dialog only as fallback ────────
+  const handlePrint = async () => {
     try {
       if (typeof window !== 'undefined') {
-        if (dontAskAgain) {
-          window.localStorage.setItem('autoDirectPrint', '1')
-        } else {
-          window.localStorage.removeItem('autoDirectPrint')
-        }
+        if (dontAskAgain) window.localStorage.setItem('autoDirectPrint', '1')
+        else window.localStorage.removeItem('autoDirectPrint')
       }
     } catch (e) { /* ignore */ }
 
-    // Allow caller to override print behaviour entirely
     if (onPrint) {
       onPrint(printData, { layout, isItemSheet, ...printSettings })
       return
+    }
+
+    // Prefer silent thermal ESC/POS (logo + aligned) — no Chrome modal
+    if (layout === 'thermal' && !isItemSheet) {
+      try {
+        if (await hasDirectPrinterPaired()) {
+          setPrinterMode(PRINTER_MODE_DIRECT)
+          await acquirePrinter({ allowRequest: false })
+          const payload = await buildReceiptEscPos(printData, {
+            includeLogo: true,
+            logoWidth: 240,
+            width: 32,
+          })
+          await writeToThermalPrinter(payload)
+          if (onPrintComplete) onPrintComplete()
+          if (typeof onClose === 'function') onClose()
+          return
+        }
+      } catch (err) {
+        resetCachedPrinter()
+        console.warn('Silent thermal print failed, opening browser dialog:', err)
+      }
     }
 
     const content = printContentRef.current?.innerHTML || printRef.current?.innerHTML || ''
@@ -117,11 +143,8 @@ export default function PrintDialog({
     const isThermal   = layout === 'thermal'
     const isLandscape = printSettings.orientation === 'landscape'
 
-    // Paper size for @page rule
     let pageSize = isThermal ? '80mm auto' : printSettings.paperSize === 'Letter' ? 'Letter' : 'A4'
     if (!isThermal && isLandscape) pageSize += ' landscape'
-    // Thermal: minimal margin so nothing clips on the roll
-    // Color/A4: comfortable margin — content never touches the paper edge
     const pageMargin = isThermal ? '3mm 2mm' : '10mm 12mm'
     const fontFamily = isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'
     const fontSize   = isThermal ? '11px' : (printSettings.fontSize || '12px')

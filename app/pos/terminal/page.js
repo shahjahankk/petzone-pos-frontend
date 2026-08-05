@@ -106,6 +106,7 @@ import {
   testPrinterConnection,
   writeToThermalPrinter,
 } from '../../../utils/thermalPrinter'
+import { buildReceiptEscPos } from '../../../utils/receiptEscPos'
 
 const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 const generateTabName = (tabNumber) => `Sale ${tabNumber}`
@@ -478,7 +479,10 @@ function POSTerminal() {
   const handleUseSystemPrinter = useCallback(async () => {
     const result = connectSystemPrinter()
     await refreshPrinterStatus()
-    showToast(result.message, 'success')
+    showToast(
+      'System Print mode: Chrome will show a print dialog. For silent print (no dialog), use USB or Serial/COM instead.',
+      'info'
+    )
   }, [refreshPrinterStatus, showToast])
 
   const handleConnectUsb = useCallback(async () => {
@@ -1978,6 +1982,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         type: 'receipt',
         title: 'SALES RECEIPT',
         companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
+        branchName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
         companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
         companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone,
         companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
@@ -2252,6 +2257,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         type: 'receipt',
         title: 'SALES RECEIPT',
         companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
+        branchName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
         companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
         companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone,
         companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
@@ -2314,6 +2320,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         type: 'receipt',
         title: 'DRAFT RECEIPT',
         companyName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
+        branchName: companyInfo.name || DEFAULT_COMPANY_INFO.name,
         companyAddress: companyInfo.address || DEFAULT_COMPANY_INFO.address,
         companyPhone: companyInfo.phone || DEFAULT_COMPANY_INFO.phone,
         companyEmail: companyInfo.email || DEFAULT_COMPANY_INFO.email,
@@ -2364,158 +2371,22 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       setPrinterMode(PRINTER_MODE_DIRECT)
       await acquirePrinter({ allowRequest: allowPortRequest })
 
-      const fmt = (v) => String(Math.round(Number(v || 0)))
-
-      const commands = [
-        0x1B, 0x40,
-        0x1B, 0x61, 0x01,
-        0x1B, 0x21, 0x30,
-        ...new TextEncoder().encode(printData.companyName || DEFAULT_COMPANY_INFO.name.toUpperCase()),
-        0x0A,
-        0x1B, 0x21, 0x00,
-        ...new TextEncoder().encode((printData.companyAddress || DEFAULT_COMPANY_INFO.address).substring(0, 32)),
-        0x0A,
-        ...new TextEncoder().encode(`Tel: ${printData.companyPhone || DEFAULT_COMPANY_INFO.phone}`),
-        0x0A,
-        ...new TextEncoder().encode(`Email: ${printData.companyEmail || DEFAULT_COMPANY_INFO.email}`),
-        0x0A,
-        0x1B, 0x61, 0x00,
-        ...new TextEncoder().encode('================================'),
-        0x0A,
-        0x1B, 0x61, 0x01,
-        0x1B, 0x21, 0x20,
-        ...new TextEncoder().encode('SALES RECEIPT'),
-        0x0A,
-        0x1B, 0x21, 0x00,
-        0x1B, 0x61, 0x00,
-        ...new TextEncoder().encode('================================'),
-        0x0A,
-        ...new TextEncoder().encode(`Receipt #: ${(printData.receiptNumber || 'N/A').substring(0, 20)}`),
-        0x0A,
-        ...new TextEncoder().encode(`Date: ${printData.date}`),
-        0x0A,
-        ...new TextEncoder().encode(`Time: ${printData.time || ''}`),
-        0x0A,
-        ...new TextEncoder().encode(`Cashier: ${printData.cashierName}`),
-        0x0A,
-        ...new TextEncoder().encode(`Customer: ${printData.customerName || 'Walk-in Customer'}`),
-        0x0A,
-        ...new TextEncoder().encode('================================'),
-        0x0A,
-        ...new TextEncoder().encode('Item            Qty Price Total'),
-        0x0A,
-        ...new TextEncoder().encode('------------------------------'),
-        0x0A
-      ]
-
-      printData.items.forEach(item => {
-        const itemName = item.name || 'Unknown Item'
-        const quantity = Number.isFinite(item.quantity) ? item.quantity : 0
-        const discountValue = Number.isFinite(item.discount) ? item.discount : 0
-        const resolvedTotal = Number.isFinite(item.total)
-          ? item.total
-          : ((Number(item.unitPrice || item.price || 0) * quantity) - discountValue)
-        const rawUnitPrice = Number.isFinite(item.unitPrice) && item.unitPrice !== 0
-          ? item.unitPrice
-          : Number.isFinite(item.price) && item.price !== 0
-            ? item.price
-            : (quantity !== 0 ? (resolvedTotal + discountValue) / quantity : 0)
-        const unitPrice = Number.isFinite(rawUnitPrice) ? rawUnitPrice : 0
-        const total = Number.isFinite(resolvedTotal) ? Number.parseFloat(resolvedTotal.toFixed(2)) : 0
-
-        const formattedName = itemName.substring(0, 15).padEnd(15, ' ')
-        const formattedQty = quantity.toString().padStart(3, ' ')
-        const formattedPrice = fmt(unitPrice).padStart(7, ' ')
-        const formattedTotal = fmt(total).padStart(7, ' ')
-
-        commands.push(
-          ...new TextEncoder().encode(`${formattedName}${formattedQty}${formattedPrice}${formattedTotal}`),
-          0x0A
-        )
-      })
-
-      commands.push(
-        ...new TextEncoder().encode('================================'),
-        0x0A,
-        ...new TextEncoder().encode(`Subtotal:                    ${fmt(printData.subtotal || 0)}`),
-        0x0A
+      const payload = await buildReceiptEscPos(
+        {
+          ...printData,
+          companyName: printData.companyName || printData.branchName || DEFAULT_COMPANY_INFO.name,
+          branchName: printData.branchName || companyInfo?.name || DEFAULT_COMPANY_INFO.name,
+          companyAddress: printData.companyAddress || DEFAULT_COMPANY_INFO.address,
+          companyPhone: printData.companyPhone || DEFAULT_COMPANY_INFO.phone,
+          companyEmail: printData.companyEmail || DEFAULT_COMPANY_INFO.email,
+          logoUrl: printData.logoUrl || companyInfo?.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
+        },
+        { includeLogo: true, logoWidth: 240, width: 32 }
       )
 
-      if ((printData.discount || 0) > 0) {
-        commands.push(
-          ...new TextEncoder().encode(`Discount:                    -${fmt(printData.discount || 0)}`),
-          0x0A
-        )
-      }
-
-      const invoiceTotal = printData.invoiceTotal !== undefined
-        ? printData.invoiceTotal
-        : ((printData.subtotal || 0) + (printData.tax || 0) - (printData.discount || 0))
-      const oldBalance = Number.isFinite(printData.oldBalance) ? printData.oldBalance : 0
-      const calculatedTotal = invoiceTotal + oldBalance
-      const paymentAmountPrint = printData.paymentAmount || 0
-      const creditAmountPrint = printData.creditAmount || 0
-
-      commands.push(
-        ...new TextEncoder().encode(`Tax:                         ${fmt(printData.tax || 0)}`),
-        0x0A,
-        ...new TextEncoder().encode(`Invoice Total:               ${fmt(invoiceTotal)}`),
-        0x0A,
-        ...new TextEncoder().encode(`Old Balance:                    ${fmt(oldBalance)}`),
-        0x0A,
-        ...new TextEncoder().encode('--------------------------------'),
-        0x0A,
-        ...new TextEncoder().encode(`TOTAL:                       ${fmt(calculatedTotal)}`),
-        0x0A,
-        ...new TextEncoder().encode(`Payment Method:      ${(printData.paymentMethod || 'CASH').substring(0, 12)}`),
-        0x0A,
-        ...new TextEncoder().encode(`Payment Amount:      ${fmt(paymentAmountPrint)}`),
-        0x0A
-      )
-
-      if (creditAmountPrint > 0 || printData.paymentMethod === 'FULLY_CREDIT') {
-        commands.push(
-          ...new TextEncoder().encode(`Credit Amount:       ${fmt(creditAmountPrint || calculatedTotal || 0)}`),
-          0x0A
-        )
-      }
-
-      const calculatedRemaining = Math.max(0, (oldBalance + invoiceTotal) - paymentAmountPrint)
-      if (calculatedRemaining > 0 || oldBalance !== 0) {
-        commands.push(
-          ...new TextEncoder().encode(`Remaining Balance:       ${fmt(calculatedRemaining)}`),
-          0x0A
-        )
-      }
-
-      const change = paymentAmountPrint > calculatedTotal ? paymentAmountPrint - calculatedTotal : 0
-      if (change > 0) {
-        commands.push(
-          ...new TextEncoder().encode(`Change:                  ${fmt(change)}`),
-          0x0A
-        )
-      }
-
-      commands.push(
-        ...new TextEncoder().encode('================================'),
-        0x0A,
-        0x1B, 0x61, 0x01,
-        ...new TextEncoder().encode(printData.footerMessage || 'Thank you for your business!'),
-        0x0A, 0x0A,
-        ...new TextEncoder().encode('Return within 3 days'),
-        0x0A,
-        ...new TextEncoder().encode('================================'),
-        0x0A,
-        ...new TextEncoder().encode('Powered by Tychora'),
-        0x0A,
-        ...new TextEncoder().encode('www.tychora.com'),
-        0x0A, 0x0A, 0x0A,
-        0x1D, 0x56, 0x00
-      )
-
-      await writeToThermalPrinter(new Uint8Array(commands))
-
-      return { success: true, message: 'Printed to thermal printer' }
+      await writeToThermalPrinter(payload)
+      const via = getActivePrinterTransport() === 'serial' ? 'Serial/COM' : 'USB'
+      return { success: true, message: `Printed silently via ${via}` }
     } catch (error) {
       resetCachedPrinter()
       throw error
@@ -2713,34 +2584,25 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }
     } else {
       try {
-        // Silent direct when USB/Serial paired — never open OS dialog in that case
-        if (await hasDirectPrinterPaired()) {
-          setPrinterMode(PRINTER_MODE_DIRECT)
-        }
+        setPrinterMode(PRINTER_MODE_DIRECT)
         const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: true })
         success = !!thermalResult?.success
         message = thermalResult?.message || ''
       } catch (serialError) {
-        const allowBrowser = isSystemPrinterMode() || !(await hasDirectPrinterPaired())
-        if (allowBrowser && typeof window !== 'undefined' && typeof window.print === 'function') {
-          usedBrowserFallback = true
-          try {
-            const browserResult = await printToBrowser(printData)
-            success = !!browserResult?.success
-            message = browserResult?.message || ''
-          } catch (browserError) {
-            message = browserError?.message || 'Browser print failed'
-          }
-        } else {
-          message = serialError?.message || 'Thermal printer not available'
-        }
+        // Do NOT open Chrome print dialog — that is what the user wants to avoid.
+        message =
+          serialError?.message ||
+          'Silent thermal print failed. Connect USB or Serial/COM first.'
       }
     }
 
     return { success, message, usedBrowserFallback }
   }
 
-  /** Print straight to thermal/Electron — no PrintDialog, no browser print popup when USB/Serial is connected. */
+  /**
+   * Silent thermal print only — never opens the Chrome/OS print modal on sale confirm.
+   * System Print (browser dialog) is NOT used here; connect USB/Serial for silent printing.
+   */
   const printThermalReceiptDirect = async (printData, contextLabel = 'receipt') => {
     try {
       if (window.electronAPI?.printReceipt) {
@@ -2751,58 +2613,34 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         }
       }
 
-      // Prefer silent direct thermal whenever a USB/Serial printer is paired
+      // Always prefer silent USB/Serial ESC/POS (logo + aligned layout)
+      setPrinterMode(PRINTER_MODE_DIRECT)
       const directReady = await hasDirectPrinterPaired()
-      if (directReady) {
-        setPrinterMode(PRINTER_MODE_DIRECT)
-        try {
-          const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: false })
-          if (thermalResult?.success) {
-            const via = getActivePrinterTransport() === 'serial' ? 'Serial/COM' : 'USB'
-            showToast(`Receipt printed via ${via} (no dialog)`, 'success')
-            await refreshPrinterStatus()
-            return true
-          }
-        } catch (directErr) {
-          // Only fall through to system dialog if user explicitly wants system mode
-          // and direct failed — otherwise surface the error.
-          if (!isSystemPrinterMode()) {
-            if (directErr?.name === 'PrinterBlockedError' || /not in USB list|blocked/i.test(directErr?.message || '')) {
-              setPrinterHelpMessage(directErr.message || getPrinterBlockedHelp())
-              setShowPrinterHelpDialog(true)
-            }
-            showToast(directErr?.message || 'Thermal print failed. Reconnect USB/Serial.', 'warning')
-            return false
-          }
-        }
-      }
-
-      // System printer mode (or no direct device): OS print dialog
-      if (isSystemPrinterMode() || !isThermalPrintingSupported()) {
-        const browserResult = await printToBrowser(printData)
-        if (browserResult?.success) {
-          showToast('Print dialog opened — select your Epson printer', 'success')
-          return true
-        }
-        showToast(browserResult?.message || 'Could not open print dialog', 'warning')
-        return false
-      }
-
-      // No paired printer yet — try one silent attempt without prompting mid-sale
-      const thermalResult = await printToThermalPrinter(printData, { allowPortRequest: false })
+      const thermalResult = await printToThermalPrinter(printData, {
+        allowPortRequest: !directReady,
+      })
       if (thermalResult?.success) {
-        showToast('Receipt printed successfully', 'success')
+        showToast(thermalResult.message || 'Receipt printed (no dialog)', 'success')
+        await refreshPrinterStatus()
         return true
       }
 
-      showToast(thermalResult?.message || 'Connect USB or Serial/COM first for silent thermal print.', 'warning')
+      showToast(
+        thermalResult?.message ||
+          'Silent print failed. Click USB or Serial/COM to connect the Epson (System Print always shows the Chrome dialog).',
+        'warning'
+      )
       return false
     } catch (error) {
       if (error?.name === 'PrinterBlockedError' || /not in USB list|blocked/i.test(error?.message || '')) {
         setPrinterHelpMessage(error.message || getPrinterBlockedHelp())
         setShowPrinterHelpDialog(true)
       }
-      showToast(error?.message || 'Thermal print failed. Connect USB/Serial for silent print.', 'warning')
+      showToast(
+        error?.message ||
+          'Could not silent-print. Connect USB (or Serial/COM). Chrome System Print cannot print without a dialog.',
+        'warning'
+      )
       return false
     }
   }
@@ -3166,6 +3004,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               startIcon={<PrintIcon />}
               onClick={handleUseSystemPrinter}
               sx={{ fontFamily: 'monospace', minWidth: 120, height: 40, whiteSpace: 'nowrap' }}
+              title="Opens Chrome print dialog (cannot be silent). Prefer USB/Serial for no-dialog print."
             >
               System Print
             </Button>
@@ -3898,17 +3737,23 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           <DialogTitle>Epson not showing in USB list</DialogTitle>
           <DialogContent>
             <Alert severity="warning" sx={{ mb: 2 }}>
-              This is normal when Mac or Windows already controls the Epson via its printer driver. The browser cannot see the printer in that case.
+              Windows/Mac printer drivers often hide Epson from Chrome USB. Silent printing (no dialog) needs USB or Serial/COM access.
             </Alert>
             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>{printerHelpMessage || getPrinterBlockedHelp()}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <strong>For silent print (no Chrome dialog):</strong> click <strong>USB</strong> or <strong>Serial/COM</strong> and select the Epson. Confirm sale will then print directly.
+            </Typography>
             <Typography variant="body2" color="text.secondary">
-              Recommended: click <strong>Use System Printer</strong>, make sure Epson is added in your laptop printer settings, then complete a sale — the print dialog will open and you choose Epson.
+              <strong>System Print</strong> always opens the Chrome print dialog (like Save as PDF) — browsers cannot skip that dialog.
             </Typography>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setShowPrinterHelpDialog(false)}>Close</Button>
-            <Button variant="contained" color="secondary" onClick={() => { setShowPrinterHelpDialog(false); handleUseSystemPrinter() }}>
-              Use System Printer
+            <Button variant="outlined" onClick={() => { setShowPrinterHelpDialog(false); handleConnectSerial() }}>
+              Try Serial/COM
+            </Button>
+            <Button variant="contained" onClick={() => { setShowPrinterHelpDialog(false); handleConnectUsb() }}>
+              Try USB
             </Button>
           </DialogActions>
         </Dialog>

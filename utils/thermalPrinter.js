@@ -301,7 +301,8 @@ export function connectSystemPrinter() {
   persistPermission('system')
   return {
     transport: 'system',
-    message: 'System printer mode enabled. Add Epson in laptop settings if needed; receipts will use the print dialog.',
+    message:
+      'System printer mode enabled. Chrome will show a print dialog (cannot be silent). Prefer USB or Serial/COM for silent thermal printing.',
   }
 }
 
@@ -366,17 +367,27 @@ async function requestSerialPrinter() {
 
   setPrinterMode(PRINTER_MODE_DIRECT)
 
+  // Show ALL serial/COM ports first (unfiltered) so Windows virtual COM
+  // and USB-serial adapters appear. Fall back to thermal-vendor filters only
+  // if the user cancels an empty list (rare).
   let port
   try {
-    // Prefer known thermal vendors, then fall back to any COM/serial port
-    port = await navigator.serial.requestPort({
-      filters: THERMAL_USB_FILTERS.map((f) => ({
-        usbVendorId: f.vendorId,
-      })),
-    })
+    port = await navigator.serial.requestPort()
   } catch (error) {
     if (error?.name === 'NotFoundError') {
-      port = await navigator.serial.requestPort()
+      try {
+        port = await navigator.serial.requestPort({
+          filters: THERMAL_USB_FILTERS.map((f) => ({
+            usbVendorId: f.vendorId,
+          })),
+        })
+      } catch (e2) {
+        throw new Error(
+          'No Serial/COM port found. On Windows Epson often only appears under USB (not Serial). Use Connect USB, or install a USB-Serial driver if your printer uses a COM port.'
+        )
+      }
+    } else if (error?.name === 'NotAllowedError') {
+      throw new Error('Serial permission denied. Click Serial/COM again and allow access.')
     } else {
       throw error
     }
