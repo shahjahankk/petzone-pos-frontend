@@ -1,6 +1,7 @@
 /**
  * Compact ESC/POS sales receipt for Epson TM-T88V 80mm.
  * Uses Font B (smaller) for body to save paper; bold only where needed.
+ * Logo: always petzonelogo.png (fetch+bitmap), never SVG circle placeholder.
  */
 
 const encoder = () => new TextEncoder()
@@ -159,12 +160,11 @@ function canvasToEscPosRaster(canvas) {
   }
   if (blackCount < 20) return []
 
-  return [
-    0x1d, 0x76, 0x30, 0x00,
-    bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
-    h & 0xff, (h >> 8) & 0xff,
-    ...raster,
-  ]
+  const header = [0x1d, 0x76, 0x30, 0x00, bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff, h & 0xff, (h >> 8) & 0xff]
+  const out = new Uint8Array(header.length + raster.length)
+  out.set(header, 0)
+  out.set(raster, header.length)
+  return Array.from(out)
 }
 
 function resolveLogoCandidates(logoUrl) {
@@ -186,6 +186,28 @@ function toAbsoluteUrl(logoUrl) {
 }
 
 async function loadImage(absolute) {
+  // Prefer fetch → ImageBitmap (avoids canvas-taint / stale cache issues)
+  try {
+    const res = await fetch(absolute, { cache: 'no-cache' })
+    if (res.ok) {
+      const blob = await res.blob()
+      if (typeof createImageBitmap === 'function') {
+        return createImageBitmap(blob)
+      }
+      const url = URL.createObjectURL(blob)
+      const img = new Image()
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = url
+      })
+      URL.revokeObjectURL(url)
+      return img
+    }
+  } catch (e) {
+    /* fall through to Image() */
+  }
+
   const img = new Image()
   const isSameOrigin =
     absolute.startsWith('data:') ||
@@ -213,22 +235,27 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320) {
       if (!absolute) continue
       const img = await loadImage(absolute)
 
-      let w = img.naturalWidth || img.width
-      let h = img.naturalHeight || img.height
-      if (!w || !h) continue
+      let w = img.width || img.naturalWidth
+      let h = img.height || img.naturalHeight
+      if (!w || !h) {
+        if (img.close) img.close()
+        continue
+      }
 
       const targetW = Math.min(maxWidthDots, 384)
       if (w > targetW) {
         h = Math.round((h * targetW) / w)
         w = targetW
       }
-      // Cap height so logo does not eat paper
       if (h > 96) {
         w = Math.floor((w * 96) / h / 8) * 8
         h = 96
       }
       w = Math.floor(w / 8) * 8
-      if (w < 8) continue
+      if (w < 8) {
+        if (img.close) img.close()
+        continue
+      }
 
       const canvas = document.createElement('canvas')
       canvas.width = w
@@ -237,7 +264,9 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320) {
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, 0, w, h)
       ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(img, 0, 0, w, h)
+      if (img.close) img.close()
 
       const raster = canvasToEscPosRaster(canvas)
       if (raster.length) return raster
@@ -250,12 +279,12 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320) {
   return []
 }
 
-/** Enough margin for cutter without wasting a long blank strip */
+/** Enough blank paper under footer so cutter does not slice Tychora */
 function cutSafe() {
   return [
-    0x0a, 0x0a,
-    0x1b, 0x64, 0x06, // feed 6 lines
-    0x1d, 0x56, 0x41, 0x40, // feed then cut
+    0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a,
+    0x1b, 0x64, 0x0a,
+    0x1d, 0x56, 0x00,
   ]
 }
 
