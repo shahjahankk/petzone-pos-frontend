@@ -116,7 +116,7 @@ const DEFAULT_COMPANY_INFO = {
   address: 'Shop no 42 unit no 2 latifabad near musarrat banquet Hyderabad',
   phone: '03111100355',
   email: 'info@petzone.com',
-  logoUrl: '/petzonelogo.svg'
+  logoUrl: '/petzonelogo.png'
 }
 
 const createEmptyTabState = (overrides = {}) => ({
@@ -2385,7 +2385,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           companyEmail: printData.companyEmail || DEFAULT_COMPANY_INFO.email,
           logoUrl: printData.logoUrl || companyInfo?.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
         },
-        { includeLogo: true, logoWidth: 384, width: 42 }
+        { includeLogo: true, logoWidth: 448, width: 42 }
       )
 
       await writeToThermalPrinter(payload)

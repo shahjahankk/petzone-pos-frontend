@@ -99,26 +99,60 @@ function itemBlock(item, width = 42) {
   return lines
 }
 
+/**
+ * Convert canvas pixels → ESC/POS GS v 0 raster.
+ * Auto-handles dark-background logos (e.g. petzonelogo.png): black bg → paper,
+ * colored/light artwork → black dots.
+ */
 function canvasToEscPosRaster(canvas) {
-  const w = Math.floor(canvas.width / 8) * 8
-  const h = canvas.height
+  const srcW = canvas.width
+  const srcH = canvas.height
+  const w = Math.floor(srcW / 8) * 8
+  const h = srcH
   if (w < 8 || h < 1) return []
 
   const ctx = canvas.getContext('2d')
-  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const { data } = ctx.getImageData(0, 0, srcW, srcH)
+
+  // Sample corners — dark corners ⇒ invert mode (print light/colored ink)
+  const sample = (x, y) => {
+    const i = (Math.min(srcH - 1, Math.max(0, y)) * srcW + Math.min(srcW - 1, Math.max(0, x))) * 4
+    return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+  }
+  const cornerAvg =
+    (sample(2, 2) +
+      sample(srcW - 3, 2) +
+      sample(2, srcH - 3) +
+      sample(srcW - 3, srcH - 3)) /
+    4
+  const darkBackground = cornerAvg < 80
+
   const bytesPerRow = w / 8
   const raster = new Uint8Array(bytesPerRow * h)
   let blackCount = 0
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const i = (y * canvas.width + x) * 4
+      const i = (y * srcW + x) * 4
       const r = data[i]
       const g = data[i + 1]
       const b = data[i + 2]
       const a = data[i + 3]
-      const nearWhite = r > 245 && g > 245 && b > 245
-      if (a > 40 && !nearWhite) {
+      if (a < 40) continue
+
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b
+      let ink = false
+      if (darkBackground) {
+        // Black bg stays white on paper; print anything brighter / colored
+        const nearBlack = r < 35 && g < 35 && b < 35
+        ink = !nearBlack && lum > 25
+      } else {
+        // Light bg: print dark / saturated pixels
+        const nearWhite = r > 245 && g > 245 && b > 245
+        ink = !nearWhite && lum < 200
+      }
+
+      if (ink) {
         raster[y * bytesPerRow + (x >> 3)] |= 0x80 >> (x & 7)
         blackCount += 1
       }
@@ -126,53 +160,17 @@ function canvasToEscPosRaster(canvas) {
   }
   if (blackCount < 20) return []
 
-  const xL = bytesPerRow & 0xff
-  const xH = (bytesPerRow >> 8) & 0xff
-  const yL = h & 0xff
-  const yH = (h >> 8) & 0xff
-  return [0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster]
-}
-
-/**
- * Draw PetZone mark (pink paw circle + Petzone / POS) — reliable on thermal.
- * SVG <text> often fails to rasterize in Chrome → broken/missing logo.
- */
-export function drawPetzoneLogoCanvas(maxWidthDots = 384) {
-  const w = Math.floor(maxWidthDots / 8) * 8
-  const h = Math.max(64, Math.round(w * 0.28))
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const ctx = canvas.getContext('2d')
-
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, w, h)
-
-  const cy = h / 2
-  const r = Math.round(h * 0.38)
-  const cx = r + 4
-
-  // Outer circle (prints as solid black — pink becomes black on thermal)
-  ctx.fillStyle = '#000000'
-  ctx.beginPath()
-  ctx.arc(cx, cy, r, 0, Math.PI * 2)
-  ctx.fill()
-
-  // Inner white circle (paw highlight)
-  ctx.fillStyle = '#ffffff'
-  ctx.beginPath()
-  ctx.arc(cx, cy - r * 0.12, r * 0.42, 0, Math.PI * 2)
-  ctx.fill()
-
-  const textX = cx + r + Math.round(w * 0.04)
-  ctx.fillStyle = '#000000'
-  ctx.textBaseline = 'middle'
-  ctx.font = `bold ${Math.round(h * 0.42)}px Arial, Helvetica, sans-serif`
-  ctx.fillText('Petzone', textX, cy - h * 0.12)
-  ctx.font = `${Math.round(h * 0.22)}px Arial, Helvetica, sans-serif`
-  ctx.fillText('POS', textX, cy + h * 0.28)
-
-  return canvas
+  return [
+    0x1d,
+    0x76,
+    0x30,
+    0x00,
+    bytesPerRow & 0xff,
+    (bytesPerRow >> 8) & 0xff,
+    h & 0xff,
+    (h >> 8) & 0xff,
+    ...raster,
+  ]
 }
 
 function resolveLogoCandidates(logoUrl) {
@@ -180,11 +178,12 @@ function resolveLogoCandidates(logoUrl) {
   const push = (u) => {
     if (u && !list.includes(u)) list.push(u)
   }
-  push(logoUrl)
-  if (logoUrl?.includes('petzonelogo.png')) push('/petzonelogo.svg')
-  if (logoUrl?.includes('petzonelogo.svg')) push('/petzonelogo.png')
-  push('/petzonelogo.svg')
+  // Prefer real PNG brand mark first
   push('/petzonelogo.png')
+  push(logoUrl)
+  if (logoUrl?.includes('petzonelogo.svg')) push('/petzonelogo.png')
+  if (logoUrl?.includes('petzonelogo.png')) push('/petzonelogo.svg')
+  push('/petzonelogo.svg')
   return list
 }
 
@@ -211,54 +210,42 @@ async function loadImage(absolute) {
 }
 
 /**
- * Prefer drawn PetZone mark; fall back to image URL if custom branch logo.
- * Custom logos (non-petzone) still load from URL.
+ * Load petzonelogo.png (or provided URL) → ESC/POS raster for TM-T88V.
  */
-export async function logoToEscPosRaster(logoUrl, maxWidthDots = 384) {
+export async function logoToEscPosRaster(logoUrl, maxWidthDots = 448) {
   if (typeof window === 'undefined') return []
-
-  const isDefaultPetzone =
-    !logoUrl ||
-    /petzonelogo\.(svg|png)/i.test(String(logoUrl)) ||
-    String(logoUrl).endsWith('/petzonelogo.svg') ||
-    String(logoUrl).endsWith('/petzonelogo.png')
-
-  // Always use vector-drawn mark for default brand (matches kiosk UI on thermal)
-  if (isDefaultPetzone) {
-    try {
-      const drawn = canvasToEscPosRaster(drawPetzoneLogoCanvas(maxWidthDots))
-      if (drawn.length) return drawn
-    } catch (e) {
-      console.warn('Drawn logo failed:', e)
-    }
-  }
 
   const candidates = resolveLogoCandidates(logoUrl)
   let lastError = null
 
   for (const candidate of candidates) {
     try {
+      // Skip SVG for thermal — use PNG brand asset
+      if (/\.svg(\?|$)/i.test(candidate)) continue
+
       const absolute = toAbsoluteUrl(candidate)
       if (!absolute) continue
       const img = await loadImage(absolute)
 
       let w = img.naturalWidth || img.width
       let h = img.naturalHeight || img.height
-      if (!w || !h) {
-        if (candidate.endsWith('.svg')) {
-          w = 512
-          h = 128
-        } else continue
-      }
+      if (!w || !h) continue
 
-      if (w > maxWidthDots) {
-        h = Math.round((h * maxWidthDots) / w)
-        w = maxWidthDots
+      // Fit 80mm printable width (~512 dots max; keep readable height)
+      const targetW = Math.min(maxWidthDots, 512)
+      if (w > targetW) {
+        h = Math.round((h * targetW) / w)
+        w = targetW
       }
-      if (h < 48) {
-        const scale = 48 / h
-        h = 48
+      // Ensure logo is tall enough to read on paper
+      if (h < 72) {
+        const scale = 72 / h
+        h = 72
         w = Math.floor((w * scale) / 8) * 8
+        if (w > 512) {
+          h = Math.round((h * 512) / w)
+          w = 512
+        }
       }
       w = Math.floor(w / 8) * 8
       if (w < 8) continue
@@ -267,8 +254,11 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 384) {
       canvas.width = w
       canvas.height = h
       const ctx = canvas.getContext('2d')
+      // White paper underlay (dark PNG bg will still be detected from pixels)
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, 0, w, h)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(img, 0, 0, w, h)
 
       const raster = canvasToEscPosRaster(canvas)
@@ -278,19 +268,24 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 384) {
     }
   }
 
-  // Last resort: drawn brand
-  try {
-    return canvasToEscPosRaster(drawPetzoneLogoCanvas(maxWidthDots))
-  } catch (e) {
-    if (lastError) console.warn('Logo raster failed:', lastError)
-    return []
-  }
+  if (lastError) console.warn('Logo raster failed:', lastError)
+  return []
 }
 
-/** Feed past cutter, then full cut — prevents footer (Tychora) being sliced. */
+/** Feed well past the cutter, then full cut (TM-T88V cutter sits above print head). */
 function cutSafe() {
-  // GS V 65 n — feed n × vertical units then full cut (Epson TM-T88V)
-  return bytes(0x1d, 0x56, 0x41, 0x68) // ~ enough margin below last line
+  return [
+    0x0a,
+    0x0a,
+    0x0a,
+    0x1b,
+    0x64,
+    0x0c, // feed 12 lines
+    0x1d,
+    0x56,
+    0x41,
+    0xff, // feed max units then full cut
+  ]
 }
 
 /**
@@ -299,7 +294,7 @@ function cutSafe() {
 export async function buildReceiptEscPos(printData = {}, options = {}) {
   // TM-T88V 80mm ≈ 42 columns with Font A
   const width = options.width || 42
-  const logoUrl = printData.logoUrl || '/petzonelogo.svg'
+  const logoUrl = printData.logoUrl || '/petzonelogo.png'
   const includeLogo = options.includeLogo !== false
 
   const out = []
@@ -308,7 +303,7 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
 
   let logoPrinted = false
   if (includeLogo) {
-    const logo = await logoToEscPosRaster(logoUrl, options.logoWidth || 384)
+    const logo = await logoToEscPosRaster(logoUrl, options.logoWidth || 448)
     if (logo.length) {
       out.push(...logo)
       out.push(...feed(1))
@@ -316,13 +311,11 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     }
   }
 
-  // Brand / company — large + bold (always, even if logo missing)
-  out.push(...charSize(0x11)) // 2× width & height
-  out.push(...boldOn())
-  out.push(...textLine((printData.companyName || printData.branchName || 'PetZone').slice(0, 20)))
-  out.push(...boldOff())
-  out.push(...charSize(0x00))
+  // Company / branch name — bold double height (not GS outline style)
+  out.push(...style(0x18)) // bold + double height
+  out.push(...textLine((printData.companyName || printData.branchName || 'PetZone').slice(0, 24)))
   out.push(...normal())
+  out.push(...boldOff())
 
   if (!logoPrinted) {
     out.push(...boldOn())
@@ -434,10 +427,6 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   out.push(...textLine('='.repeat(width)))
   out.push(...textLine('Powered by Tychora'))
   out.push(...textLine('www.tychora.com'))
-  // Extra blank lines + feed-and-cut so cutter does not slice the footer
-  out.push(...textLine(''))
-  out.push(...textLine(''))
-  out.push(...feed(4))
   out.push(...cutSafe())
 
   return new Uint8Array(out)

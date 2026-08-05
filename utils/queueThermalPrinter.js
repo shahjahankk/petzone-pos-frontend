@@ -27,16 +27,16 @@ function boldOff() {
   return esc(0x1b, 0x45, 0x00)
 }
 
-function charSize(n = 0) {
-  return esc(0x1d, 0x21, n & 0xff)
-}
-
 function feed(n = 1) {
   return esc(0x1b, 0x64, Math.max(0, Math.min(255, n)))
 }
 
 function cutSafe() {
-  return esc(0x1d, 0x56, 0x41, 0x68)
+  return [
+    0x0a, 0x0a, 0x0a,
+    0x1b, 0x64, 0x0c,
+    0x1d, 0x56, 0x41, 0xff,
+  ]
 }
 
 async function buildTokenCommands(ticketCode, extra = {}) {
@@ -45,7 +45,7 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...esc(0x1b, 0x61, 0x01))
 
   try {
-    const logo = await logoToEscPosRaster('/petzonelogo.svg', 384)
+    const logo = await logoToEscPosRaster('/petzonelogo.png', 448)
     if (logo.length) {
       out.push(...logo)
       out.push(...feed(1))
@@ -54,22 +54,20 @@ async function buildTokenCommands(ticketCode, extra = {}) {
     /* logo optional */
   }
 
-  out.push(...charSize(0x11))
-  out.push(...boldOn())
+  out.push(...esc(0x1b, 0x21, 0x18))
   out.push(...line('PetZone'))
-  out.push(...boldOff())
-  out.push(...charSize(0x00))
+  out.push(...esc(0x1b, 0x21, 0x00))
 
   if (extra.serviceName) {
     out.push(...line(String(extra.serviceName).slice(0, 42)))
   }
 
   out.push(...feed(1))
-  out.push(...charSize(0x22))
+  out.push(...esc(0x1b, 0x21, 0x30))
   out.push(...boldOn())
   out.push(...line(String(ticketCode)))
   out.push(...boldOff())
-  out.push(...charSize(0x00))
+  out.push(...esc(0x1b, 0x21, 0x00))
   out.push(...feed(1))
 
   if (extra.branchName) out.push(...line(String(extra.branchName).slice(0, 42)))
@@ -88,9 +86,6 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...line('Please wait for your number to be called'))
   out.push(...feed(1))
   out.push(...line('Powered by Tychora'))
-  out.push(...line(''))
-  out.push(...line(''))
-  out.push(...feed(4))
   out.push(...cutSafe())
   return new Uint8Array(out)
 }
