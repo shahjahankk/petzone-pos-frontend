@@ -25,7 +25,7 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...esc(0x1b, 0x61, 0x01))
 
   try {
-    const logo = await logoToEscPosRaster('/petzonelogo.png', 200)
+    const logo = await logoToEscPosRaster('/petzonelogo.svg', 384)
     if (logo.length) {
       out.push(...logo)
       out.push(...line(''))

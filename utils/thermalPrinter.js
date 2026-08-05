@@ -5,9 +5,13 @@
 
 const SERIAL_STORAGE_KEY = 'thermalSerialPortInfo'
 const USB_STORAGE_KEY = 'thermalUsbDeviceInfo'
+const USB_VERIFIED_KEY = 'thermalUsbVerified'
 const PERMISSION_KEY = 'printerPermissionGranted'
 const TRANSPORT_KEY = 'thermalPrinterTransport'
 const PRINTER_MODE_KEY = 'posPrinterMode'
+
+const USB_BLOCKED_WINDOWS =
+  'USB printer is blocked by the Windows driver. For silent print: download Zadig (zadig.akeo.ie), select Epson TM-T88V, install WinUSB, unplug/replug USB, then click USB again in POS. Until then use System Print (shows a print dialog).'
 
 export const PRINTER_MODE_DIRECT = 'direct'
 export const PRINTER_MODE_SYSTEM = 'system'
@@ -48,11 +52,46 @@ export function isThermalPrintingSupported() {
   return isWebUsbSupported() || isWebSerialSupported()
 }
 
+function setUsbVerified(ok) {
+  try {
+    if (ok) sessionStorage.setItem(USB_VERIFIED_KEY, '1')
+    else sessionStorage.removeItem(USB_VERIFIED_KEY)
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function isUsbVerified() {
+  try {
+    return sessionStorage.getItem(USB_VERIFIED_KEY) === '1'
+  } catch (e) {
+    return false
+  }
+}
+
+function clearUsbPersistence() {
+  try {
+    sessionStorage.removeItem(USB_STORAGE_KEY)
+    sessionStorage.removeItem(USB_VERIFIED_KEY)
+    if (sessionStorage.getItem(TRANSPORT_KEY) === 'usb') {
+      sessionStorage.removeItem(TRANSPORT_KEY)
+      sessionStorage.removeItem(PERMISSION_KEY)
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  if (cachedTransport === 'usb') {
+    cachedTransport = null
+    cachedUsbDevice = null
+  }
+}
+
 export function resetCachedPrinter() {
   cachedTransport = null
   cachedUsbDevice = null
   cachedSerialPort = null
   cachedSerialPortInfo = null
+  setUsbVerified(false)
 }
 
 export const resetCachedSerialPort = resetCachedPrinter
@@ -144,12 +183,13 @@ function cacheSerialPort(port) {
   return port
 }
 
-function cacheUsbDevice(device) {
+function cacheUsbDevice(device, { verified = false } = {}) {
   cachedTransport = 'usb'
   cachedUsbDevice = device
   cachedSerialPort = null
   cachedSerialPortInfo = null
   persistUsbInfo(device)
+  if (verified) setUsbVerified(true)
   return device
 }
 
@@ -190,19 +230,8 @@ async function openUsbDevice(device) {
 }
 
 export async function restoreCachedPrinter() {
-  if (cachedTransport === 'usb' && cachedUsbDevice) return cachedUsbDevice
+  if (cachedTransport === 'usb' && cachedUsbDevice && isUsbVerified()) return cachedUsbDevice
   if (cachedTransport === 'serial' && cachedSerialPort) return cachedSerialPort
-
-  if (isWebUsbSupported()) {
-    try {
-      const devices = await navigator.usb.getDevices()
-      const persisted = loadUsbInfo()
-      const device = matchUsbDevice(devices, persisted)
-      if (device) return cacheUsbDevice(device)
-    } catch (e) {
-      /* ignore */
-    }
-  }
 
   if (isWebSerialSupported()) {
     try {
@@ -210,6 +239,18 @@ export async function restoreCachedPrinter() {
       const persisted = cachedSerialPortInfo || loadSerialInfo()
       const port = matchSerialPort(ports, persisted)
       if (port) return cacheSerialPort(port)
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  // Only restore USB if we previously verified claim (Windows may list device but block it)
+  if (isWebUsbSupported() && isUsbVerified()) {
+    try {
+      const devices = await navigator.usb.getDevices()
+      const persisted = loadUsbInfo()
+      const device = matchUsbDevice(devices, persisted)
+      if (device) return cacheUsbDevice(device, { verified: true })
     } catch (e) {
       /* ignore */
     }
@@ -269,28 +310,10 @@ export function setPrinterMode(mode) {
 }
 
 export function getPrinterBlockedHelp() {
-  const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent)
-  const isWin = typeof navigator !== 'undefined' && /Win/i.test(navigator.platform || navigator.userAgent)
-
-  if (isMac) {
-    return (
-      'Epson not in USB list — macOS is using the printer driver and hiding USB from Chrome. ' +
-      'Fix option A: Click "Use System Printer" in POS (easiest — uses your installed Epson). ' +
-      'Fix option B: System Settings → Printers → remove Epson → unplug USB 10 sec → replug → Connect Printer in Chrome again.'
-    )
-  }
-
-  if (isWin) {
-    return (
-      'Epson not in USB list — Windows USB Print driver is blocking browser access. ' +
-      'Fix option A: Click "Use System Printer" in POS (uses installed Epson driver). ' +
-      'Fix option B: Install WinUSB via Zadig (zadig.akeo.ie) for your Epson, then Connect Printer again.'
-    )
-  }
-
   return (
-    'Epson not in USB list — the system printer driver is blocking browser USB access. ' +
-    'Click "Use System Printer" in POS, or remove the printer from system settings and try Connect Printer again.'
+    'Windows USB Print driver is blocking Chrome from the Epson TM-T88V. ' +
+    'For silent print: install WinUSB with Zadig (zadig.akeo.ie) on the Epson interface, unplug/replug USB, then click USB again. ' +
+    'Until then use System Print (Chrome will show a print dialog). Serial/COM stays empty for this printer — that is normal.'
   )
 }
 
@@ -339,25 +362,54 @@ async function requestUsbPrinter() {
   }
 
   try {
+    // Claim + short transfer — open-only can succeed while Windows still blocks printing
     const endpointInfo = await openUsbDevice(device)
-    await device.releaseInterface(endpointInfo.interfaceNumber)
-    await device.close()
+    await device.claimInterface(endpointInfo.interfaceNumber)
+    try {
+      const test = new Uint8Array([0x1b, 0x40]) // ESC @
+      const result = await device.transferOut(endpointInfo.endpointNumber, test)
+      if (result.status !== 'ok') {
+        throw new Error(`USB transfer failed: ${result.status}`)
+      }
+    } finally {
+      try {
+        await device.releaseInterface(endpointInfo.interfaceNumber)
+      } catch (e) {
+        /* ignore */
+      }
+      try {
+        if (device.opened) await device.close()
+      } catch (e) {
+        /* ignore */
+      }
+    }
   } catch (error) {
     try {
       if (device.opened) await device.close()
     } catch (e) {
       /* ignore */
     }
+    clearUsbPersistence()
+    try {
+      if (typeof device.forget === 'function') await device.forget()
+    } catch (e) {
+      /* ignore */
+    }
 
-    if (error?.name === 'SecurityError' || /access|denied|claim/i.test(error?.message || '')) {
-      throw new Error(
-        'USB printer is blocked by the system driver. On Windows: use Zadig to install WinUSB for the Epson. On Mac: remove the printer from System Settings → Printers, unplug/replug USB, then Connect Printer again in Chrome.'
-      )
+    if (
+      error?.name === 'SecurityError' ||
+      error?.name === 'NetworkError' ||
+      /access|denied|claim|transfer|protected/i.test(error?.message || '')
+    ) {
+      const blocked = new Error(USB_BLOCKED_WINDOWS)
+      blocked.name = 'PrinterBlockedError'
+      blocked.cause = error
+      throw blocked
     }
     throw error
   }
 
-  return cacheUsbDevice(device)
+  return cacheUsbDevice(device, { verified: true })
 }
 
 async function requestSerialPrinter() {
@@ -627,18 +679,42 @@ export async function writeToThermalPrinter(data) {
 /** True when a WebUSB or Web Serial printer is already paired in this browser. */
 export async function hasDirectPrinterPaired() {
   if (!isThermalPrintingSupported()) return false
-  if (await restoreCachedPrinter()) return true
-  const count = await getGrantedPrinterCount()
-  // getGrantedPrinterCount returns 1 for system mode — only count real USB/serial devices
+
+  // USB device may appear in getDevices() even when Windows blocks claim — require verified claim
+  if (cachedTransport === 'serial' && cachedSerialPort) return true
+  if (cachedTransport === 'usb' && cachedUsbDevice && isUsbVerified()) return true
+
+  if (isWebSerialSupported()) {
+    try {
+      const ports = await navigator.serial.getPorts()
+      const persisted = cachedSerialPortInfo || loadSerialInfo()
+      const port = matchSerialPort(ports, persisted)
+      if (port) {
+        cacheSerialPort(port)
+        return true
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  if (isWebUsbSupported() && isUsbVerified()) {
+    try {
+      const devices = await navigator.usb.getDevices()
+      const persisted = loadUsbInfo()
+      const device = matchUsbDevice(devices, persisted)
+      if (device) {
+        cacheUsbDevice(device, { verified: true })
+        return true
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  // getGrantedPrinterCount returns 1 for system mode — only count real serial (USB needs verified)
   if (isSystemPrinterMode()) {
     let real = 0
-    if (isWebUsbSupported()) {
-      try {
-        real += (await navigator.usb.getDevices())?.length || 0
-      } catch (e) {
-        /* ignore */
-      }
-    }
     if (isWebSerialSupported()) {
       try {
         real += (await navigator.serial.getPorts())?.length || 0
@@ -646,9 +722,17 @@ export async function hasDirectPrinterPaired() {
         /* ignore */
       }
     }
+    if (isWebUsbSupported() && isUsbVerified()) {
+      try {
+        real += (await navigator.usb.getDevices())?.length || 0
+      } catch (e) {
+        /* ignore */
+      }
+    }
     return real > 0
   }
-  return count > 0
+
+  return false
 }
 
 export async function testPrinterConnection() {
@@ -691,10 +775,10 @@ async function deviceClaimRelease(device, interfaceNumber) {
 
 export function getPrinterSupportMessage() {
   if (isSystemPrinterMode()) {
-    return 'System printer mode — tokens print via Mac/Windows print dialog (choose Epson).'
+    return 'System printer mode — Chrome will show a Windows print dialog (choose Epson). Not silent.'
   }
   if (!isThermalPrintingSupported()) {
-    return 'Use Chrome or Edge on a laptop/desktop. Safari and iPhone/iPad cannot connect USB/serial thermal printers.'
+    return 'Use Chrome or Edge on Windows. Mobile browsers cannot connect USB thermal printers.'
   }
-  return 'Connect USB = direct Epson WebUSB. Connect Serial/COM = COM port or USB-serial adapter. System Printer = OS print dialog.'
+  return 'USB = silent Epson print (needs WinUSB/Zadig). Serial/COM = usually empty for TM-T88V. System Print = Windows dialog.'
 }
