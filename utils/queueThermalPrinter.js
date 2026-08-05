@@ -16,7 +16,23 @@ function esc(...bytes) {
 }
 
 function line(str = '') {
-  return [...new TextEncoder().encode(str), 0x0a]
+  return [...new TextEncoder().encode(String(str)), 0x0a]
+}
+
+function boldOn() {
+  return esc(0x1b, 0x45, 0x01)
+}
+
+function boldOff() {
+  return esc(0x1b, 0x45, 0x00)
+}
+
+function charSize(n = 0) {
+  return esc(0x1d, 0x21, n & 0xff)
+}
+
+function feed(n = 1) {
+  return esc(0x1b, 0x64, Math.max(0, Math.min(255, n)))
 }
 
 async function buildTokenCommands(ticketCode, extra = {}) {
@@ -24,31 +40,60 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...esc(0x1b, 0x40))
   out.push(...esc(0x1b, 0x61, 0x01))
 
+  let logoPrinted = false
   try {
     const logo = await logoToEscPosRaster('/petzonelogo.svg', 384)
     if (logo.length) {
       out.push(...logo)
-      out.push(...line(''))
+      out.push(...feed(1))
+      logoPrinted = true
     }
   } catch (e) {
     /* logo optional */
   }
 
-  out.push(...esc(0x1b, 0x21, 0x30))
+  out.push(...charSize(0x11))
+  out.push(...boldOn())
   out.push(...line('PetZone'))
-  out.push(...esc(0x1b, 0x21, 0x00))
-  if (extra.serviceName) out.push(...line(String(extra.serviceName)))
-  out.push(...line(''))
-  out.push(...esc(0x1b, 0x21, 0x38))
-  out.push(...line(ticketCode))
-  out.push(...esc(0x1b, 0x21, 0x00))
-  out.push(...line(''))
-  if (extra.branchName) out.push(...line(String(extra.branchName)))
+  out.push(...boldOff())
+  out.push(...charSize(0x00))
+
+  if (!logoPrinted) {
+    out.push(...boldOn())
+    out.push(...line('QUEUE TOKEN'))
+    out.push(...boldOff())
+  }
+
+  if (extra.serviceName) {
+    out.push(...boldOn())
+    out.push(...line(String(extra.serviceName).slice(0, 42)))
+    out.push(...boldOff())
+  }
+
+  out.push(...line('=========================================='))
+  out.push(...feed(1))
+
+  out.push(...charSize(0x22))
+  out.push(...boldOn())
+  out.push(...line(String(ticketCode)))
+  out.push(...boldOff())
+  out.push(...charSize(0x00))
+  out.push(...feed(1))
+  out.push(...line('=========================================='))
+
+  if (extra.branchName) {
+    out.push(...boldOn())
+    out.push(...line(String(extra.branchName).slice(0, 42)))
+    out.push(...boldOff())
+  }
   out.push(...line(new Date().toLocaleString()))
-  out.push(...line(''))
+  out.push(...feed(1))
+  out.push(...boldOn())
   out.push(...line('Please wait to be called'))
+  out.push(...boldOff())
   out.push(...line(''))
-  out.push(...line(''))
+  out.push(...line('Powered by Tychora'))
+  out.push(...feed(3))
   out.push(...esc(0x1d, 0x56, 0x00))
   return new Uint8Array(out)
 }
@@ -110,10 +155,14 @@ function printQueueTicketBrowser(ticketCode) {
 <style>
   @page { size: 80mm auto; margin: 4mm; }
   body { margin: 0; padding: 8mm 4mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; }
+  .brand { font-weight:900; font-size:24px; margin-bottom: 8px; }
   .num { font-size: 72px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 16px 0; }
+  .hint { font-weight: 700; margin-top: 12px; }
 </style></head><body>
-  <div style="font-weight:900;font-size:22px;">PetZone</div>
+  <img src="/petzonelogo.svg" alt="PetZone" style="max-width:180px;margin:0 auto 8px;display:block;" onerror="this.style.display='none'">
+  <div class="brand">PetZone</div>
   <div class="num">${ticketCode}</div>
+  <div class="hint">Please wait to be called</div>
 </body></html>`
 
     const w = window.open('', '_blank', 'width=320,height=400')
