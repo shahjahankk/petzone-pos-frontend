@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Box, Button, Typography } from '@mui/material'
 import { VolumeOff, VolumeUp } from '@mui/icons-material'
 import { config } from '../../../config/environment'
-import { announceQueueCall, speakQueueText } from '../../../utils/queueAnnounce'
+import { announceQueueCall, speakQueueText, unlockQueueAudio } from '../../../utils/queueAnnounce'
 
 const QMS_BASE = (config.QMS_API_URL || 'http://localhost:4050/api').replace(/\/$/, '')
 
@@ -50,10 +50,17 @@ export default function QueueDisplayInner() {
     setSoundEnabled(enabled)
     window.localStorage.setItem('qms_display_sound', enabled ? 'on' : 'off')
     if (enabled) {
-      // Plays real spoken MP3 — works on Smart TVs (not only laptop TTS)
-      await speakQueueText('Queue announcements enabled. Token number 10, please proceed to OPD 1.', {
-        ttsBaseUrl: QMS_BASE,
-      })
+      await unlockQueueAudio()
+      // Must hear spoken words here — proves TV can play voice, not only chime
+      const ok = await speakQueueText(
+        'Queue announcements enabled. Token number 10, please proceed to OPD 1.',
+        { ttsBaseUrl: QMS_BASE }
+      )
+      if (!ok) {
+        setError('Voice audio failed. Check TV internet, then tap Enable Sound again.')
+      } else {
+        setError(null)
+      }
     }
   }
 

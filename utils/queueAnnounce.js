@@ -1,62 +1,123 @@
 /**
- * Queue call/recall announcements for display screens.
- * Smart TVs usually lack speechSynthesis, so we play free MP3 speech
- * from the QMS same-origin TTS proxy (falls back to Google Translate TTS).
+ * Queue call/recall announcements for Smart TV displays.
+ *
+ * Smart TVs usually:
+ * - Have no speechSynthesis voices
+ * - Block NEW <audio> after the first click
+ * - Still allow Web Audio after one unlock click (that's why the chime works)
+ *
+ * So we fetch free MP3 speech and play it through an unlocked AudioContext.
  */
 
-let activeAudio = null
+let sharedContext = null
+let unlockGain = null
+let playToken = 0
+
+function getAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return null
+  if (!sharedContext || sharedContext.state === 'closed') {
+    sharedContext = new AudioContextClass()
+  }
+  return sharedContext
+}
+
+/** Must be called from a user tap/click on the TV (Enable Sound). */
+export async function unlockQueueAudio() {
+  const context = getAudioContext()
+  if (!context) return false
+  try {
+    if (context.state === 'suspended') await context.resume()
+    // Silent buffer keeps the TV audio pipeline unlocked for later calls
+    const buffer = context.createBuffer(1, 1, context.sampleRate || 22050)
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    unlockGain = context.createGain()
+    unlockGain.gain.value = 0.001
+    source.connect(unlockGain)
+    unlockGain.connect(context.destination)
+    source.start(0)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export function playQueueChime() {
   try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext
-    if (!AudioContextClass) return
-    const context = new AudioContextClass()
+    const context = getAudioContext()
+    if (!context) return
+    if (context.state === 'suspended') context.resume().catch(() => {})
     const gain = context.createGain()
     gain.connect(context.destination)
     gain.gain.setValueAtTime(0.0001, context.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.65)
+    gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.7)
     ;[660, 880].forEach((frequency, index) => {
       const oscillator = context.createOscillator()
       oscillator.frequency.value = frequency
       oscillator.connect(gain)
       oscillator.start(context.currentTime + index * 0.18)
-      oscillator.stop(context.currentTime + 0.35 + index * 0.18)
+      oscillator.stop(context.currentTime + 0.38 + index * 0.18)
     })
-    setTimeout(() => context.close().catch(() => {}), 900)
   } catch {
     /* ignore */
   }
 }
 
-function stopActiveAudio() {
-  if (activeAudio) {
+async function fetchSpeechBuffer(text, ttsBaseUrl) {
+  const phrase = String(text || '').trim().slice(0, 160)
+  if (!phrase) return null
+  const encoded = encodeURIComponent(phrase)
+  const base = String(ttsBaseUrl || '').replace(/\/$/, '')
+
+  const candidates = []
+  if (base) candidates.push(`${base}/queue/public/announce-tts?text=${encoded}`)
+  // Free StreamElements voice (often more reliable than Google for servers)
+  candidates.push(
+    `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encoded}`
+  )
+  candidates.push(
+    `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encoded}`
+  )
+
+  for (const url of candidates) {
     try {
-      activeAudio.pause()
-      activeAudio.src = ''
+      const res = await fetch(url, { cache: 'no-store', mode: 'cors' })
+      if (!res.ok) continue
+      const contentType = String(res.headers.get('content-type') || '')
+      if (contentType.includes('json') || contentType.includes('text/html')) continue
+      const data = await res.arrayBuffer()
+      if (!data || data.byteLength < 200) continue
+      return data
     } catch {
-      /* ignore */
+      /* try next */
     }
-    activeAudio = null
   }
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel()
-  }
+  return null
 }
 
-function playAudioUrl(url) {
-  return new Promise((resolve) => {
-    stopActiveAudio()
-    const audio = new Audio(url)
-    activeAudio = audio
-    audio.preload = 'auto'
-    audio.onended = () => resolve(true)
-    audio.onerror = () => resolve(false)
-    const playPromise = audio.play()
-    if (playPromise && typeof playPromise.then === 'function') {
-      playPromise.catch(() => resolve(false))
-    }
-  })
+async function playArrayBuffer(arrayBuffer) {
+  const context = getAudioContext()
+  if (!context || !arrayBuffer) return false
+  try {
+    if (context.state === 'suspended') await context.resume()
+    const audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0))
+    const source = context.createBufferSource()
+    const gain = context.createGain()
+    gain.gain.value = 1
+    source.buffer = audioBuffer
+    source.connect(gain)
+    gain.connect(context.destination)
+    source.start(0)
+    await new Promise((resolve) => {
+      source.onended = resolve
+      setTimeout(resolve, Math.ceil((audioBuffer.duration || 4) * 1000) + 400)
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 function speakWithBrowser(text) {
@@ -66,6 +127,7 @@ function speakWithBrowser(text) {
       return
     }
     try {
+      window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.rate = 0.88
       utterance.pitch = 1
@@ -80,30 +142,23 @@ function speakWithBrowser(text) {
 }
 
 /**
- * Speak text on Smart TVs / kiosks using free MP3 speech.
- * @param {string} text
- * @param {{ ttsBaseUrl?: string }} options - QMS API base ending with /api
+ * Speak text using free MP3 + unlocked Web Audio (Smart TV safe).
  */
 export async function speakQueueText(text, options = {}) {
   const phrase = String(text || '').trim().slice(0, 160)
   if (!phrase) return false
 
-  const base = String(options.ttsBaseUrl || '').replace(/\/$/, '')
-  const encoded = encodeURIComponent(phrase)
+  const token = ++playToken
+  await unlockQueueAudio()
 
-  // Prefer same-origin QMS proxy (best for Smart TV browsers)
-  if (base) {
-    const ok = await playAudioUrl(`${base}/queue/public/announce-tts?text=${encoded}`)
+  const buffer = await fetchSpeechBuffer(phrase, options.ttsBaseUrl)
+  if (token !== playToken) return false
+
+  if (buffer) {
+    const ok = await playArrayBuffer(buffer)
     if (ok) return true
   }
 
-  // Direct free Google Translate TTS (works when TV allows external media)
-  const googleOk = await playAudioUrl(
-    `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encoded}`
-  )
-  if (googleOk) return true
-
-  // Laptop/desktop browsers with voices installed
   return speakWithBrowser(phrase)
 }
 
@@ -121,7 +176,7 @@ export async function announceQueueCall(row, { isRecall = false, ttsBaseUrl } = 
   if (!number) return false
 
   playQueueChime()
-  await new Promise((r) => setTimeout(r, 450))
+  await new Promise((r) => setTimeout(r, 550))
 
   const text = buildCallAnnouncement({
     ticketCode: number,
