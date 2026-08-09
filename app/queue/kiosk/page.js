@@ -50,6 +50,47 @@ function transportLabel(transport) {
   return 'Printer Ready'
 }
 
+function isConsultationService(service) {
+  if (!service) return true
+  return (
+    /consult|opd/i.test(String(service.name || '')) ||
+    String(service.prefix || '').toUpperCase() === 'C'
+  )
+}
+
+function isGroomingService(service) {
+  if (!service) return false
+  return (
+    /groom/i.test(String(service.name || '')) ||
+    String(service.prefix || '').toUpperCase() === 'G'
+  )
+}
+
+/** Always show Consultation + Grooming on the kiosk, even if API is slow/partial. */
+function buildKioskServiceButtons(apiServices) {
+  const list = Array.isArray(apiServices) ? apiServices : []
+  const consult = list.find(isConsultationService) || null
+  const grooming = list.find(isGroomingService) || null
+  return [
+    {
+      key: 'consultation',
+      name: consult?.name || 'General Consultation',
+      prefix: consult?.prefix || 'C',
+      color: consult?.color || '#1E3A8A',
+      id: consult?.id ?? null,
+      kind: 'consultation',
+    },
+    {
+      key: 'grooming',
+      name: grooming?.name || 'Grooming',
+      prefix: grooming?.prefix || 'G',
+      color: grooming?.color || '#D97706',
+      id: grooming?.id ?? null,
+      kind: 'grooming',
+    },
+  ]
+}
+
 function QueueKioskPage() {
   const { user } = useSelector((s) => s.auth)
   const [branchCtx, setBranchCtx] = useState(null)
@@ -268,18 +309,28 @@ function QueueKioskPage() {
     }
   }
 
-  const handlePrintToken = async (service = null) => {
+  const handlePrintToken = async (service) => {
     if (!branchCtx) return
     setIssuing(true)
     try {
-      const isConsultation =
-        !service ||
-        /consult|opd/i.test(String(service.name || '')) ||
-        String(service.prefix || '').toUpperCase() === 'C'
-
-      const ticket = isConsultation
-        ? await issueToken(branchCtx.orgSlug, branchCtx.branchSlug)
-        : await issueServiceTicket(branchCtx.orgSlug, branchCtx.branchSlug, service.id)
+      let ticket
+      if (!service || service.kind === 'consultation' || isConsultationService(service)) {
+        ticket = await issueToken(branchCtx.orgSlug, branchCtx.branchSlug)
+      } else {
+        let serviceId = service.id
+        if (!serviceId) {
+          const info = await getQueueBranchInfo(branchCtx.orgSlug, branchCtx.branchSlug)
+          const found = (info?.services || []).find(isGroomingService)
+          serviceId = found?.id
+          if (found) {
+            setServices(info.services || [])
+          }
+        }
+        if (!serviceId) {
+          throw new Error('Grooming service is not configured on this branch yet. Deploy/restart QMS and refresh.')
+        }
+        ticket = await issueServiceTicket(branchCtx.orgSlug, branchCtx.branchSlug, serviceId)
+      }
 
       setLastTicket(ticket)
       const printResult = await printQueueTicket(ticket, {
@@ -302,6 +353,8 @@ function QueueKioskPage() {
       setIssuing(false)
     }
   }
+
+  const serviceButtons = buildKioskServiceButtons(services)
 
   if (loading) {
     return (
@@ -415,43 +468,33 @@ function QueueKioskPage() {
           </Paper>
         )}
 
-        {services.length > 1 ? (
-          <Stack spacing={1.5} sx={{ mb: 1 }}>
-            {services.map((service) => (
-              <Button
-                key={service.id}
-                variant="contained"
-                size="large"
-                fullWidth
-                sx={{
-                  py: 2.2,
-                  fontSize: 20,
-                  borderRadius: 3,
-                  fontWeight: 800,
-                  bgcolor: service.color || 'primary.main',
-                  '&:hover': { bgcolor: service.color || 'primary.dark', filter: 'brightness(0.95)' },
-                }}
-                startIcon={issuing ? <CircularProgress size={22} color="inherit" /> : <Print />}
-                onClick={() => handlePrintToken(service)}
-                disabled={issuing}
-              >
-                {service.name} Token
-              </Button>
-            ))}
-          </Stack>
-        ) : (
-          <Button
-            variant="contained"
-            size="large"
-            fullWidth
-            sx={{ py: 2.5, fontSize: 22, borderRadius: 3, fontWeight: 800 }}
-            startIcon={issuing ? <CircularProgress size={24} color="inherit" /> : <Print />}
-            onClick={() => handlePrintToken(services[0] || null)}
-            disabled={issuing}
-          >
-            Get &amp; Print Next Token
-          </Button>
-        )}
+        <Stack spacing={1.5} sx={{ mb: 1 }}>
+          {serviceButtons.map((service) => (
+            <Button
+              key={service.key}
+              variant="contained"
+              size="large"
+              fullWidth
+              sx={{
+                py: 2.4,
+                fontSize: 20,
+                borderRadius: 3,
+                fontWeight: 800,
+                bgcolor: service.color,
+                color: '#fff',
+                '&:hover': { bgcolor: service.color, filter: 'brightness(0.92)' },
+              }}
+              startIcon={issuing ? <CircularProgress size={22} color="inherit" /> : <Print />}
+              onClick={() => handlePrintToken(service)}
+              disabled={issuing || !branchCtx}
+            >
+              {service.name}
+            </Button>
+          ))}
+        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Choose Consultation or Grooming, then the token prints automatically.
+        </Typography>
 
         <Button
           variant="outlined"
