@@ -16,6 +16,29 @@ let unlockGain = null
 const announcementFifo = []
 let fifoRunning = false
 
+/** Optional ambient video ducking so token voice stays loud/clear */
+let ambientControl = null
+
+export function setAmbientAudioControl(control) {
+  ambientControl = control && typeof control === 'object' ? control : null
+}
+
+async function duckAmbient() {
+  try {
+    if (ambientControl?.duck) await ambientControl.duck()
+  } catch {
+    /* ignore */
+  }
+}
+
+async function restoreAmbient() {
+  try {
+    if (ambientControl?.restore) await ambientControl.restore()
+  } catch {
+    /* ignore */
+  }
+}
+
 function getAudioContext() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext
   if (!AudioContextClass) return null
@@ -31,7 +54,6 @@ export async function unlockQueueAudio() {
   if (!context) return false
   try {
     if (context.state === 'suspended') await context.resume()
-    // Silent buffer keeps the TV audio pipeline unlocked for later calls
     const buffer = context.createBuffer(1, 1, context.sampleRate || 22050)
     const source = context.createBufferSource()
     source.buffer = buffer
@@ -54,14 +76,14 @@ export function playQueueChime() {
     const gain = context.createGain()
     gain.connect(context.destination)
     gain.gain.setValueAtTime(0.0001, context.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.7)
-    ;[660, 880].forEach((frequency, index) => {
+    gain.gain.exponentialRampToValueAtTime(0.42, context.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.75)
+    ;[660, 880, 990].forEach((frequency, index) => {
       const oscillator = context.createOscillator()
       oscillator.frequency.value = frequency
       oscillator.connect(gain)
-      oscillator.start(context.currentTime + index * 0.18)
-      oscillator.stop(context.currentTime + 0.38 + index * 0.18)
+      oscillator.start(context.currentTime + index * 0.16)
+      oscillator.stop(context.currentTime + 0.4 + index * 0.16)
     })
   } catch {
     /* ignore */
@@ -107,7 +129,7 @@ async function playArrayBuffer(arrayBuffer) {
     const audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0))
     const source = context.createBufferSource()
     const gain = context.createGain()
-    gain.gain.value = 1
+    gain.gain.value = 1.35
     source.buffer = audioBuffer
     source.connect(gain)
     gain.connect(context.destination)
@@ -162,7 +184,12 @@ async function speakQueueTextNow(text, options = {}) {
  * Speak immediately (used by Enable Sound test). Prefer enqueue for calls.
  */
 export async function speakQueueText(text, options = {}) {
-  return speakQueueTextNow(text, options)
+  await duckAmbient()
+  try {
+    return await speakQueueTextNow(text, options)
+  } finally {
+    await restoreAmbient()
+  }
 }
 
 export function buildCallAnnouncement({ ticketCode, counterLabel, isRecall = false }) {
@@ -175,19 +202,23 @@ export function buildCallAnnouncement({ ticketCode, counterLabel, isRecall = fal
 async function runFifo() {
   if (fifoRunning) return
   fifoRunning = true
-  while (announcementFifo.length > 0) {
-    const job = announcementFifo.shift()
-    try {
-      playQueueChime()
-      await new Promise((r) => setTimeout(r, 550))
-      await speakQueueTextNow(job.text, { ttsBaseUrl: job.ttsBaseUrl })
-      // Short gap so next station announcement is clear
-      await new Promise((r) => setTimeout(r, 350))
-    } catch {
-      /* keep draining queue */
+  await duckAmbient()
+  try {
+    while (announcementFifo.length > 0) {
+      const job = announcementFifo.shift()
+      try {
+        playQueueChime()
+        await new Promise((r) => setTimeout(r, 550))
+        await speakQueueTextNow(job.text, { ttsBaseUrl: job.ttsBaseUrl })
+        await new Promise((r) => setTimeout(r, 350))
+      } catch {
+        /* keep draining queue */
+      }
     }
+  } finally {
+    await restoreAmbient()
+    fifoRunning = false
   }
-  fifoRunning = false
 }
 
 /**
@@ -205,7 +236,6 @@ export function announceQueueCall(row, { isRecall = false, ttsBaseUrl } = {}) {
     isRecall,
   })
 
-  // Deduplicate exact same announcement already waiting at the end
   const last = announcementFifo[announcementFifo.length - 1]
   if (last && last.text === text) {
     return Promise.resolve(true)
