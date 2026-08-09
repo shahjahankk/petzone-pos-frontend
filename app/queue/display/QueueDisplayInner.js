@@ -11,9 +11,9 @@ const QMS_BASE = (config.QMS_API_URL || 'http://localhost:4050/api').replace(/\/
 
 // Muted YouTube animal / 4K backgrounds (sound only for token call/recall)
 const DEFAULT_YOUTUBE_IDS = [
-  'K1REumSu-Fk', // 12h nature fun for cats & dogs (4K HDR)
-  'WDyzAi_oetU', // spring deer, squirrels & birds (4K)
-  'odF2ec97dPI', // deer & birds calm nature
+  'GVUwV1ncgfs', // 12h Pet TV — dogs & cats (best for hospital lobby)
+  'wmwKLngD1o0', // 12h nature fun for cats & dogs
+  'K1REumSu-Fk', // 4K HDR cats & dogs nature
 ]
 const FALLBACK_MP4 = [
   'https://videos.pexels.com/video-files/3196257/3196257-uhd_2560_1440_25fps.mp4',
