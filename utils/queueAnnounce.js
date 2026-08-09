@@ -7,11 +7,14 @@
  * - Still allow Web Audio after one unlock click (that's why the chime works)
  *
  * So we fetch free MP3 speech and play it through an unlocked AudioContext.
+ * Concurrent OPD calls are played FIFO (one after another).
  */
 
 let sharedContext = null
 let unlockGain = null
-let playToken = 0
+
+const announcementFifo = []
+let fifoRunning = false
 
 function getAudioContext() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext
@@ -73,7 +76,6 @@ async function fetchSpeechBuffer(text, ttsBaseUrl) {
 
   const candidates = []
   if (base) candidates.push(`${base}/queue/public/announce-tts?text=${encoded}`)
-  // Free StreamElements voice (often more reliable than Google for servers)
   candidates.push(
     `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encoded}`
   )
@@ -141,25 +143,26 @@ function speakWithBrowser(text) {
   })
 }
 
-/**
- * Speak text using free MP3 + unlocked Web Audio (Smart TV safe).
- */
-export async function speakQueueText(text, options = {}) {
+async function speakQueueTextNow(text, options = {}) {
   const phrase = String(text || '').trim().slice(0, 160)
   if (!phrase) return false
 
-  const token = ++playToken
   await unlockQueueAudio()
 
   const buffer = await fetchSpeechBuffer(phrase, options.ttsBaseUrl)
-  if (token !== playToken) return false
-
   if (buffer) {
     const ok = await playArrayBuffer(buffer)
     if (ok) return true
   }
 
   return speakWithBrowser(phrase)
+}
+
+/**
+ * Speak immediately (used by Enable Sound test). Prefer enqueue for calls.
+ */
+export async function speakQueueText(text, options = {}) {
+  return speakQueueTextNow(text, options)
 }
 
 export function buildCallAnnouncement({ ticketCode, counterLabel, isRecall = false }) {
@@ -169,19 +172,45 @@ export function buildCallAnnouncement({ ticketCode, counterLabel, isRecall = fal
   return `${prefix}Token number ${number}, please proceed to ${counter}.`
 }
 
-export async function announceQueueCall(row, { isRecall = false, ttsBaseUrl } = {}) {
+async function runFifo() {
+  if (fifoRunning) return
+  fifoRunning = true
+  while (announcementFifo.length > 0) {
+    const job = announcementFifo.shift()
+    try {
+      playQueueChime()
+      await new Promise((r) => setTimeout(r, 550))
+      await speakQueueTextNow(job.text, { ttsBaseUrl: job.ttsBaseUrl })
+      // Short gap so next OPD is clear
+      await new Promise((r) => setTimeout(r, 350))
+    } catch {
+      /* keep draining queue */
+    }
+  }
+  fifoRunning = false
+}
+
+/**
+ * Enqueue Call/Recall announcement (FIFO). Multiple OPDs never overlap.
+ */
+export function announceQueueCall(row, { isRecall = false, ttsBaseUrl } = {}) {
   const number = row?.ticket_code
     ? String(row.ticket_code).replace(/^[A-Za-z]+/, '') || row.ticket_code
     : null
-  if (!number) return false
-
-  playQueueChime()
-  await new Promise((r) => setTimeout(r, 550))
+  if (!number) return Promise.resolve(false)
 
   const text = buildCallAnnouncement({
     ticketCode: number,
     counterLabel: row.counter_label || row.counter_name,
     isRecall,
   })
-  return speakQueueText(text, { ttsBaseUrl })
+
+  // Deduplicate exact same announcement already waiting at the end
+  const last = announcementFifo[announcementFifo.length - 1]
+  if (last && last.text === text) {
+    return Promise.resolve(true)
+  }
+
+  announcementFifo.push({ text, ttsBaseUrl })
+  return runFifo().then(() => true)
 }

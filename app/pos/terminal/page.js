@@ -2385,7 +2385,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           companyEmail: printData.companyEmail || DEFAULT_COMPANY_INFO.email,
           logoUrl: printData.logoUrl || companyInfo?.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
         },
-        { includeLogo: true, logoWidth: 320, width: 48 }
+        { includeLogo: true, logoWidth: 448, logoHeight: 120, width: 56 }
       )
 
       await writeToThermalPrinter(payload)
@@ -2432,61 +2432,61 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       const safeCompanyEmail = printData.companyEmail || DEFAULT_COMPANY_INFO.email
 
       const isSettlementReceipt = printData.title === 'PAYMENT SETTLEMENT RECEIPT' || printData.outstandingCleared
-      const containerPadding = isSettlementReceipt ? '8px 16px 8px 16px' : '4px 16px 4px 16px'
+      const containerPadding = isSettlementReceipt ? '2px 2px 4px 2px' : '1px 2px 2px 2px'
 
       const printContent = `
-        <div style="font-family: monospace; max-width: 280px; margin: 0 auto; padding: ${containerPadding}; font-size: 11px; line-height: 1.3; color: #000; background-color: #fff;">
-          <div style="text-align: center; margin-bottom: ${isSettlementReceipt ? '12px' : '8px'};">
-            <div style="margin-bottom: 4px;">
-              <img src="${resolvedLogoPath}" alt="${safeCompanyName}" style="max-width: 100px; width: 100px; height: auto; filter: grayscale(100%); display: block; margin: 0 auto;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <div style="font-family: monospace; width: 72mm; max-width: 72mm; margin: 0 auto; padding: ${containerPadding}; box-sizing: border-box; font-size: 11px; line-height: 1.25; color: #000; background-color: #fff;">
+          <div style="text-align: center; margin-bottom: ${isSettlementReceipt ? '6px' : '4px'};">
+            <div style="margin-bottom: 2px;">
+              <img src="${resolvedLogoPath}" alt="${safeCompanyName}" style="max-width: 200px; width: 70%; height: auto; filter: grayscale(100%); display: block; margin: 0 auto;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
               <div style="font-size: 14px; font-weight: bold; display: none; text-align: center; border: 1px solid #000; padding: 4px; min-height: 50px;">${safeCompanyName}</div>
-              ${printData.branchName ? `<div style="border:1px solid #000; padding:8px; margin:8px 0; font-weight:bold; text-align:center;">${printData.branchName}</div>` : ''}
+              ${printData.branchName ? `<div style="margin:4px 0 2px; font-weight:bold; text-align:center; font-size:12px;">${printData.branchName}</div>` : ''}
             </div>
-            <div style="font-size: 9px; margin-bottom: 3px;">${safeCompanyAddress.substring(0, 32)}</div>
-            <div style="font-size: 9px; margin-bottom: 3px;">Tel: ${safeCompanyPhone}</div>
-            <div style="font-size: 9px; margin-bottom: ${isSettlementReceipt ? '12px' : '8px'};">Email: ${safeCompanyEmail}</div>
-            <div style="border-top: 2px solid #000; margin: ${isSettlementReceipt ? '6px' : '4px'} 0;"></div>
-            <div style="font-weight: bold; text-transform: uppercase; font-size: ${isSettlementReceipt ? '13px' : '12px'}; text-align: center; margin-bottom: ${isSettlementReceipt ? '6px' : '4px'};">${printData.title || 'SALES RECEIPT'}</div>
-            <div style="border-top: 2px solid #000; margin: ${isSettlementReceipt ? '6px' : '4px'} 0;"></div>
+            <div style="font-size: 9px; margin-bottom: 1px;">${safeCompanyAddress.substring(0, 40)}</div>
+            <div style="font-size: 9px; margin-bottom: 1px;">Tel: ${safeCompanyPhone}</div>
+            <div style="font-size: 9px; margin-bottom: ${isSettlementReceipt ? '6px' : '4px'};">Email: ${safeCompanyEmail}</div>
+            <div style="border-top: 2px solid #000; margin: ${isSettlementReceipt ? '4px' : '2px'} 0;"></div>
+            <div style="font-weight: bold; text-transform: uppercase; font-size: ${isSettlementReceipt ? '13px' : '12px'}; text-align: center; margin-bottom: ${isSettlementReceipt ? '4px' : '2px'};">${printData.title || 'SALES RECEIPT'}</div>
+            <div style="border-top: 2px solid #000; margin: ${isSettlementReceipt ? '4px' : '2px'} 0;"></div>
           </div>
-          <div style="margin-bottom: ${isSettlementReceipt ? '12px' : '8px'};">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span style="font-size: 10px; font-weight: bold;">Receipt #:</span><span style="font-weight: bold; font-size: 10px;">${(printData.receiptNumber || 'N/A').substring(0, 20)}</span></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span style="font-size: 10px; font-weight: bold;">Date:</span><span style="font-size: 10px;">${printData.date}</span></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span style="font-size: 10px; font-weight: bold;">Time:</span><span style="font-size: 10px;">${printData.time || ''}</span></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span style="font-size: 10px; font-weight: bold;">Cashier:</span><span style="font-size: 10px;">${printData.cashierName || 'N/A'}</span></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span style="font-size: 10px; font-weight: bold;">${printData.customerLabel || 'Customer'}:</span><span style="font-size: 10px;">${printData.customerName || 'Walk-in Customer'}</span></div>
+          <div style="margin-bottom: ${isSettlementReceipt ? '6px' : '4px'};">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Receipt #:</span><span style="font-weight: bold; font-size: 10px;">${(printData.receiptNumber || 'N/A').substring(0, 20)}</span></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Date:</span><span style="font-size: 10px;">${printData.date}</span></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Time:</span><span style="font-size: 10px;">${printData.time || ''}</span></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Cashier:</span><span style="font-size: 10px;">${printData.cashierName || 'N/A'}</span></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">${printData.customerLabel || 'Customer'}:</span><span style="font-size: 10px;">${printData.customerName || 'Walk-in Customer'}</span></div>
           </div>
-          <div style="border-top: 2px solid #000; margin: 4px 0;"></div>
-          <div style="margin-bottom: 8px;">
-            <div style="display: flex; margin-bottom: 6px; font-weight: bold;">
-              <div style="flex: 2; font-size: 10px;">Item</div>
-              <div style="width: 30px; text-align: center; font-size: 10px;">Qty</div>
-              <div style="width: 50px; text-align: right; font-size: 10px;">Price</div>
-              <div style="width: 50px; text-align: right; font-size: 10px;">Total</div>
+          <div style="border-top: 2px solid #000; margin: 2px 0;"></div>
+          <div style="margin-bottom: 4px;">
+            <div style="display: flex; margin-bottom: 4px; font-weight: bold;">
+              <div style="flex: 1; font-size: 10px; min-width: 0;">Item</div>
+              <div style="width: 28px; flex-shrink: 0; text-align: right; font-size: 10px;">Qty</div>
+              <div style="width: 48px; flex-shrink: 0; text-align: right; font-size: 10px;">Price</div>
+              <div style="width: 48px; flex-shrink: 0; text-align: right; font-size: 10px;">Total</div>
             </div>
-            <div style="border-top: 2px solid #000; margin-bottom: 6px;"></div>
+            <div style="border-top: 2px solid #000; margin-bottom: 4px;"></div>
             ${printData.items.map(item => `
-              <div style="margin-bottom: 6px;">
-                <div style="font-weight: bold; margin-bottom: 2px; font-size: 10px;">${item.name || 'Unknown Item'}</div>
-                <div style="display: flex; margin-top: 2px;">
-                  <div style="flex: 2;"></div>
-                  <div style="width: 30px; text-align: center; font-size: 10px; font-weight: bold;">${item.quantity || 0}</div>
-                  <div style="width: 50px; text-align: right; font-size: 10px; font-weight: bold;">${Math.round(item.unitPrice || 0)}</div>
-                  <div style="width: 50px; text-align: right; font-weight: bold; font-size: 10px;">${Math.round((item.unitPrice || 0) * (item.quantity || 0))}</div>
+              <div style="margin-bottom: 4px;">
+                <div style="font-weight: bold; margin-bottom: 1px; font-size: 10px;">${item.name || 'Unknown Item'}</div>
+                <div style="display: flex; margin-top: 1px;">
+                  <div style="flex: 1; min-width: 0;"></div>
+                  <div style="width: 28px; flex-shrink: 0; text-align: right; font-size: 10px; font-weight: bold;">${item.quantity || 0}</div>
+                  <div style="width: 48px; flex-shrink: 0; text-align: right; font-size: 10px; font-weight: bold;">${Math.round(item.unitPrice || 0)}</div>
+                  <div style="width: 48px; flex-shrink: 0; text-align: right; font-weight: bold; font-size: 10px;">${Math.round((item.unitPrice || 0) * (item.quantity || 0))}</div>
                 </div>
               </div>
             `).join('')}
           </div>
-          <div style="border-top: 2px solid #000; margin: 4px 0;"></div>
-          <div style="margin-bottom: ${isSettlementReceipt ? '12px' : '8px'};">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Subtotal:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.subtotal || 0)}</span></div>
-            ${(printData.discount || 0) > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">Discount:</span><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">-${Math.round(printData.discount || 0)}</span></div>` : ''}
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Tax:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.tax || 0)}</span></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; border-bottom: 1px dashed #000; padding-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Invoice Total:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.invoiceTotal !== undefined ? printData.invoiceTotal : ((printData.subtotal || 0) + (printData.tax || 0) - (printData.discount || 0)))}</span></div>
-            ${(() => { const ob = Math.max(0, printData.oldBalance || 0); return ob > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Old Balance:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(ob)}</span></div>` : '' })()}
-            <div style="border-top: 2px solid #000; margin: 8px 0;"></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;"><span style="font-weight: bold; font-size: 12px;">TOTAL:</span><span style="font-weight: bold; font-size: 12px;">${(() => { const it = printData.invoiceTotal !== undefined ? printData.invoiceTotal : ((printData.subtotal || 0) + (printData.tax || 0) - (printData.discount || 0)); const ob = Math.max(0, printData.oldBalance || 0); return Math.round(it + ob) })()}</span></div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Payment Method:</span><span style="font-size: 10px; font-weight: bold;">${printData.paymentMethod || 'CASH'}</span></div>
+          <div style="border-top: 2px solid #000; margin: 2px 0;"></div>
+          <div style="margin-bottom: ${isSettlementReceipt ? '6px' : '4px'};">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Subtotal:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.subtotal || 0)}</span></div>
+            ${(printData.discount || 0) > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">Discount:</span><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">-${Math.round(printData.discount || 0)}</span></div>` : ''}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Tax:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.tax || 0)}</span></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px; border-bottom: 1px dashed #000; padding-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Invoice Total:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.invoiceTotal !== undefined ? printData.invoiceTotal : ((printData.subtotal || 0) + (printData.tax || 0) - (printData.discount || 0)))}</span></div>
+            ${(() => { const ob = Math.max(0, printData.oldBalance || 0); return ob > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Old Balance:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(ob)}</span></div>` : '' })()}
+            <div style="border-top: 2px solid #000; margin: 4px 0;"></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-weight: bold; font-size: 12px;">TOTAL:</span><span style="font-weight: bold; font-size: 12px;">${(() => { const it = printData.invoiceTotal !== undefined ? printData.invoiceTotal : ((printData.subtotal || 0) + (printData.tax || 0) - (printData.discount || 0)); const ob = Math.max(0, printData.oldBalance || 0); return Math.round(it + ob) })()}</span></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Payment Method:</span><span style="font-size: 10px; font-weight: bold;">${printData.paymentMethod || 'CASH'}</span></div>
             ${(() => {
               const it = printData.invoiceTotal !== undefined ? printData.invoiceTotal : ((printData.subtotal || 0) + (printData.tax || 0) - (printData.discount || 0))
               const ob = Math.max(0, printData.oldBalance || 0)
@@ -2497,22 +2497,21 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               const showRemaining = remaining > 0 || (ob > 0 && pa < calcTotal)
               const change = pa > calcTotal ? pa - calcTotal : 0
               return `
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Payment Amount:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(pa)}</span></div>
-              ${(ca > 0 || printData.paymentMethod === 'FULLY_CREDIT') ? `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Credit Amount:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(ca || calcTotal || 0)}</span></div>` : ''}
-              ${showRemaining ? `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold;">Remaining Balance:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(remaining)}</span></div>` : ''}
-              ${change > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><span style="font-size: 10px; font-weight: bold; color: green;">Change:</span><span style="font-size: 10px; font-weight: bold; color: green;">${Math.round(change)}</span></div>` : ''}
+              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Payment Amount:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(pa)}</span></div>
+              ${(ca > 0 || printData.paymentMethod === 'FULLY_CREDIT') ? `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Credit Amount:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(ca || calcTotal || 0)}</span></div>` : ''}
+              ${showRemaining ? `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Remaining Balance:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(remaining)}</span></div>` : ''}
+              ${change > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold; color: green;">Change:</span><span style="font-size: 10px; font-weight: bold; color: green;">${Math.round(change)}</span></div>` : ''}
               `
             })()}
-            ${printData.notes && printData.notes.trim() ? `<div style="margin-top: 4px; font-size: 8px; color: #333; white-space: pre-line;">${printData.notes}</div>` : ''}
+            ${printData.notes && printData.notes.trim() ? `<div style="margin-top: 2px; font-size: 8px; color: #333; white-space: pre-line;">${printData.notes}</div>` : ''}
           </div>
-          <div style="text-align: center; margin-top: 8px;">
-            <div style="border-top: 2px solid #000; margin-bottom: 6px;"></div>
-            <div style="font-size: 9px; margin-bottom: 4px;">${printData.footerMessage || 'Thank you for your business!'}</div>
-            <div style="border-top: 2px solid #000; margin-bottom: 6px;"></div>
-            <div style="font-size: 9px; margin-bottom: 4px;">Return within 3 days</div>
-            <div style="border-top: 2px solid #000; margin-bottom: 6px;"></div>
-            <div style="font-size: 10px; margin-bottom: 2px;">Powered by Tychora</div>
-            <div style="font-size: 9px; padding-bottom: 4px;">www.tychora.com</div>
+          <div style="text-align: center; margin-top: 4px;">
+            <div style="border-top: 2px solid #000; margin-bottom: 3px;"></div>
+            <div style="font-size: 9px; margin-bottom: 2px;">${printData.footerMessage || 'Thank you for your business!'}</div>
+            <div style="font-size: 9px; margin-bottom: 2px;">Return within 3 days</div>
+            <div style="border-top: 1px solid #000; margin: 3px 0;"></div>
+            <div style="font-size: 10px; margin-bottom: 1px;">Powered by Tychora</div>
+            <div style="font-size: 9px; padding-bottom: 0;">www.tychora.com</div>
           </div>
         </div>
       `

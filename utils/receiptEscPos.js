@@ -72,7 +72,7 @@ function row2(label, value, width) {
   return textLine(l + ' '.repeat(space) + r)
 }
 
-/** One compact line: name + qty + price + total */
+/** One compact line: name + qty + price + total (fills full receipt width) */
 function itemLine(item, width) {
   const qty = Number.isFinite(item.quantity) ? item.quantity : 0
   const discountValue = Number.isFinite(item.discount) ? item.discount : 0
@@ -88,18 +88,21 @@ function itemLine(item, width) {
           ? (resolvedTotal + discountValue) / qty
           : 0
 
-  // cols: name | qty(3) | price(6) | total(6)  + gaps
-  const qtyS = String(qty).slice(0, 3)
-  const priceS = money(unit).slice(0, 6)
-  const totS = money(resolvedTotal).slice(0, 6)
-  const nameW = Math.max(8, width - 3 - 6 - 6 - 2)
+  // cols: name | qty(4) | price(7) | total(7) — flush to right edge
+  const qtyW = 4
+  const priceW = 7
+  const totW = 7
+  const qtyS = String(qty).slice(0, qtyW)
+  const priceS = money(unit).slice(0, priceW)
+  const totS = money(resolvedTotal).slice(0, totW)
+  const nameW = Math.max(8, width - qtyW - priceW - totW)
   const name = String(item.name || 'Item')
 
   const lines = []
   if (name.length <= nameW) {
     lines.push(
       ...textLine(
-        pad(name, nameW) + pad(qtyS, 3, 'right') + pad(priceS, 6, 'right') + pad(totS, 6, 'right')
+        pad(name, nameW) + pad(qtyS, qtyW, 'right') + pad(priceS, priceW, 'right') + pad(totS, totW, 'right')
       )
     )
   } else {
@@ -107,7 +110,7 @@ function itemLine(item, width) {
     lines.push(...textLine(name.slice(0, width)))
     if (name.length > width) lines.push(...textLine(name.slice(width, width * 2)))
     lines.push(
-      ...textLine(pad(`${qtyS}x${priceS}`, width - 6) + pad(totS, 6, 'right'))
+      ...textLine(pad(`${qtyS}x${priceS}`, width - totW) + pad(totS, totW, 'right'))
     )
   }
   return lines
@@ -221,8 +224,8 @@ async function loadImage(absolute) {
   return img
 }
 
-/** Real PNG logo only (compact width). */
-export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320, maxHeightDots = 96) {
+/** Real PNG logo — sized for full 80mm printable width (~512 dots). */
+export async function logoToEscPosRaster(logoUrl, maxWidthDots = 448, maxHeightDots = 120) {
   if (typeof window === 'undefined') return []
 
   const candidates = resolveLogoCandidates(logoUrl)
@@ -242,7 +245,7 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320, maxHeightD
         continue
       }
 
-      const targetW = Math.min(maxWidthDots, 448)
+      const targetW = Math.min(maxWidthDots, 512)
       if (w > targetW) {
         h = Math.round((h * targetW) / w)
         w = targetW
@@ -279,11 +282,10 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320, maxHeightD
   return []
 }
 
-/** Enough blank paper under footer so cutter does not slice Tychora */
+/** Minimal feed so cutter clears footer without wasting paper */
 function cutSafe() {
   return [
-    0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a,
-    0x1b, 0x64, 0x0a,
+    0x0a, 0x0a, 0x0a, 0x0a, 0x0a,
     0x1d, 0x56, 0x00,
   ]
 }
@@ -292,10 +294,12 @@ function cutSafe() {
  * Compact sales receipt ESC/POS.
  */
 export async function buildReceiptEscPos(printData = {}, options = {}) {
-  // Font B ≈ 56 cols on 80mm
-  const width = options.width || 48
+  // Font B ≈ 56 cols on 80mm — fill printable width (avoids empty right margin)
+  const width = options.width || 56
   const logoUrl = printData.logoUrl || '/petzonelogo.png'
   const includeLogo = options.includeLogo !== false
+  const logoWidth = options.logoWidth || 448
+  const logoHeight = options.logoHeight || 120
 
   const out = []
   out.push(...init())
@@ -303,7 +307,7 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   out.push(...center())
 
   if (includeLogo) {
-    const logo = await logoToEscPosRaster(logoUrl, options.logoWidth || 320)
+    const logo = await logoToEscPosRaster(logoUrl, logoWidth, logoHeight)
     if (logo.length) {
       out.push(...logo)
     }
@@ -341,10 +345,15 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   }
 
   out.push(...textLine('-'.repeat(width)))
+  // Item | Qty(4) | Price(7) | Total(7) — uses full width so amounts sit on the right edge
+  const qtyW = 4
+  const priceW = 7
+  const totW = 7
+  const nameHdrW = Math.max(8, width - qtyW - priceW - totW)
   out.push(
     ...boldOn(),
     ...textLine(
-      pad('Item', width - 15) + pad('Qty', 3, 'right') + pad('Price', 6, 'right') + pad('Total', 6, 'right')
+      pad('Item', nameHdrW) + pad('Qty', qtyW, 'right') + pad('Price', priceW, 'right') + pad('Total', totW, 'right')
     ),
     ...boldOff()
   )

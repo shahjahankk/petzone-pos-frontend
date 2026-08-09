@@ -3,6 +3,7 @@ import AppDatePicker from '../../../components/date/AppDatePicker'
 import { formatDisplayDate } from '../../../utils/displayDates'
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useDispatch, useSelector } from 'react-redux'
 import * as yup from 'yup'
 import {
@@ -343,6 +344,7 @@ const getFields = (user, categoryOptions, isEdit = false) => {
 
 function InventoryPage() {
   const dispatch = useDispatch()
+  const router = useRouter()
   const { data: inventory, total: totalFromServer, loading, error } = useSelector((state) => state.inventory)
   
   const { user: originalUser } = useSelector((state) => state.auth)
@@ -659,20 +661,9 @@ useEffect(() => {
   dispatch(fetchInventory(getFetchParams()))
 }, [dispatch, getFetchParams, initialized])
 
+  // Stock/catalog adds go through Purchase Orders (simpler + correct ledger flow)
   const handleAdd = () => {
-    const initialData = {}
-    
-    if (user?.role === 'CASHIER' && user?.branchId) {
-      initialData.scopeType = 'BRANCH'
-      initialData.scopeId = user.branchId
-    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
-      initialData.scopeType = 'WAREHOUSE'
-      initialData.scopeId = user.warehouseId
-    }
-    
-    setSelectedEntity(initialData)
-    setIsEdit(false)
-    setFormDialogOpen(true)
+    router.push('/dashboard/purchase-orders')
   }
 
   const handleEdit = (entity) => {
@@ -1081,7 +1072,7 @@ const canEditInventory = useMemo(() => {
         onClick={handleAdd}
         size="small"
       >
-        Add Item
+        Add via Purchase Order
       </Button>
     )}
   </Box>

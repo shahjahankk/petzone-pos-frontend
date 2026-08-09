@@ -119,8 +119,9 @@ export default function PrintDialog({
           await acquirePrinter({ allowRequest: false })
           const payload = await buildReceiptEscPos(printData, {
             includeLogo: true,
-            logoWidth: 240,
-            width: 32,
+            logoWidth: 448,
+            logoHeight: 120,
+            width: 56,
           })
           await writeToThermalPrinter(payload)
           if (onPrintComplete) onPrintComplete()
@@ -145,7 +146,7 @@ export default function PrintDialog({
 
     let pageSize = isThermal ? '80mm auto' : printSettings.paperSize === 'Letter' ? 'Letter' : 'A4'
     if (!isThermal && isLandscape) pageSize += ' landscape'
-    const pageMargin = isThermal ? '3mm 2mm' : '10mm 12mm'
+    const pageMargin = isThermal ? '1mm 1mm' : '10mm 12mm'
     const fontFamily = isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'
     const fontSize   = isThermal ? '11px' : (printSettings.fontSize || '12px')
     const lineHeight = isThermal ? '1.1' : '1.4'
