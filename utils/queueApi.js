@@ -166,3 +166,16 @@ export async function postClinicChat(orgSlug, branchSlug, { sender_name, sender_
   })
   return json.data
 }
+
+export async function getScreenLockStatus(orgSlug, branchSlug) {
+  const json = await qmsRequest(`/queue/public/${orgSlug}/${branchSlug}/screen-lock`)
+  return json.data
+}
+
+export async function unlockScreen(orgSlug, branchSlug, screen, pin) {
+  const json = await qmsRequest(`/queue/public/${orgSlug}/${branchSlug}/screen-unlock`, {
+    method: 'POST',
+    body: JSON.stringify({ screen, pin }),
+  })
+  return json.data
+}

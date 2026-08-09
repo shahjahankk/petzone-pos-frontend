@@ -14,6 +14,7 @@ import {
   callNextTicket, updateTicketStatus, recallTicket,
 } from '../../../utils/queueApi'
 import ClinicChat from '../../../components/queue/ClinicChat'
+import ScreenLockGate from '../../../components/queue/ScreenLockGate'
 
 const STATUS_COLORS = {
   waiting: 'warning', called: 'info', serving: 'success',
@@ -151,6 +152,7 @@ function QueueCounterPage() {
 
   return (
     <DashboardLayout>
+      <ScreenLockGate screen="counter" orgSlug={branchCtx?.orgSlug} branchSlug={branchCtx?.branchSlug}>
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" fontWeight={700} color="primary" gutterBottom>
           PetZone Hospital
@@ -271,6 +273,7 @@ function QueueCounterPage() {
           <Alert severity={toast.severity}>{toast.message}</Alert>
         </Snackbar>
       </Box>
+      </ScreenLockGate>
     </DashboardLayout>
   )
 }

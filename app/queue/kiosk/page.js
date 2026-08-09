@@ -42,6 +42,7 @@ import {
 import { printQueueTicket } from '../../../utils/queueThermalPrinter'
 import { PETZONE_LOGO_PNG, PETZONE_LOGO_SVG } from '../../../utils/brandAssets'
 import { config } from '../../../config/environment'
+import ScreenLockGate from '../../../components/queue/ScreenLockGate'
 
 function transportLabel(transport) {
   if (transport === 'usb') return 'USB Ready (silent)'
@@ -365,6 +366,7 @@ function QueueKioskPage() {
   }
 
   return (
+    <ScreenLockGate screen="kiosk" orgSlug={branchCtx?.orgSlug} branchSlug={branchCtx?.branchSlug}>
     <Box
       sx={{
         minHeight: '100vh',
@@ -638,6 +640,7 @@ function QueueKioskPage() {
         </DialogActions>
       </Dialog>
     </Box>
+    </ScreenLockGate>
   )
 }
 
