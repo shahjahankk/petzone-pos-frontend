@@ -13,6 +13,7 @@ import {
   resolveQueueBranch, getQueueBranchInfo, getWaitingQueue, getQueueStatus, getQueueCounters,
   callNextTicket, updateTicketStatus, recallTicket,
 } from '../../../utils/queueApi'
+import ClinicChat from '../../../components/queue/ClinicChat'
 
 const STATUS_COLORS = {
   waiting: 'warning', called: 'info', serving: 'success',
@@ -257,6 +258,14 @@ function QueueCounterPage() {
             </Card>
           </Grid>
         </Grid>
+
+        {branchCtx?.orgSlug && branchCtx?.branchSlug && (
+          <ClinicChat
+            orgSlug={branchCtx.orgSlug}
+            branchSlug={branchCtx.branchSlug}
+            defaultSender={selectedCounter?.counter_label || selectedCounter?.name || 'OPD 1'}
+          />
+        )}
 
         <Snackbar open={toast.open} autoHideDuration={3000} onClose={() => setToast({ ...toast, open: false })}>
           <Alert severity={toast.severity}>{toast.message}</Alert>

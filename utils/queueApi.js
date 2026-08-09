@@ -148,3 +148,21 @@ export async function recallTicket(ticketId) {
   })
   return json.data
 }
+
+/** Clinic group chat (poll-based, cPanel safe) */
+export async function getClinicChat(orgSlug, branchSlug, { sinceId, limit = 50 } = {}) {
+  const params = new URLSearchParams()
+  if (sinceId) params.set('since_id', String(sinceId))
+  if (limit) params.set('limit', String(limit))
+  const q = params.toString() ? `?${params.toString()}` : ''
+  const json = await qmsRequest(`/queue/public/${orgSlug}/${branchSlug}/chat${q}`)
+  return json.data || []
+}
+
+export async function postClinicChat(orgSlug, branchSlug, { sender_name, sender_role, body }) {
+  const json = await qmsRequest(`/queue/public/${orgSlug}/${branchSlug}/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ sender_name, sender_role, body }),
+  })
+  return json.data
+}

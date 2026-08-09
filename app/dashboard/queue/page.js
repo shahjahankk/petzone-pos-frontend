@@ -19,6 +19,7 @@ import {
   resolveQueueBranch,
   setQueueNextNumber,
 } from '../../../utils/queueApi'
+import ClinicChat from '../../../components/queue/ClinicChat'
 
 function QueueDashboardPage() {
   const { user } = useSelector((state) => state.auth)
@@ -233,6 +234,14 @@ function QueueDashboardPage() {
               </Card>
             </Grid>
           </Grid>
+        )}
+
+        {branch?.orgSlug && branch?.branchSlug && (
+          <ClinicChat
+            orgSlug={branch.orgSlug}
+            branchSlug={branch.branchSlug}
+            defaultSender={isAdmin ? 'Reception' : 'Cashier'}
+          />
         )}
       </Box>
 
