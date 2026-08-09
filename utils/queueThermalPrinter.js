@@ -29,9 +29,8 @@ function boldOff() {
 
 function cutSafe() {
   return [
-    0x0a, 0x0a,
-    0x1b, 0x64, 0x06,
-    0x1d, 0x56, 0x41, 0x40,
+    0x0a, 0x0a, 0x0a, 0x0a, 0x0a,
+    0x1d, 0x56, 0x00,
   ]
 }
 
@@ -141,7 +140,7 @@ function printQueueTicketBrowser(ticketCode) {
 <html><head><title>Token ${ticketCode}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
-  body { margin: 0; padding: 6mm 3mm 16mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; font-size: 12px; }
+  body { margin: 0; padding: 4mm 3mm 5mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; font-size: 12px; }
   .brand { font-weight:700; font-size:16px; }
   .num { font-size: 48px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 8px 0; }
 </style></head><body>
