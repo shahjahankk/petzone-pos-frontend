@@ -8,7 +8,7 @@ import {
 import { Send } from '@mui/icons-material'
 import { getClinicChat, postClinicChat } from '../../utils/queueApi'
 
-const PRESETS = ['Reception', 'Cashier', 'OPD 1', 'OPD 2', 'Grooming', 'custom']
+const PRESETS = ['Reception', 'Cashier', 'OPD 1', 'OPD 2', 'Grooming', 'OT', 'Lab', 'custom']
 
 /**
  * Shared clinic chat for OPD / Reception / Cashier.
