@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Box, Typography } from '@mui/material'
+import { Box, Button, Typography } from '@mui/material'
+import { VolumeOff, VolumeUp } from '@mui/icons-material'
 import { config } from '../../../config/environment'
 
 const QMS_BASE = (config.QMS_API_URL || 'http://localhost:4050/api').replace(/\/$/, '')
@@ -30,6 +31,66 @@ export default function QueueDisplayInner() {
   const [clock, setClock] = useState('')
   const [error, setError] = useState(null)
   const prevServing = useRef(new Map())
+  const announcementState = useRef(new Map())
+  const announcementsInitialized = useRef(false)
+  const [soundEnabled, setSoundEnabled] = useState(false)
+
+  useEffect(() => {
+    setSoundEnabled(window.localStorage.getItem('qms_display_sound') === 'on')
+  }, [])
+
+  const playChime = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext
+      if (!AudioContextClass) return
+      const context = new AudioContextClass()
+      const gain = context.createGain()
+      gain.connect(context.destination)
+      gain.gain.setValueAtTime(0.0001, context.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.65)
+      ;[660, 880].forEach((frequency, index) => {
+        const oscillator = context.createOscillator()
+        oscillator.frequency.value = frequency
+        oscillator.connect(gain)
+        oscillator.start(context.currentTime + index * 0.18)
+        oscillator.stop(context.currentTime + 0.35 + index * 0.18)
+      })
+      setTimeout(() => context.close().catch(() => {}), 900)
+    } catch {
+      // Speech can still work if Web Audio is unavailable.
+    }
+  }, [])
+
+  const speakAnnouncement = useCallback((row, isRecall = false) => {
+    if (!soundEnabled || !row?.ticket_code) return
+    playChime()
+    if (!('speechSynthesis' in window)) return
+    const number = displayNum(row.ticket_code) || row.ticket_code
+    const counter = row.counter_label || row.counter_name || 'the counter'
+    const prefix = isRecall ? 'Recall. ' : ''
+    const utterance = new SpeechSynthesisUtterance(
+      `${prefix}Token number ${number}, please proceed to ${counter}.`
+    )
+    utterance.rate = 0.88
+    utterance.pitch = 1
+    utterance.volume = 1
+    window.speechSynthesis.speak(utterance)
+  }, [playChime, soundEnabled])
+
+  const toggleSound = () => {
+    const enabled = !soundEnabled
+    setSoundEnabled(enabled)
+    window.localStorage.setItem('qms_display_sound', enabled ? 'on' : 'off')
+    if (enabled) {
+      playChime()
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance('Queue announcements enabled.'))
+      }
+    } else if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+  }
 
   useEffect(() => {
     const tick = () => setClock(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
@@ -53,6 +114,30 @@ export default function QueueDisplayInner() {
     return () => clearInterval(id)
   }, [org, branch])
 
+  useEffect(() => {
+    const rows = data?.by_counter || []
+    if (!announcementsInitialized.current) {
+      rows.forEach((row) => {
+        announcementState.current.set(String(row.counter_id), {
+          code: row.ticket_code || null,
+          signature: `${row.ticket_code || ''}|${row.called_at || ''}`,
+        })
+      })
+      announcementsInitialized.current = true
+      return
+    }
+
+    rows.forEach((row) => {
+      const key = String(row.counter_id)
+      const previous = announcementState.current.get(key)
+      const signature = `${row.ticket_code || ''}|${row.called_at || ''}`
+      if (row.ticket_code && previous && previous.signature !== signature) {
+        speakAnnouncement(row, previous.code === row.ticket_code)
+      }
+      announcementState.current.set(key, { code: row.ticket_code || null, signature })
+    })
+  }, [data, speakAnnouncement])
+
   const byCounter = data?.by_counter || []
   const waiting = data?.waiting_by_service || []
   const totalWaiting = waiting.reduce((s, w) => s + (w.waiting_count || 0), 0)
@@ -73,7 +158,18 @@ export default function QueueDisplayInner() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         px: 5, py: 2.5, bgcolor: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.1)',
       }}>
-        <Typography variant="h5" fontWeight={800}>{data?.branch?.name || 'PetZone Clinic'}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h5" fontWeight={800}>{data?.branch?.name || 'PetZone Clinic'}</Typography>
+          <Button
+            variant={soundEnabled ? 'contained' : 'outlined'}
+            color={soundEnabled ? 'success' : 'inherit'}
+            startIcon={soundEnabled ? <VolumeUp /> : <VolumeOff />}
+            onClick={toggleSound}
+            sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.6)' }}
+          >
+            {soundEnabled ? 'Sound On' : 'Enable Sound'}
+          </Button>
+        </Box>
         <Typography variant="h4" sx={{ fontWeight: 300, fontVariantNumeric: 'tabular-nums' }}>{clock}</Typography>
       </Box>
 
