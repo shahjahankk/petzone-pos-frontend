@@ -139,7 +139,7 @@ function QueueKioskPage() {
       const ctx = await resolveQueueBranch(posBranchId).catch(() => ({
         orgSlug: config.QMS_ORG_SLUG,
         branchSlug: config.QMS_BRANCH_SLUG,
-        branchName: 'PetZone Clinic',
+        branchName: 'PetZone Hospital',
       }))
       setBranchCtx(ctx)
       try {
@@ -394,10 +394,13 @@ function QueueKioskPage() {
         />
 
         <Typography variant="h4" fontWeight={900} color="primary" gutterBottom>
+          PetZone Hospital
+        </Typography>
+        <Typography variant="h6" fontWeight={700} color="text.secondary" gutterBottom>
           Queue Token Station
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3, fontSize: 17 }}>
-          {branchCtx?.branchName || 'PetZone Clinic'} — Consultation &amp; Grooming
+          {branchCtx?.branchName || 'Main'} — Consultation &amp; Grooming
         </Typography>
         <Divider sx={{ mb: 3 }} />
 

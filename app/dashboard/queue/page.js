@@ -133,10 +133,10 @@ function QueueDashboardPage() {
       <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1100, mx: 'auto' }}>
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" fontWeight={900} color="primary" gutterBottom>
-            Clinic Queue Control
+            PetZone Hospital
           </Typography>
           <Typography color="text.secondary">
-            Issue queue tokens and control today&apos;s starting number for {branch?.branchName || 'your clinic'}.
+            Queue control for {branch?.branchName || 'your branch'} — issue tokens and set today&apos;s shared number.
           </Typography>
         </Box>
 

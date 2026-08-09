@@ -131,7 +131,12 @@ export default function QueueDisplayInner() {
         px: 5, py: 2.5, bgcolor: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.1)',
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="h5" fontWeight={800}>{data?.branch?.name || 'PetZone Clinic'}</Typography>
+          <Box>
+            <Typography variant="h5" fontWeight={800}>PetZone Hospital</Typography>
+            {data?.branch?.name && (
+              <Typography variant="body2" sx={{ opacity: 0.7 }}>{data.branch.name}</Typography>
+            )}
+          </Box>
           <Button
             variant={soundEnabled ? 'contained' : 'outlined'}
             color={soundEnabled ? 'success' : 'inherit'}

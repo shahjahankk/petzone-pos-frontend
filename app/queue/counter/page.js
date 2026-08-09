@@ -151,6 +151,9 @@ function QueueCounterPage() {
     <DashboardLayout>
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" fontWeight={700} color="primary" gutterBottom>
+          PetZone Hospital
+        </Typography>
+        <Typography variant="h6" fontWeight={600} color="text.secondary" gutterBottom>
           Queue Counter — {branchCtx?.branchName}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
