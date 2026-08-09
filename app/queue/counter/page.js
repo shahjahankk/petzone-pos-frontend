@@ -49,10 +49,11 @@ function QueueCounterPage() {
         total_today: waiting + (status?.now_serving || []).length,
       })
       const called = (q || []).filter((t) => ['called', 'serving'].includes(t.status))
-      const mine = counterId
-        ? called.find((t) => String(t.counter_id) === String(counterId))
-        : called[0]
-      setCurrent(mine || null)
+      const forStation = counterId
+        ? called.filter((t) => String(t.counter_id) === String(counterId))
+        : called.slice()
+      forStation.sort((a, b) => new Date(b.called_at || 0) - new Date(a.called_at || 0))
+      setCurrent(forStation[0] || null)
     } catch { /* silent refresh */ }
   }, [branchCtx, serviceFilter, counterId])
 
