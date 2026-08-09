@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Box, Button, Typography } from '@mui/material'
 import { VolumeOff, VolumeUp } from '@mui/icons-material'
 import { config } from '../../../config/environment'
+import { announceQueueCall, speakQueueText } from '../../../utils/queueAnnounce'
 
 const QMS_BASE = (config.QMS_API_URL || 'http://localhost:4050/api').replace(/\/$/, '')
 
@@ -39,56 +40,20 @@ export default function QueueDisplayInner() {
     setSoundEnabled(window.localStorage.getItem('qms_display_sound') === 'on')
   }, [])
 
-  const playChime = useCallback(() => {
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext
-      if (!AudioContextClass) return
-      const context = new AudioContextClass()
-      const gain = context.createGain()
-      gain.connect(context.destination)
-      gain.gain.setValueAtTime(0.0001, context.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.65)
-      ;[660, 880].forEach((frequency, index) => {
-        const oscillator = context.createOscillator()
-        oscillator.frequency.value = frequency
-        oscillator.connect(gain)
-        oscillator.start(context.currentTime + index * 0.18)
-        oscillator.stop(context.currentTime + 0.35 + index * 0.18)
-      })
-      setTimeout(() => context.close().catch(() => {}), 900)
-    } catch {
-      // Speech can still work if Web Audio is unavailable.
-    }
-  }, [])
-
   const speakAnnouncement = useCallback((row, isRecall = false) => {
     if (!soundEnabled || !row?.ticket_code) return
-    playChime()
-    if (!('speechSynthesis' in window)) return
-    const number = displayNum(row.ticket_code) || row.ticket_code
-    const counter = row.counter_label || row.counter_name || 'the counter'
-    const prefix = isRecall ? 'Recall. ' : ''
-    const utterance = new SpeechSynthesisUtterance(
-      `${prefix}Token number ${number}, please proceed to ${counter}.`
-    )
-    utterance.rate = 0.88
-    utterance.pitch = 1
-    utterance.volume = 1
-    window.speechSynthesis.speak(utterance)
-  }, [playChime, soundEnabled])
+    announceQueueCall(row, { isRecall, ttsBaseUrl: QMS_BASE })
+  }, [soundEnabled])
 
-  const toggleSound = () => {
+  const toggleSound = async () => {
     const enabled = !soundEnabled
     setSoundEnabled(enabled)
     window.localStorage.setItem('qms_display_sound', enabled ? 'on' : 'off')
     if (enabled) {
-      playChime()
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.speak(new SpeechSynthesisUtterance('Queue announcements enabled.'))
-      }
-    } else if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
+      // Plays real spoken MP3 — works on Smart TVs (not only laptop TTS)
+      await speakQueueText('Queue announcements enabled. Token number 10, please proceed to OPD 1.', {
+        ttsBaseUrl: QMS_BASE,
+      })
     }
   }
 
