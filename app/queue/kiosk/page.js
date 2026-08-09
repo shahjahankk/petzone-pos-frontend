@@ -30,6 +30,8 @@ import {
 import {
   resolveQueueBranch,
   issueToken,
+  issueServiceTicket,
+  getQueueBranchInfo,
   hasQueueAdminSession,
   clearQueueAdminSession,
   queueAdminLogin,
@@ -51,6 +53,7 @@ function transportLabel(transport) {
 function QueueKioskPage() {
   const { user } = useSelector((s) => s.auth)
   const [branchCtx, setBranchCtx] = useState(null)
+  const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [issuing, setIssuing] = useState(false)
   const [lastTicket, setLastTicket] = useState(null)
@@ -98,6 +101,12 @@ function QueueKioskPage() {
         branchName: 'PetZone Clinic',
       }))
       setBranchCtx(ctx)
+      try {
+        const info = await getQueueBranchInfo(ctx.orgSlug, ctx.branchSlug)
+        setServices(Array.isArray(info?.services) ? info.services : [])
+      } catch {
+        setServices([])
+      }
     } catch (err) {
       setToast({ open: true, message: err.message, severity: 'error' })
     } finally {
@@ -259,11 +268,19 @@ function QueueKioskPage() {
     }
   }
 
-  const handlePrintToken = async () => {
+  const handlePrintToken = async (service = null) => {
     if (!branchCtx) return
     setIssuing(true)
     try {
-      const ticket = await issueToken(branchCtx.orgSlug, branchCtx.branchSlug)
+      const isConsultation =
+        !service ||
+        /consult|opd/i.test(String(service.name || '')) ||
+        String(service.prefix || '').toUpperCase() === 'C'
+
+      const ticket = isConsultation
+        ? await issueToken(branchCtx.orgSlug, branchCtx.branchSlug)
+        : await issueServiceTicket(branchCtx.orgSlug, branchCtx.branchSlug, service.id)
+
       setLastTicket(ticket)
       const printResult = await printQueueTicket(ticket, {
         allowPortRequest: !printerReady || preferBrowser,
@@ -327,7 +344,7 @@ function QueueKioskPage() {
           Queue Token Station
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 3, fontSize: 17 }}>
-          {branchCtx?.branchName || 'PetZone Clinic'}
+          {branchCtx?.branchName || 'PetZone Clinic'} — Consultation &amp; Grooming
         </Typography>
         <Divider sx={{ mb: 3 }} />
 
@@ -398,17 +415,43 @@ function QueueKioskPage() {
           </Paper>
         )}
 
-        <Button
-          variant="contained"
-          size="large"
-          fullWidth
-          sx={{ py: 2.5, fontSize: 22, borderRadius: 3, fontWeight: 800 }}
-          startIcon={issuing ? <CircularProgress size={24} color="inherit" /> : <Print />}
-          onClick={handlePrintToken}
-          disabled={issuing}
-        >
-          Get &amp; Print Next Token
-        </Button>
+        {services.length > 1 ? (
+          <Stack spacing={1.5} sx={{ mb: 1 }}>
+            {services.map((service) => (
+              <Button
+                key={service.id}
+                variant="contained"
+                size="large"
+                fullWidth
+                sx={{
+                  py: 2.2,
+                  fontSize: 20,
+                  borderRadius: 3,
+                  fontWeight: 800,
+                  bgcolor: service.color || 'primary.main',
+                  '&:hover': { bgcolor: service.color || 'primary.dark', filter: 'brightness(0.95)' },
+                }}
+                startIcon={issuing ? <CircularProgress size={22} color="inherit" /> : <Print />}
+                onClick={() => handlePrintToken(service)}
+                disabled={issuing}
+              >
+                {service.name} Token
+              </Button>
+            ))}
+          </Stack>
+        ) : (
+          <Button
+            variant="contained"
+            size="large"
+            fullWidth
+            sx={{ py: 2.5, fontSize: 22, borderRadius: 3, fontWeight: 800 }}
+            startIcon={issuing ? <CircularProgress size={24} color="inherit" /> : <Print />}
+            onClick={() => handlePrintToken(services[0] || null)}
+            disabled={issuing}
+          >
+            Get &amp; Print Next Token
+          </Button>
+        )}
 
         <Button
           variant="outlined"

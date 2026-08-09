@@ -52,6 +52,23 @@ export async function issueToken(orgSlug, branchSlug) {
   return json.data
 }
 
+/** Issue a token for a specific service (e.g. Grooming → G001). */
+export async function issueServiceTicket(orgSlug, branchSlug, serviceTypeId, extras = {}) {
+  const json = await qmsRequest(`/queue/public/${orgSlug}/${branchSlug}/tickets`, {
+    method: 'POST',
+    body: JSON.stringify({
+      service_type_id: serviceTypeId,
+      ...extras,
+    }),
+  })
+  return json.data
+}
+
+export async function getQueueCounters(orgSlug, branchSlug) {
+  const json = await qmsRequest(`/queue/public/${orgSlug}/${branchSlug}/counters`)
+  return json.data
+}
+
 export function hasQueueAdminSession() {
   return (
     typeof window !== 'undefined' &&

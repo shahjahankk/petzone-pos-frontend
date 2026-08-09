@@ -53,7 +53,7 @@ export default function QueueDisplayInner() {
       await unlockQueueAudio()
       // Must hear spoken words here — proves TV can play voice, not only chime
       const ok = await speakQueueText(
-        'Queue announcements enabled. Token number 10, please proceed to OPD 1.',
+        'Queue announcements enabled. Token number 10, please proceed to Grooming.',
         { ttsBaseUrl: QMS_BASE }
       )
       if (!ok) {
@@ -204,7 +204,12 @@ export default function QueueDisplayInner() {
                   {num || '—'}
                 </Typography>
                 <Typography sx={{ mt: 1.5, fontSize: 'clamp(14px, 1.4vw, 20px)', fontWeight: 600, opacity: active ? 0.85 : 0.5 }}>
-                  {num ? (row.status === 'serving' ? 'In consultation' : 'Please proceed to room') : 'Waiting for patient'}
+                  {(() => {
+                    if (!num) return 'Waiting for patient'
+                    const isGrooming = /groom/i.test(String(row.counter_label || row.counter_name || row.service_name || ''))
+                    if (row.status === 'serving') return isGrooming ? 'In grooming' : 'In consultation'
+                    return isGrooming ? 'Please proceed to grooming' : 'Please proceed to room'
+                  })()}
                 </Typography>
               </Box>
             )

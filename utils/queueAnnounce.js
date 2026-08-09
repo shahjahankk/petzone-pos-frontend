@@ -181,7 +181,7 @@ async function runFifo() {
       playQueueChime()
       await new Promise((r) => setTimeout(r, 550))
       await speakQueueTextNow(job.text, { ttsBaseUrl: job.ttsBaseUrl })
-      // Short gap so next OPD is clear
+      // Short gap so next station announcement is clear
       await new Promise((r) => setTimeout(r, 350))
     } catch {
       /* keep draining queue */
@@ -191,7 +191,7 @@ async function runFifo() {
 }
 
 /**
- * Enqueue Call/Recall announcement (FIFO). Multiple OPDs never overlap.
+ * Enqueue Call/Recall announcement (FIFO). Multiple stations never overlap.
  */
 export function announceQueueCall(row, { isRecall = false, ttsBaseUrl } = {}) {
   const number = row?.ticket_code
@@ -201,7 +201,7 @@ export function announceQueueCall(row, { isRecall = false, ttsBaseUrl } = {}) {
 
   const text = buildCallAnnouncement({
     ticketCode: number,
-    counterLabel: row.counter_label || row.counter_name,
+    counterLabel: row.counter_label || row.counter_name || row.service_name,
     isRecall,
   })
 

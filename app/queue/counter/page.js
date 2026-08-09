@@ -10,7 +10,7 @@ import withAuth from '../../../components/auth/withAuth'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import {
-  resolveQueueBranch, getQueueBranchInfo, getWaitingQueue, getQueueStatus,
+  resolveQueueBranch, getQueueBranchInfo, getWaitingQueue, getQueueStatus, getQueueCounters,
   callNextTicket, updateTicketStatus, recallTicket,
 } from '../../../utils/queueApi'
 
@@ -21,13 +21,17 @@ const STATUS_COLORS = {
 function QueueCounterPage() {
   const [branchCtx, setBranchCtx] = useState(null)
   const [services, setServices] = useState([])
-  const [serviceFilter, setServiceFilter] = useState('')
+  const [counters, setCounters] = useState([])
+  const [counterId, setCounterId] = useState('')
   const [queue, setQueue] = useState([])
   const [stats, setStats] = useState({ waiting: 0, in_progress: 0, completed: 0, total_today: 0 })
   const [current, setCurrent] = useState(null)
   const [loading, setLoading] = useState(true)
   const [calling, setCalling] = useState(false)
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' })
+
+  const selectedCounter = counters.find((c) => String(c.id) === String(counterId)) || null
+  const serviceFilter = selectedCounter?.service_type_id || ''
 
   const refresh = useCallback(async () => {
     if (!branchCtx) return
@@ -44,18 +48,34 @@ function QueueCounterPage() {
         completed: 0,
         total_today: waiting + (status?.now_serving || []).length,
       })
-      const active = (q || []).find((t) => ['called', 'serving'].includes(t.status))
-      if (active) setCurrent(active)
+      const called = (q || []).filter((t) => ['called', 'serving'].includes(t.status))
+      const mine = counterId
+        ? called.find((t) => String(t.counter_id) === String(counterId))
+        : called[0]
+      setCurrent(mine || null)
     } catch { /* silent refresh */ }
-  }, [branchCtx, serviceFilter])
+  }, [branchCtx, serviceFilter, counterId])
 
   useEffect(() => {
     (async () => {
       try {
         const ctx = await resolveQueueBranch()
         setBranchCtx(ctx)
-        const info = await getQueueBranchInfo(ctx.orgSlug, ctx.branchSlug)
+        const [info, counterList] = await Promise.all([
+          getQueueBranchInfo(ctx.orgSlug, ctx.branchSlug),
+          getQueueCounters(ctx.orgSlug, ctx.branchSlug),
+        ])
         setServices(info.services || [])
+        const list = Array.isArray(counterList) ? counterList : []
+        setCounters(list)
+        const saved = typeof window !== 'undefined'
+          ? window.localStorage.getItem(`pos-queue-counter-${ctx.orgSlug}-${ctx.branchSlug}`)
+          : null
+        if (saved && list.some((c) => String(c.id) === String(saved))) {
+          setCounterId(String(saved))
+        } else if (list.length === 1) {
+          setCounterId(String(list[0].id))
+        }
       } catch (err) {
         setToast({ open: true, message: err?.response?.data?.message || err.message, severity: 'error' })
       } finally {
@@ -72,11 +92,26 @@ function QueueCounterPage() {
     }
   }, [branchCtx, refresh])
 
+  const handleCounterChange = (value) => {
+    setCounterId(value)
+    if (branchCtx && value) {
+      window.localStorage.setItem(
+        `pos-queue-counter-${branchCtx.orgSlug}-${branchCtx.branchSlug}`,
+        String(value)
+      )
+    }
+  }
+
   const handleCallNext = async () => {
     if (!branchCtx) return
+    if (counters.length && !counterId) {
+      setToast({ open: true, message: 'Select OPD or Grooming station first', severity: 'warning' })
+      return
+    }
     setCalling(true)
     try {
       const res = await callNextTicket(branchCtx.orgSlug, branchCtx.branchSlug, {
+        counter_id: counterId || null,
         service_type_id: serviceFilter || null,
       })
       if (res.data) {
@@ -118,12 +153,15 @@ function QueueCounterPage() {
         <Typography variant="h5" fontWeight={700} color="primary" gutterBottom>
           Queue Counter — {branchCtx?.branchName}
         </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          OPD stations call consultation tokens. Grooming station calls grooming tokens.
+        </Typography>
 
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {[
             { label: 'Waiting', value: stats.waiting, color: '#f59e0b' },
             { label: 'In Progress', value: stats.in_progress, color: '#3b82f6' },
-            { label: 'Active Queue', value: queue.filter((t) => t.status === 'waiting').length, color: '#1e3a8a' },
+            { label: 'This Station Queue', value: queue.filter((t) => t.status === 'waiting').length, color: '#1e3a8a' },
           ].map((s) => (
             <Grid item xs={4} key={s.label}>
               <Card><CardContent sx={{ textAlign: 'center' }}>
@@ -138,12 +176,27 @@ function QueueCounterPage() {
           <Grid item xs={12} md={5}>
             <Card sx={{ p: 2 }}>
               <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Service Filter</InputLabel>
-                <Select value={serviceFilter} label="Service Filter" onChange={(e) => setServiceFilter(e.target.value)}>
-                  <MenuItem value="">All Services</MenuItem>
-                  {services.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
+                <InputLabel>Station</InputLabel>
+                <Select
+                  value={counterId}
+                  label="Station"
+                  onChange={(e) => handleCounterChange(e.target.value)}
+                >
+                  <MenuItem value="">Select station</MenuItem>
+                  {counters.map((c) => (
+                    <MenuItem key={c.id} value={String(c.id)}>
+                      {c.counter_label || c.name}
+                      {c.service_name ? ` · ${c.service_name}` : ''}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
+
+              {services.length > 0 && (
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                  Active services: {services.map((s) => s.name).join(' · ')}
+                </Typography>
+              )}
 
               <Button
                 variant="contained" fullWidth size="large"
@@ -159,7 +212,12 @@ function QueueCounterPage() {
                 <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#eff6ff' }}>
                   <Typography variant="body2" color="text.secondary">Now Calling</Typography>
                   <Typography variant="h1" fontWeight={900} color="primary">{current.ticket_code}</Typography>
-                  <Typography variant="h6" sx={{ mb: 2 }}>{current.service_name}</Typography>
+                  <Typography variant="h6" sx={{ mb: 1 }}>{current.service_name}</Typography>
+                  {(current.counter_label || current.counter_name) && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      TV shows: {current.counter_label || current.counter_name}
+                    </Typography>
+                  )}
                   {current.pet_name && <Typography variant="body2">Pet: {current.pet_name}</Typography>}
                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', mt: 2, flexWrap: 'wrap' }}>
                     <Button size="small" variant="contained" color="success" startIcon={<CheckCircle />} onClick={() => handleAction('serving')}>Serving</Button>
@@ -174,7 +232,10 @@ function QueueCounterPage() {
 
           <Grid item xs={12} md={7}>
             <Card sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>Waiting Queue</Typography>
+              <Typography variant="h6" gutterBottom>
+                Waiting Queue
+                {selectedCounter ? ` — ${selectedCounter.counter_label || selectedCounter.name}` : ''}
+              </Typography>
               {queue.filter((t) => t.status === 'waiting').length === 0 ? (
                 <Typography color="text.secondary">No patients waiting</Typography>
               ) : (

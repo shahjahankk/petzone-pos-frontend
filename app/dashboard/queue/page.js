@@ -171,7 +171,9 @@ function QueueDashboardPage() {
                   <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                     <Box>
                       <Typography variant="h5" fontWeight={800}>Number Settings</Typography>
-                      <Typography variant="body2" color="text.secondary">General Consultation · Today</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {sequence?.service_name || 'General Consultation'} · Today
+                      </Typography>
                     </Box>
                     <Settings color="primary" />
                   </Stack>
