@@ -9,14 +9,13 @@ import { announceQueueCall, speakQueueText, unlockQueueAudio, setAmbientAudioCon
 
 const QMS_BASE = (config.QMS_API_URL || 'http://localhost:4050/api').replace(/\/$/, '')
 
-// Muted YouTube animal / 4K backgrounds (sound only for token call/recall)
-const DEFAULT_YOUTUBE_IDS = [
-  'GVUwV1ncgfs', // 12h Pet TV — dogs & cats (best for hospital lobby)
-  'wmwKLngD1o0', // 12h nature fun for cats & dogs
-  'K1REumSu-Fk', // 4K HDR cats & dogs nature
-]
-const FALLBACK_MP4 = [
-  'https://videos.pexels.com/video-files/3196257/3196257-uhd_2560_1440_25fps.mp4',
+// Cute family-safe cats/dogs stock video (MP4) — works in Pakistan (no YouTube geo-block)
+const PET_MP4_VIDEOS = [
+  'https://videos.pexels.com/video-files/855029/855029-hd_1920_1080_30fps.mp4',
+  'https://videos.pexels.com/video-files/2795407/2795407-uhd_2560_1440_25fps.mp4',
+  'https://videos.pexels.com/video-files/1409899/1409899-uhd_2560_1440_25fps.mp4',
+  'https://videos.pexels.com/video-files/3195394/3195394-uhd_2560_1440_25fps.mp4',
+  'https://videos.pexels.com/video-files/992623/992623-hd_1920_1080_25fps.mp4',
   '/display-video.mp4',
 ]
 
@@ -100,23 +99,30 @@ export default function QueueDisplayInner() {
 
   useEffect(() => {
     setSoundEnabled(window.localStorage.getItem('qms_display_sound') === 'on')
-    setStoredVideo(window.localStorage.getItem('qms_display_video'))
+    const stored = window.localStorage.getItem('qms_display_video')
+    // Drop previously saved YouTube IDs (often blocked in Pakistan)
+    if (stored && extractYouTubeId(stored)) {
+      window.localStorage.removeItem('qms_display_video')
+      setStoredVideo(null)
+    } else {
+      setStoredVideo(stored)
+    }
   }, [])
 
   const customOrStored = customVideo || storedVideo
   const youtubeId = useMemo(() => {
-    const fromCustom = extractYouTubeId(customOrStored)
-    if (fromCustom) return fromCustom
-    if (customOrStored && !fromCustom) return null
-    return DEFAULT_YOUTUBE_IDS[0]
-  }, [customOrStored])
+    // YouTube only when explicitly requested — many Pet TV uploads are blocked in Pakistan
+    return extractYouTubeId(customVideo)
+  }, [customVideo])
 
   const mp4Candidates = useMemo(() => {
     const list = []
+    // Prefer custom MP4 only (skip stored YouTube IDs that may be geo-blocked)
     if (customOrStored && !extractYouTubeId(customOrStored)) list.push(customOrStored)
-    list.push(...FALLBACK_MP4)
+    else if (storedVideo && !extractYouTubeId(storedVideo) && !customVideo) list.push(storedVideo)
+    list.push(...PET_MP4_VIDEOS)
     return list.filter(Boolean)
-  }, [customOrStored])
+  }, [customOrStored, customVideo, storedVideo])
 
   const ytCommand = useCallback((func, args = []) => {
     const iframe = ytIframeRef.current
