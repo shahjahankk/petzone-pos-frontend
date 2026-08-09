@@ -222,7 +222,7 @@ async function loadImage(absolute) {
 }
 
 /** Real PNG logo only (compact width). */
-export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320) {
+export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320, maxHeightDots = 96) {
   if (typeof window === 'undefined') return []
 
   const candidates = resolveLogoCandidates(logoUrl)
@@ -242,14 +242,14 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 320) {
         continue
       }
 
-      const targetW = Math.min(maxWidthDots, 384)
+      const targetW = Math.min(maxWidthDots, 448)
       if (w > targetW) {
         h = Math.round((h * targetW) / w)
         w = targetW
       }
-      if (h > 96) {
-        w = Math.floor((w * 96) / h / 8) * 8
-        h = 96
+      if (h > maxHeightDots) {
+        w = Math.floor((w * maxHeightDots) / h / 8) * 8
+        h = maxHeightDots
       }
       w = Math.floor(w / 8) * 8
       if (w < 8) {

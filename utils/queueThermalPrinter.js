@@ -40,21 +40,18 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...esc(0x1b, 0x61, 0x01))
 
   try {
-    const logo = await logoToEscPosRaster('/petzonelogo.png', 320)
+    const logo = await logoToEscPosRaster('/petzonelogo.png', 448, 120)
     if (logo.length) out.push(...logo)
   } catch (e) {
     /* logo optional */
   }
 
   out.push(...esc(0x1b, 0x4d, 0x00)) // Font A
-  out.push(...esc(0x1b, 0x21, 0x18)) // bold + double height
-  out.push(...line('PetZone'))
-  out.push(...esc(0x1b, 0x21, 0x00))
 
   if (extra.serviceName) {
-    out.push(...boldOn())
+    out.push(...esc(0x1b, 0x21, 0x18)) // bold + double height
     out.push(...line(String(extra.serviceName).slice(0, 42)))
-    out.push(...boldOff())
+    out.push(...esc(0x1b, 0x21, 0x00))
   }
 
   out.push(...esc(0x1b, 0x64, 0x01))
@@ -64,10 +61,11 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   out.push(...boldOff())
   out.push(...esc(0x1d, 0x21, 0x00))
   out.push(...esc(0x1b, 0x64, 0x01))
-  out.push(...esc(0x1b, 0x4d, 0x01)) // compact details
+  out.push(...esc(0x1b, 0x4d, 0x00)) // larger Font A details
 
-  if (extra.branchName) out.push(...line(String(extra.branchName).slice(0, 48)))
-  if (extra.petName) out.push(...line(`Pet: ${String(extra.petName).slice(0, 42)}`))
+  out.push(...boldOn())
+  if (extra.branchName) out.push(...line(String(extra.branchName).slice(0, 42)))
+  if (extra.petName) out.push(...line(`Pet: ${String(extra.petName).slice(0, 36)}`))
 
   const ahead = Number(extra.waitingAhead)
   if (Number.isFinite(ahead) && ahead > 0) {
@@ -75,10 +73,13 @@ async function buildTokenCommands(ticketCode, extra = {}) {
   } else if (Number.isFinite(ahead) && ahead === 0) {
     out.push(...line('You are next in queue!'))
   }
+  out.push(...boldOff())
 
   const when = extra.issuedAt ? new Date(extra.issuedAt) : new Date()
   out.push(...line(when.toLocaleString()))
+  out.push(...boldOn())
   out.push(...line('Please wait for your number to be called'))
+  out.push(...boldOff())
   out.push(...line('Powered by Tychora'))
   out.push(...esc(0x1b, 0x4d, 0x00))
   out.push(...cutSafe())
@@ -141,13 +142,11 @@ function printQueueTicketBrowser(ticketCode) {
 <style>
   @page { size: 80mm auto; margin: 4mm; }
   body { margin: 0; padding: 4mm 3mm 5mm; text-align: center; font-family: Arial, sans-serif; width: 72mm; font-size: 12px; }
-  .brand { font-weight:700; font-size:16px; }
-  .num { font-size: 48px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 8px 0; }
+  .num { font-size: 60px; font-weight: 900; color: #1E3A8A; line-height: 1; margin: 10px 0; }
 </style></head><body>
-  <img src="/petzonelogo.png" alt="PetZone" style="max-width:140px;margin:0 auto 4px;display:block;" onerror="this.style.display='none'">
-  <div class="brand">PetZone</div>
+  <img src="/petzonelogo.png" alt="PetZone" style="width:90%;max-width:260px;margin:0 auto 8px;display:block;" onerror="this.style.display='none'">
   <div class="num">${ticketCode}</div>
-  <div>Please wait for your number to be called</div>
+  <div style="font-size:15px;font-weight:800;">Please wait for your number to be called</div>
   <div style="margin-top:8px;font-size:11px;">Powered by Tychora</div>
 </body></html>`
 

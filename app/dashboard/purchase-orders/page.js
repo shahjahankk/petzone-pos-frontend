@@ -18,7 +18,8 @@ import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Visibility as ViewIcon,
   CheckCircle as CheckIcon, Pending as PendingIcon, Business as BusinessIcon,
   Inventory as InventoryIcon, Refresh as RefreshIcon, Cancel as CancelIcon,
-  Close as CloseIcon, AddCircleOutline as AddRowIcon, DeleteSweep as DeleteSweepIcon
+  Close as CloseIcon, AddCircleOutline as AddRowIcon, DeleteSweep as DeleteSweepIcon,
+  QrCodeScanner as BarcodeIcon
 } from '@mui/icons-material'
 import withAuth from '../../../components/auth/withAuth.js'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
@@ -70,6 +71,7 @@ const purchaseOrderSchema = yup.object({
     yup.object({
       itemName:        yup.string().required('Item name is required'),
       itemSku:         yup.string().nullable().notRequired(),
+      itemBarcode:     yup.string().nullable().notRequired(),
       itemDescription: yup.string().nullable().notRequired(),
       quantityOrdered: yup.number().typeError('Quantity must be a number').min(1).required('Quantity is required'),
       unitPrice:       yup.number().typeError('Price must be a number').min(0).required('Cost price is required'),
@@ -81,7 +83,7 @@ const purchaseOrderSchema = yup.object({
 
 const emptyItem = () => ({
   inventoryItemId: null,
-  itemName: '', itemSku: '', itemCategory: 'General', itemDescription: '',
+  itemName: '', itemSku: '', itemBarcode: '', itemCategory: 'General', itemDescription: '',
   quantityOrdered: 1, unitPrice: 0, sellingPrice: null, notes: ''
 })
 
@@ -214,6 +216,7 @@ function OrderItemsTable({ items, formErrors, inventoryOptions, categoryOptions,
         </Box>
         <Box sx={{ flexShrink: 0, width: 36 }} />
         <Box sx={{ flex: 5 }}><Typography variant="caption" fontWeight="600"># Item Name</Typography></Box>
+        <Box sx={{ flexShrink: 0, width: 170 }}><Typography variant="caption" fontWeight="600">Barcode / SKU</Typography></Box>
         <Box sx={{ flex: 2 }}><Typography variant="caption" fontWeight="600">Category</Typography></Box>
         {/* SKU is system-generated on save — field hidden from create/edit PO form */}
         {/* <Box sx={{ flex: 1 }}><Typography variant="caption" fontWeight="600">SKU</Typography></Box> */}
@@ -250,9 +253,10 @@ function ItemRow({ index, item, formErrors, inventoryOptions, categoryOptions, i
     const q = (item.itemName || '').toLowerCase()
     if (!q) return []
     return inventoryOptions.filter(p =>
-      p.name?.toLowerCase().includes(q) ||
-      p.sku?.toLowerCase().includes(q) ||
-      p.category?.toLowerCase().includes(q)
+      String(p.name || '').toLowerCase().includes(q) ||
+      String(p.sku || '').toLowerCase().includes(q) ||
+      String(p.barcode || '').toLowerCase().includes(q) ||
+      String(p.category || '').toLowerCase().includes(q)
     ).slice(0, 12)
   }, [item.itemName, inventoryOptions])
 
@@ -274,6 +278,18 @@ function ItemRow({ index, item, formErrors, inventoryOptions, categoryOptions, i
 
   const handleAddKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAddBelow() }
+  }
+
+  const handleBarcodeEnter = (event) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    const code = String(item.itemBarcode || '').trim().toLowerCase()
+    if (!code) return
+    const product = inventoryOptions.find(p =>
+      String(p.barcode || '').trim().toLowerCase() === code ||
+      String(p.sku || '').trim().toLowerCase() === code
+    )
+    if (product) handleItemSelect(index, product)
   }
 
   return (
@@ -349,6 +365,22 @@ function ItemRow({ index, item, formErrors, inventoryOptions, categoryOptions, i
                 <Typography variant="body2" color="text.secondary">No items found matching &quot;{item.itemName}&quot;</Typography>
               </Paper>
             )}
+          </Box>
+
+          <Box sx={{ flexShrink: 0, width: 170 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Scan Barcode"
+              value={item.itemBarcode || ''}
+              onChange={(e) => onItemChange(index, 'itemBarcode', e.target.value)}
+              onKeyDown={handleBarcodeEnter}
+              autoComplete="off"
+              helperText="Click, then scan"
+              InputProps={{
+                startAdornment: <BarcodeIcon sx={{ mr: 0.5, color: 'text.disabled', fontSize: 18 }} />
+              }}
+            />
           </Box>
 
           <Box sx={{ flex: 2, minWidth: 0 }}>
@@ -579,9 +611,10 @@ function PurchaseOrdersPage() {
               label: i.name,
               name: i.name,
               sku: i.sku,
+              barcode: i.barcode,
               category: i.category || 'General',
-              costPrice: i.cost_price,
-              sellingPrice: i.selling_price
+              costPrice: i.costPrice ?? i.cost_price,
+              sellingPrice: i.sellingPrice ?? i.selling_price
             })).filter(o => o.name)
           : [])
       } catch { setInventoryOptions([]) }
@@ -634,6 +667,7 @@ function PurchaseOrdersPage() {
           inventoryItemId: product.id ?? null,
           itemName:        product.name,
           itemSku:         product.sku || '',
+          itemBarcode:     product.barcode || item.itemBarcode || '',
           itemCategory:    product.category || 'General'
         }
         if (product.costPrice != null && product.costPrice > 0) {
@@ -755,6 +789,7 @@ function PurchaseOrdersPage() {
           inventoryItemId: item.inventoryItemId,
           itemName:        item.itemName,
           itemSku:         item.itemSku         || '',
+          itemBarcode:     item.itemBarcode     || '',
           itemCategory:    item.itemCategory    || 'General',
           itemDescription: item.itemDescription || '',
           quantityOrdered: item.quantityOrdered,

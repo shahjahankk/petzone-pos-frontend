@@ -45,7 +45,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
   { text: 'Branches', icon: <Business />, path: '/branches' },
   { text: 'Warehouses', icon: <Warehouse />, path: '/warehouses' },
-  { text: 'Inventory', icon: <Category />, path: '/inventory' },
+  { text: 'Inventory', icon: <Category />, path: '/dashboard/inventory' },
   { text: 'Customers', icon: <People />, path: '/customers' },
   { text: 'Settings', icon: <Settings />, path: '/settings' },
 ]

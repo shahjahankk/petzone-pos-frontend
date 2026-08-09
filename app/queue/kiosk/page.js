@@ -410,17 +410,15 @@ function QueueKioskPage() {
           Get &amp; Print Next Token
         </Button>
 
-        {String(user?.role || '').toUpperCase() === 'ADMIN' && (
-          <Button
-            variant="outlined"
-            color="secondary"
-            startIcon={<Settings />}
-            onClick={openNumberSettings}
-            sx={{ mt: 2, borderRadius: 2 }}
-          >
-            Number Settings
-          </Button>
-        )}
+        <Button
+          variant="outlined"
+          color="secondary"
+          startIcon={<Settings />}
+          onClick={openNumberSettings}
+          sx={{ mt: 2, borderRadius: 2 }}
+        >
+          Number Settings
+        </Button>
 
         {lastTicket && (
           <Alert severity="success" sx={{ mt: 3 }} icon={<ConfirmationNumber />}>

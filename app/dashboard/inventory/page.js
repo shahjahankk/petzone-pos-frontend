@@ -97,7 +97,9 @@ const inventorySchema = yup.object({
     .min(0, 'Selling price must be a positive number'),
   currentStock: yup.number()
     .nullable()
-    .transform((value) => value === '' || isNaN(value) ? null : value),
+    .transform((value) => value === '' || isNaN(value) ? null : value)
+    .integer('Current stock must be a whole number')
+    .min(0, 'Current stock cannot be negative'),
   scopeType: yup.string()
     .nullable()
     .transform((value) => value === '' ? null : value),
@@ -150,7 +152,18 @@ const getFields = (user, categoryOptions, isEdit = false) => {
   const categoryOpts = categoryOptions && categoryOptions.length > 0 ? categoryOptions : defaultCategories
   const baseFields = [
     { name: 'name', label: 'Product Name', type: 'text', required: true },
-    { name: 'barcode', label: 'Barcode', type: 'text', required: false },
+    {
+      name: 'barcode',
+      label: 'Barcode',
+      type: 'text',
+      required: false,
+      autoComplete: 'off',
+      helperText: 'Click this field, then scan. The scanner fills it automatically.',
+      onKeyDown: (event) => {
+        // Most USB scanners append Enter; keep that from submitting the form.
+        if (event.key === 'Enter') event.preventDefault()
+      },
+    },
     { name: 'description', label: 'Description', type: 'textarea', required: false },
     { 
       name: 'category', 
@@ -199,8 +212,18 @@ const getFields = (user, categoryOptions, isEdit = false) => {
       { name: 'costPrice', label: 'Cost Price', type: 'number', required: true, step: 0.01 },
     ] : []),
 
-    { name: 'sellingPrice', label: 'Selling Price', type: 'number', required: true, step: 0.01 },
-    { name: 'currentStock', label: 'Current Stock', type: 'number', required: true, min: null, step: 1 },
+    { name: 'sellingPrice', label: 'Selling Price', type: 'number', required: true, min: 0, step: 0.01 },
+    ...(!isEdit ? [
+      {
+        name: 'currentStock',
+        label: 'Opening Stock',
+        type: 'number',
+        required: true,
+        min: 0,
+        step: 1,
+        helperText: 'After creation, change stock through stock adjustment/purchase/transfer.',
+      },
+    ] : []),
 
     // supplierId, supplierName, purchaseDate, purchasePrice — hidden on EDIT
     ...(!isEdit ? [
@@ -225,6 +248,10 @@ const getFields = (user, categoryOptions, isEdit = false) => {
       { name: 'purchasePrice', label: 'Purchase Price', type: 'number', required: false, step: 0.01 },
     ] : []),
   ]
+
+  // Scope and opening-stock fields are immutable after creation. Moving an
+  // item or overwriting stock here would break its inventory ledger history.
+  if (isEdit) return baseFields
 
   if (user?.role === 'ADMIN') {
     baseFields.push(
@@ -649,7 +676,17 @@ useEffect(() => {
   }
 
   const handleEdit = (entity) => {
-    setSelectedEntity(entity)
+    // Keep immutable stock, scope, SKU, audit, and aggregate values out of the
+    // form state so react-hook-form cannot submit or validate hidden fields.
+    setSelectedEntity({
+      id: entity.id,
+      name: entity.name ?? '',
+      barcode: entity.barcode ?? '',
+      description: entity.description ?? '',
+      category: entity.category ?? '',
+      unit: entity.unit ?? '',
+      sellingPrice: entity.sellingPrice ?? 0,
+    })
     setIsEdit(true)
     setFormDialogOpen(true)
   }
@@ -866,9 +903,23 @@ Object.keys(normalized).forEach((key) => {
   }
 })
 
+  // EntityFormDialog starts with the complete table row while editing. Never
+  // send system-generated, joined, aggregate, or immutable fields back.
+  const allowedFields = isEdit
+    ? ['name', 'barcode', 'description', 'category', 'unit', 'sellingPrice']
+    : [
+        'name', 'barcode', 'description', 'category', 'unit',
+        'costPrice', 'sellingPrice', 'currentStock',
+        'scopeType', 'scopeId',
+        'supplierId', 'supplierName', 'purchaseDate', 'purchasePrice',
+      ]
+  Object.keys(normalized).forEach((key) => {
+    if (!allowedFields.includes(key)) delete normalized[key]
+  })
+
   // ── ADMIN scope guard ──────────────────────────────────────────────
   // Admin must select a branch/warehouse before creating items
-  if (originalUser?.role === 'ADMIN' && !isAdminMode) {
+  if (!isEdit && originalUser?.role === 'ADMIN' && !isAdminMode) {
     if (!normalized.scopeType || !normalized.scopeId) {
       showToast(
         '⚠️ Please select a Scope Type and Scope Name (Branch or Warehouse) before adding an item. If managing a specific branch/warehouse, use the Admin Dashboard to navigate to that scope first.',
@@ -888,7 +939,15 @@ Object.keys(normalized).forEach((key) => {
     return
   }
 
-  const requiredFields = [{ key: 'name', label: 'Item Name' }]
+  const requiredFields = isEdit
+    ? [{ key: 'name', label: 'Item Name' }]
+    : [
+        { key: 'name', label: 'Item Name' },
+        { key: 'category', label: 'Category' },
+        { key: 'costPrice', label: 'Cost Price' },
+        { key: 'sellingPrice', label: 'Selling Price' },
+        { key: 'currentStock', label: 'Opening Stock' },
+      ]
 
   const missing = requiredFields.filter(f => {
     const v = normalized[f.key]
@@ -1497,7 +1556,7 @@ const canEditInventory = useMemo(() => {
           isEdit={isEdit}
           onSubmit={handleFormSubmit}
           loading={formSubmitting}
-          error={error}
+          error={typeof error === 'string' ? error : error?.message || null}
         />
 
         <ConfirmationDialog
