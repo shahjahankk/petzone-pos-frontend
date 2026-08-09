@@ -14,7 +14,9 @@ export const config = {
   API_TIMEOUT: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT) || 30000,
 
   // Standalone Queue Management API (queue-management.petzone.pk)
-  QMS_API_URL: process.env.NEXT_PUBLIC_QMS_API_URL || 'http://localhost:4050/api',
+  // Use the live HTTPS QMS by default. A localhost fallback breaks the deployed
+  // POS (and is blocked as mixed content when POS itself is served over HTTPS).
+  QMS_API_URL: process.env.NEXT_PUBLIC_QMS_API_URL || 'https://queue-management.petzone.pk/api',
   QMS_ORG_SLUG: process.env.NEXT_PUBLIC_QMS_ORG_SLUG || 'petzone',
   QMS_BRANCH_SLUG: process.env.NEXT_PUBLIC_QMS_BRANCH_SLUG || 'main',
   

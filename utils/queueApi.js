@@ -4,13 +4,27 @@
  */
 import { config } from '../config/environment'
 
-const QMS_BASE = (config.QMS_API_URL || 'http://localhost:4050/api').replace(/\/$/, '')
+const QMS_BASE = (
+  config.QMS_API_URL || 'https://queue-management.petzone.pk/api'
+).replace(/\/$/, '')
 
 async function qmsRequest(path, options = {}) {
-  const res = await fetch(`${QMS_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-  })
+  const url = `${QMS_BASE}${path}`
+  let res
+  try {
+    res = await fetch(url, {
+      ...options,
+      mode: 'cors',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+    })
+  } catch (error) {
+    const err = new Error(
+      `Queue server is unreachable (${QMS_BASE}). Check internet connection and reload the POS.`
+    )
+    err.cause = error
+    throw err
+  }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const err = new Error(data.message || 'Queue API request failed')
