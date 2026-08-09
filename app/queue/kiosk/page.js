@@ -3,8 +3,12 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
   Box, Typography, Button, Alert, Snackbar, CircularProgress, Chip, Stack,
+  Paper, Divider, TextField, Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material'
-import { ConfirmationNumber, Print, Usb, Cable, PrintOutlined } from '@mui/icons-material'
+import {
+  ConfirmationNumber, Print, Usb, Cable, PrintOutlined, Settings,
+  RestartAlt, Pin,
+} from '@mui/icons-material'
 import { useSelector } from 'react-redux'
 import withAuth from '../../../components/auth/withAuth'
 import RouteGuard from '../../../components/auth/RouteGuard'
@@ -23,7 +27,16 @@ import {
   setPrinterMode,
   PRINTER_MODE_DIRECT,
 } from '../../../utils/thermalPrinter'
-import { resolveQueueBranch, issueToken } from '../../../utils/queueApi'
+import {
+  resolveQueueBranch,
+  issueToken,
+  hasQueueAdminSession,
+  clearQueueAdminSession,
+  queueAdminLogin,
+  getQueueSequence,
+  setQueueNextNumber,
+  resetQueueToday,
+} from '../../../utils/queueApi'
 import { printQueueTicket } from '../../../utils/queueThermalPrinter'
 import { PETZONE_LOGO_PNG, PETZONE_LOGO_SVG } from '../../../utils/brandAssets'
 import { config } from '../../../config/environment'
@@ -46,6 +59,15 @@ function QueueKioskPage() {
   const [preferBrowser, setPreferBrowser] = useState(false)
   const [usbBlocked, setUsbBlocked] = useState(false)
   const [toast, setToast] = useState({ open: false, message: '', severity: 'info' })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [queueAdminReady, setQueueAdminReady] = useState(false)
+  const [sequence, setSequence] = useState(null)
+  const [nextNumber, setNextNumber] = useState('')
+  const [settingsBusy, setSettingsBusy] = useState(false)
+  const [adminCredentials, setAdminCredentials] = useState({
+    email: 'admin@petzone.com',
+    password: '',
+  })
 
   const refreshPrinter = useCallback(async () => {
     try {
@@ -151,6 +173,92 @@ function QueueKioskPage() {
     })
   }
 
+  const loadSequence = async () => {
+    if (!branchCtx?.qmsBranchId) {
+      throw new Error('This POS branch is not linked to a queue branch')
+    }
+    const data = await getQueueSequence(branchCtx.qmsBranchId)
+    setSequence(data)
+    setNextNumber(String(data.next_number))
+    setQueueAdminReady(true)
+    return data
+  }
+
+  const openNumberSettings = async () => {
+    setSettingsOpen(true)
+    if (!hasQueueAdminSession()) {
+      setQueueAdminReady(false)
+      return
+    }
+    setSettingsBusy(true)
+    try {
+      await loadSequence()
+    } catch (err) {
+      clearQueueAdminSession()
+      setQueueAdminReady(false)
+      setToast({
+        open: true,
+        message: 'Queue admin session expired. Sign in again.',
+        severity: 'warning',
+      })
+    } finally {
+      setSettingsBusy(false)
+    }
+  }
+
+  const handleQueueAdminLogin = async () => {
+    setSettingsBusy(true)
+    try {
+      await queueAdminLogin(adminCredentials.email, adminCredentials.password)
+      await loadSequence()
+      setAdminCredentials((prev) => ({ ...prev, password: '' }))
+      setToast({ open: true, message: 'Queue number controls unlocked', severity: 'success' })
+    } catch (err) {
+      clearQueueAdminSession()
+      setQueueAdminReady(false)
+      setToast({ open: true, message: err.message, severity: 'error' })
+    } finally {
+      setSettingsBusy(false)
+    }
+  }
+
+  const handleSetNextNumber = async () => {
+    const value = Number(nextNumber)
+    if (!Number.isInteger(value) || value < 1) {
+      setToast({ open: true, message: 'Enter a whole number (1 or higher)', severity: 'warning' })
+      return
+    }
+    setSettingsBusy(true)
+    try {
+      const result = await setQueueNextNumber(branchCtx.qmsBranchId, value)
+      await loadSequence()
+      setToast({ open: true, message: result.message, severity: 'success' })
+    } catch (err) {
+      setToast({ open: true, message: err.message, severity: 'error' })
+    } finally {
+      setSettingsBusy(false)
+    }
+  }
+
+  const handleResetToday = async () => {
+    const confirmation = window.prompt(
+      `This deletes today's consultation tokens for ${branchCtx?.branchName || 'this branch'}.\nType RESET to continue:`
+    )
+    if (confirmation !== 'RESET') return
+
+    setSettingsBusy(true)
+    try {
+      const result = await resetQueueToday(branchCtx.qmsBranchId)
+      setLastTicket(null)
+      await loadSequence()
+      setToast({ open: true, message: result.message, severity: 'success' })
+    } catch (err) {
+      setToast({ open: true, message: err.message, severity: 'error' })
+    } finally {
+      setSettingsBusy(false)
+    }
+  }
+
   const handlePrintToken = async () => {
     if (!branchCtx) return
     setIssuing(true)
@@ -187,22 +295,41 @@ function QueueKioskPage() {
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f0f4ff', p: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Box sx={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        p: { xs: 2, md: 4 },
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #eef4ff 0%, #f8fbff 50%, #e8f7f0 100%)',
+      }}
+    >
+      <Box sx={{ maxWidth: 760, width: '100%', textAlign: 'center' }}>
+        <Paper
+          elevation={8}
+          sx={{
+            p: { xs: 3, md: 5 },
+            borderRadius: 5,
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
         <Box
           component="img"
           src={PETZONE_LOGO_PNG}
           alt="PetZone"
           onError={(e) => { e.currentTarget.src = PETZONE_LOGO_SVG }}
-          sx={{ height: 56, mb: 2, objectFit: 'contain' }}
+          sx={{ height: { xs: 56, md: 72 }, mb: 2, objectFit: 'contain', maxWidth: '80%' }}
         />
 
-        <Typography variant="h5" fontWeight={800} color="primary" gutterBottom>
-          Queue Token
+        <Typography variant="h4" fontWeight={900} color="primary" gutterBottom>
+          Queue Token Station
         </Typography>
-        <Typography color="text.secondary" sx={{ mb: 2 }}>
+        <Typography color="text.secondary" sx={{ mb: 3, fontSize: 17 }}>
           {branchCtx?.branchName || 'PetZone Clinic'}
         </Typography>
+        <Divider sx={{ mb: 3 }} />
 
         {usbBlocked && (
           <Alert severity="error" sx={{ mb: 2, textAlign: 'left' }}>
@@ -212,7 +339,7 @@ function QueueKioskPage() {
           </Alert>
         )}
 
-        <Stack spacing={1} sx={{ mb: 2 }} alignItems="center">
+        <Stack spacing={1.5} sx={{ mb: 3 }} alignItems="center">
           {printerReady && transport && transport !== 'system' ? (
             <Chip label={transportLabel(transport)} color="success" size="small" />
           ) : (
@@ -260,33 +387,169 @@ function QueueKioskPage() {
         )}
 
         {lastTicket && (
-          <Typography variant="h2" fontWeight={900} color="primary" sx={{ mb: 2 }}>
-            {lastTicket.ticket_code}
-          </Typography>
+          <Paper
+            variant="outlined"
+            sx={{ mb: 3, p: 2, bgcolor: 'rgba(37, 99, 235, 0.04)', borderColor: 'primary.light' }}
+          >
+            <Typography variant="overline" color="text.secondary">Latest token</Typography>
+            <Typography variant="h1" fontWeight={900} color="primary" lineHeight={1}>
+              {lastTicket.ticket_code}
+            </Typography>
+          </Paper>
         )}
 
         <Button
           variant="contained"
           size="large"
           fullWidth
-          sx={{ py: 3, fontSize: 22, borderRadius: 3 }}
+          sx={{ py: 2.5, fontSize: 22, borderRadius: 3, fontWeight: 800 }}
           startIcon={issuing ? <CircularProgress size={24} color="inherit" /> : <Print />}
           onClick={handlePrintToken}
           disabled={issuing}
         >
-          Print Token
+          Get &amp; Print Next Token
         </Button>
+
+        {String(user?.role || '').toUpperCase() === 'ADMIN' && (
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={<Settings />}
+            onClick={openNumberSettings}
+            sx={{ mt: 2, borderRadius: 2 }}
+          >
+            Number Settings
+          </Button>
+        )}
 
         {lastTicket && (
           <Alert severity="success" sx={{ mt: 3 }} icon={<ConfirmationNumber />}>
             Last token: <strong>{lastTicket.ticket_code}</strong>
           </Alert>
         )}
+        </Paper>
       </Box>
 
       <Snackbar open={toast.open} autoHideDuration={5000} onClose={() => setToast({ ...toast, open: false })}>
         <Alert severity={toast.severity} onClose={() => setToast({ ...toast, open: false })}>{toast.message}</Alert>
       </Snackbar>
+
+      <Dialog
+        open={settingsOpen}
+        onClose={() => !settingsBusy && setSettingsOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 800 }}>
+          <Pin color="primary" /> Queue Number Settings
+        </DialogTitle>
+        <DialogContent dividers>
+          {!queueAdminReady ? (
+            <Stack spacing={2} sx={{ pt: 1 }}>
+              <Alert severity="info">
+                Sign in with a QMS administrator account to change or reset token numbers.
+              </Alert>
+              <TextField
+                label="QMS Admin Email"
+                type="email"
+                value={adminCredentials.email}
+                onChange={(e) => setAdminCredentials((prev) => ({ ...prev, email: e.target.value }))}
+                fullWidth
+              />
+              <TextField
+                label="QMS Admin Password"
+                type="password"
+                value={adminCredentials.password}
+                onChange={(e) => setAdminCredentials((prev) => ({ ...prev, password: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleQueueAdminLogin()
+                }}
+                fullWidth
+              />
+            </Stack>
+          ) : (
+            <Stack spacing={2.5} sx={{ pt: 1 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={800}>
+                  {sequence?.branch_name || branchCtx?.branchName}
+                </Typography>
+                <Typography color="text.secondary">
+                  {sequence?.service_name || 'General Consultation'} · {sequence?.date_key}
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={2}>
+                <Paper variant="outlined" sx={{ flex: 1, p: 2, textAlign: 'center' }}>
+                  <Typography variant="caption" color="text.secondary">Last issued</Typography>
+                  <Typography variant="h4" fontWeight={900}>{sequence?.highest_issued || 0}</Typography>
+                </Paper>
+                <Paper variant="outlined" sx={{ flex: 1, p: 2, textAlign: 'center' }}>
+                  <Typography variant="caption" color="text.secondary">Next token</Typography>
+                  <Typography variant="h4" fontWeight={900} color="primary">
+                    {sequence?.next_number || 1}
+                  </Typography>
+                </Paper>
+              </Stack>
+
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <TextField
+                  label="Set next token number"
+                  type="number"
+                  value={nextNumber}
+                  onChange={(e) => setNextNumber(e.target.value)}
+                  inputProps={{ min: 1, step: 1 }}
+                  fullWidth
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleSetNextNumber}
+                  disabled={settingsBusy}
+                  sx={{ minWidth: 120 }}
+                >
+                  Set Next
+                </Button>
+              </Stack>
+
+              <Alert severity="warning">
+                Reset removes today&apos;s consultation tokens and starts again from 1.
+              </Alert>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<RestartAlt />}
+                onClick={handleResetToday}
+                disabled={settingsBusy}
+              >
+                Reset Today to 1
+              </Button>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {queueAdminReady && (
+            <Button
+              color="inherit"
+              onClick={() => {
+                clearQueueAdminSession()
+                setQueueAdminReady(false)
+                setSequence(null)
+              }}
+            >
+              Lock Controls
+            </Button>
+          )}
+          <Button onClick={() => setSettingsOpen(false)} disabled={settingsBusy}>Close</Button>
+          {!queueAdminReady && (
+            <Button
+              variant="contained"
+              onClick={handleQueueAdminLogin}
+              disabled={settingsBusy || !adminCredentials.email || !adminCredentials.password}
+            >
+              {settingsBusy ? 'Signing in…' : 'Unlock'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

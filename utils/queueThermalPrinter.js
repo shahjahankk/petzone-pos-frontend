@@ -47,22 +47,25 @@ async function buildTokenCommands(ticketCode, extra = {}) {
     /* logo optional */
   }
 
-  out.push(...esc(0x1b, 0x4d, 0x01)) // Font B
-  out.push(...boldOn())
+  out.push(...esc(0x1b, 0x4d, 0x00)) // Font A
+  out.push(...esc(0x1b, 0x21, 0x18)) // bold + double height
   out.push(...line('PetZone'))
-  out.push(...boldOff())
+  out.push(...esc(0x1b, 0x21, 0x00))
 
   if (extra.serviceName) {
-    out.push(...line(String(extra.serviceName).slice(0, 48)))
+    out.push(...boldOn())
+    out.push(...line(String(extra.serviceName).slice(0, 42)))
+    out.push(...boldOff())
   }
 
-  out.push(...esc(0x1b, 0x4d, 0x00))
-  out.push(...esc(0x1b, 0x21, 0x30))
+  out.push(...esc(0x1b, 0x64, 0x01))
+  out.push(...esc(0x1d, 0x21, 0x33)) // 4× token number
   out.push(...boldOn())
   out.push(...line(String(ticketCode)))
   out.push(...boldOff())
-  out.push(...esc(0x1b, 0x21, 0x00))
-  out.push(...esc(0x1b, 0x4d, 0x01))
+  out.push(...esc(0x1d, 0x21, 0x00))
+  out.push(...esc(0x1b, 0x64, 0x01))
+  out.push(...esc(0x1b, 0x4d, 0x01)) // compact details
 
   if (extra.branchName) out.push(...line(String(extra.branchName).slice(0, 48)))
   if (extra.petName) out.push(...line(`Pet: ${String(extra.petName).slice(0, 42)}`))
