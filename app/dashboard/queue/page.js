@@ -113,7 +113,7 @@ function QueueDashboardPage() {
 
   const resetToday = async () => {
     const typed = window.prompt(
-      `This deletes today's consultation tokens for ${branch?.branchName || 'this branch'}.\nType RESET to continue:`
+      `This deletes today's tokens for ALL categories (Consultation + Grooming) at ${branch?.branchName || 'this branch'}.\nType RESET to continue:`
     )
     if (typed !== 'RESET') return
     setBusy(true)
@@ -172,7 +172,7 @@ function QueueDashboardPage() {
                     <Box>
                       <Typography variant="h5" fontWeight={800}>Number Settings</Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {sequence?.service_name || 'General Consultation'} · Today
+                        {sequence?.service_name || 'All categories (shared)'} · Today
                       </Typography>
                     </Box>
                     <Settings color="primary" />

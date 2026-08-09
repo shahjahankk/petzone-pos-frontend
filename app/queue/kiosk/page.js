@@ -292,7 +292,7 @@ function QueueKioskPage() {
 
   const handleResetToday = async () => {
     const confirmation = window.prompt(
-      `This deletes today's consultation tokens for ${branchCtx?.branchName || 'this branch'}.\nType RESET to continue:`
+      `This deletes today's tokens for ALL categories (Consultation + Grooming) at ${branchCtx?.branchName || 'this branch'}.\nType RESET to continue:`
     )
     if (confirmation !== 'RESET') return
 
@@ -558,7 +558,7 @@ function QueueKioskPage() {
                   {sequence?.branch_name || branchCtx?.branchName}
                 </Typography>
                 <Typography color="text.secondary">
-                  {sequence?.service_name || 'General Consultation'} · {sequence?.date_key}
+                  {sequence?.service_name || 'All categories (shared)'} · {sequence?.date_key}
                 </Typography>
               </Box>
 
@@ -595,7 +595,7 @@ function QueueKioskPage() {
               </Stack>
 
               <Alert severity="warning">
-                Reset removes today&apos;s consultation tokens and starts again from 1.
+                Reset removes today&apos;s tokens for all categories and starts again from 1.
               </Alert>
               <Button
                 variant="outlined"
