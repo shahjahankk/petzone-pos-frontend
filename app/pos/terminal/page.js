@@ -2123,7 +2123,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       if (createSale.fulfilled.match(result)) {
         const sale = result.payload.data || result.payload
 
-        if (pendingSelectedPayments.length > 0 && pendingShowSettlement) {
+        // Fully credit sales roll outstanding into the new credit — do not clear-outstanding separately.
+        const isFullyCreditSale = saleData?.paymentMethod === 'FULLY_CREDIT' || saleData?.paymentType === 'FULLY_CREDIT'
+        if (pendingSelectedPayments.length > 0 && pendingShowSettlement && !isFullyCreditSale) {
           try {
             await settleOutstandingPayments()
           } catch (error) {
@@ -3286,7 +3288,22 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button variant={!isPartialPayment && !isFullyCredit && !isBalancePayment ? 'contained' : 'outlined'} size="small" onClick={() => { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(false); setPaymentAmount(''); setCreditAmount(''); setPaymentMethod('CASH'); handleSettlementPaymentType('full') }} sx={{ fontFamily: 'monospace', flex: 1 }}>Full Payment</Button>
                 <Button variant={isPartialPayment ? 'contained' : 'outlined'} size="small" onClick={() => { setIsPartialPayment(true); setIsFullyCredit(false); setIsBalancePayment(false); if (!paymentAmount) setPaymentAmount(''); if (!creditAmount) setCreditAmount(total.toFixed(2)); if (selectedOutstandingPayments.length > 0) handleSettlementPaymentType('partial') }} sx={{ fontFamily: 'monospace', flex: 1 }}>Partial Payment</Button>
-                <Button variant={isFullyCredit ? 'contained' : 'outlined'} size="small" onClick={() => { setIsPartialPayment(false); setIsFullyCredit(true); setIsBalancePayment(false); setPaymentAmount(''); setCreditAmount(total.toString()); handleSettlementPaymentType('fullyCredit') }} sx={{ fontFamily: 'monospace', flex: 1 }}>Fully Credit</Button>
+                <Button variant={isFullyCredit ? 'contained' : 'outlined'} size="small" onClick={() => {
+                  setIsPartialPayment(false)
+                  setIsFullyCredit(true)
+                  setIsBalancePayment(false)
+                  setPaymentMethod('FULLY_CREDIT')
+                  setPaymentAmount('0')
+                  setCreditAmount(total.toString())
+                  // With cart items, old outstanding is rolled into this credit sale — do not open settlement-only flow.
+                  if (currentCart.length === 0 && selectedOutstandingPayments.length > 0) {
+                    handleSettlementPaymentType('fullyCredit')
+                  } else {
+                    setShowSettlementOptions(false)
+                    setIsSettlementFullyCredit(false)
+                    setIsSettlementPartial(false)
+                  }
+                }} sx={{ fontFamily: 'monospace', flex: 1 }}>Fully Credit</Button>
                 <Button variant={isBalancePayment ? 'contained' : 'outlined'} size="small" disabled={outstandingTotal >= 0} onClick={() => { setIsPartialPayment(false); setIsFullyCredit(false); setIsBalancePayment(true); setPaymentAmount('0'); setCreditAmount(billAmount.toString()); handleSettlementPaymentType('balance') }} sx={{ fontFamily: 'monospace', flex: 1 }}>Balance</Button>
               </Box>
             </Box>

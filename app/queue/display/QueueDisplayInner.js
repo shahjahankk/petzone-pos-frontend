@@ -9,7 +9,10 @@ import { announceQueueCall, speakQueueText, unlockQueueAudio, setAmbientAudioCon
 
 const QMS_BASE = (config.QMS_API_URL || 'http://localhost:4050/api').replace(/\/$/, '')
 
-// Cute family-safe cats/dogs stock video (MP4) — works in Pakistan (no YouTube geo-block)
+// Dynamic ambient video from Admin → Branches (display_video_url).
+// Fallback default: https://www.youtube.com/watch?v=gcUHp8Wm7D0
+const DEFAULT_YOUTUBE_ID = 'gcUHp8Wm7D0'
+const DEFAULT_VIDEO_URL = `https://www.youtube.com/watch?v=${DEFAULT_YOUTUBE_ID}`
 const PET_MP4_VIDEOS = [
   'https://videos.pexels.com/video-files/855029/855029-hd_1920_1080_30fps.mp4',
   'https://videos.pexels.com/video-files/2795407/2795407-uhd_2560_1440_25fps.mp4',
@@ -21,8 +24,13 @@ const PET_MP4_VIDEOS = [
 
 function extractYouTubeId(value) {
   if (!value) return null
-  const raw = String(value).trim()
+  let raw = String(value).trim()
+  if (!raw) return null
   if (/^[\w-]{11}$/.test(raw)) return raw
+  // Allow pasted links without https://
+  if (!/^https?:\/\//i.test(raw) && /(?:youtube\.com|youtu\.be)/i.test(raw)) {
+    raw = `https://${raw.replace(/^\/+/, '')}`
+  }
   try {
     const u = new URL(raw)
     if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('/')[0] || null
@@ -33,6 +41,10 @@ function extractYouTubeId(value) {
     const shortsIdx = parts.indexOf('shorts')
     if (shortsIdx >= 0 && parts[shortsIdx + 1]) return parts[shortsIdx + 1]
   } catch (_) { /* not a URL */ }
+  const watch = raw.match(/[?&]v=([\w-]{11})/)
+  if (watch) return watch[1]
+  const short = raw.match(/youtu\.be\/([\w-]{11})/)
+  if (short) return short[1]
   return null
 }
 
@@ -68,7 +80,10 @@ function displayNum(code) {
 }
 
 async function fetchStatus(org, branch) {
-  const res = await fetch(`${QMS_BASE}/queue/public/${org}/${branch}/status`)
+  const res = await fetch(
+    `${QMS_BASE}/queue/public/${org}/${branch}/status?_=${Date.now()}`,
+    { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+  )
   const json = await res.json()
   if (!json.success) throw new Error(json.message)
   return json.data
@@ -94,35 +109,47 @@ export default function QueueDisplayInner() {
   const ambientWantedRef = useRef(false)
   const ambientDuckedRef = useRef(false)
   const [soundEnabled, setSoundEnabled] = useState(false)
-  const [storedVideo, setStoredVideo] = useState(null)
   const [ytWithSound, setYtWithSound] = useState(false)
+  // Seed used only when remounting iframe (sound toggle). Video URL changes use loadVideoById.
+  const [ytEmbedSeed, setYtEmbedSeed] = useState(null)
+  const prevYtIdRef = useRef(null)
+  const prevYtSoundRef = useRef(false)
 
   useEffect(() => {
     setSoundEnabled(window.localStorage.getItem('qms_display_sound') === 'on')
-    const stored = window.localStorage.getItem('qms_display_video')
-    // Drop previously saved YouTube IDs (often blocked in Pakistan)
-    if (stored && extractYouTubeId(stored)) {
-      window.localStorage.removeItem('qms_display_video')
-      setStoredVideo(null)
-    } else {
-      setStoredVideo(stored)
-    }
   }, [])
 
-  const customOrStored = customVideo || storedVideo
+  // Priority: URL param → Admin-saved branch video → default reel
+  const resolvedVideoUrl = useMemo(() => {
+    if (customVideo) return customVideo.trim()
+    const fromServer = data?.display_video_url && String(data.display_video_url).trim()
+    return fromServer || DEFAULT_VIDEO_URL
+  }, [customVideo, data?.display_video_url])
+
   const youtubeId = useMemo(() => {
-    // YouTube only when explicitly requested — many Pet TV uploads are blocked in Pakistan
-    return extractYouTubeId(customVideo)
-  }, [customVideo])
+    if (customVideo && !extractYouTubeId(customVideo)) return null
+    return extractYouTubeId(resolvedVideoUrl) || (customVideo ? null : DEFAULT_YOUTUBE_ID)
+  }, [customVideo, resolvedVideoUrl])
 
   const mp4Candidates = useMemo(() => {
+    if (youtubeId) return []
     const list = []
-    // Prefer custom MP4 only (skip stored YouTube IDs that may be geo-blocked)
-    if (customOrStored && !extractYouTubeId(customOrStored)) list.push(customOrStored)
-    else if (storedVideo && !extractYouTubeId(storedVideo) && !customVideo) list.push(storedVideo)
+    if (resolvedVideoUrl && !extractYouTubeId(resolvedVideoUrl)) list.push(resolvedVideoUrl)
     list.push(...PET_MP4_VIDEOS)
     return list.filter(Boolean)
-  }, [customOrStored, customVideo, storedVideo])
+  }, [resolvedVideoUrl, youtubeId])
+
+  useEffect(() => {
+    // Reset MP4 fallback index when video source changes
+    setVideoIndex(0)
+    setVideoFailed(false)
+    try {
+      window.localStorage.setItem(
+        'qms_display_video',
+        youtubeId || resolvedVideoUrl || DEFAULT_YOUTUBE_ID
+      )
+    } catch (_) { /* ignore */ }
+  }, [youtubeId, resolvedVideoUrl])
 
   const ytCommand = useCallback((func, args = []) => {
     const iframe = ytIframeRef.current
@@ -133,6 +160,40 @@ export default function QueueDisplayInner() {
       args,
     }), '*')
   }, [])
+
+  // Keep iframe mounted across Admin video URL changes so ambient sound stays unlocked.
+  useEffect(() => {
+    if (!youtubeId) {
+      prevYtIdRef.current = null
+      return
+    }
+    if (!ytEmbedSeed) {
+      setYtEmbedSeed(youtubeId)
+      prevYtIdRef.current = youtubeId
+      prevYtSoundRef.current = ytWithSound
+      return
+    }
+    if (prevYtSoundRef.current !== ytWithSound) {
+      // Sound toggle: remount unmuted/muted (needs user gesture path)
+      prevYtSoundRef.current = ytWithSound
+      prevYtIdRef.current = youtubeId
+      setYtEmbedSeed(youtubeId)
+      return
+    }
+    if (prevYtIdRef.current !== youtubeId) {
+      prevYtIdRef.current = youtubeId
+      ytCommand('loadVideoById', [youtubeId])
+      if (soundEnabled && ambientWantedRef.current && !ambientDuckedRef.current) {
+        const restore = () => {
+          ytCommand('unMute')
+          ytCommand('setVolume', [AMBIENT_YT_VOLUME])
+          ytCommand('playVideo')
+        }
+        setTimeout(restore, 400)
+        setTimeout(restore, 1200)
+      }
+    }
+  }, [youtubeId, ytWithSound, ytEmbedSeed, ytCommand, soundEnabled])
 
   const setAmbientPlaying = useCallback((on) => {
     ambientWantedRef.current = Boolean(on)
@@ -329,14 +390,14 @@ export default function QueueDisplayInner() {
         background:
           'radial-gradient(ellipse at 30% 40%, rgba(13,148,136,0.35), transparent 55%), radial-gradient(ellipse at 80% 70%, rgba(14,116,144,0.3), transparent 50%), linear-gradient(145deg, #0c4a6e, #134e4a 50%, #0f172a)',
       }}>
-        {youtubeId ? (
+        {youtubeId && ytEmbedSeed ? (
           <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
             <Box
               component="iframe"
               ref={ytIframeRef}
-              key={`${youtubeId}-${ytWithSound ? 'sound' : 'mute'}`}
+              key={ytWithSound ? 'yt-sound' : 'yt-mute'}
               title="PetZone ambient video"
-              src={youtubeEmbedUrl(youtubeId, ytWithSound)}
+              src={youtubeEmbedUrl(ytEmbedSeed, ytWithSound)}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               referrerPolicy="strict-origin-when-cross-origin"
               sx={{
