@@ -1837,17 +1837,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
       if (createSale.fulfilled.match(result)) {
         const sale = result.payload?.data ?? result.payload
-        const isCashPayment = (paymentMethod || 'CASH').toUpperCase() === 'CASH'
-        const shouldClearOutstanding = (currentCart.length === 0 && showSettlementOptions) ||
-          (isCashPayment && !isFullyCredit && !isBalancePayment && selectedOutstandingPayments.length > 0 && finalPaymentAmount > 0)
-
-        if (shouldClearOutstanding) {
-          try {
-            await settleOutstandingPayments()
-          } catch (error) {
-            alert(`❌ Error processing outstanding payments: ${error.message}`)
-          }
-        }
+        // Outstanding included in sale total is settled inside createSale — skip client clear-outstanding.
 
         try {
           await printReceipt(sale)
@@ -2111,11 +2101,6 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       const {
         saleData,
         printDataPreview,
-        finalPaymentAmount,
-        finalCreditAmount,
-        totalWithOutstanding,
-        selectedOutstandingPayments: pendingSelectedPayments,
-        showSettlementOptions: pendingShowSettlement
       } = pendingSaleData
 
       const result = await dispatch(createSale({ ...saleData, __idempotencyKey: makeSaleIdempotencyKey() }))
@@ -2123,15 +2108,8 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       if (createSale.fulfilled.match(result)) {
         const sale = result.payload.data || result.payload
 
-        // Fully credit sales roll outstanding into the new credit — do not clear-outstanding separately.
-        const isFullyCreditSale = saleData?.paymentMethod === 'FULLY_CREDIT' || saleData?.paymentType === 'FULLY_CREDIT'
-        if (pendingSelectedPayments.length > 0 && pendingShowSettlement && !isFullyCreditSale) {
-          try {
-            await settleOutstandingPayments()
-          } catch (error) {
-            alert(`❌ Sale created but outstanding settlement failed: ${error.message}`)
-          }
-        }
+        // Outstanding cash settlement is handled inside backend createSale when total includes
+        // old balance — do not call clear-outstanding again after a successful sale.
 
         const finalPrintData = {
           ...printDataPreview,
