@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RoleGuard from '../../../components/auth/RoleGuard'
@@ -10,10 +10,6 @@ import {
   Card,
   CardContent,
   Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
   Alert,
   CircularProgress,
@@ -52,94 +48,71 @@ function OtherBranchesInventoryPage() {
     crossBranchError
   } = useSelector((state) => state.inventory)
   const { data: branches, loading: branchesLoading } = useSelector((state) => state.branches)
-  
-  const [selectedBranchId, setSelectedBranchId] = useState(null)
+
   const [selectedBranch, setSelectedBranch] = useState(null)
-  const [filteredInventory, setFilteredInventory] = useState([])
-  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
-    // Fetch branches and cross-branch inventory
     dispatch(fetchBranches())
     dispatch(fetchCrossBranchInventory())
   }, [dispatch])
 
-  // Filter inventory based on selected branch
-  useEffect(() => {
-    if (selectedBranchId && crossBranchData) {
-      const filtered = crossBranchData.filter(item => 
-        item.scopeType === 'BRANCH' && item.scopeId === selectedBranchId
-      )
-      setFilteredInventory(filtered)
-    } else {
-      setFilteredInventory([])
-    }
+  const ownBranchId = user?.branchId != null ? Number(user.branchId) : null
+
+  // Other branches only (exclude caller's branch); coerce ids for string/number mismatch
+  const otherBranches = useMemo(() => {
+    const list = Array.isArray(branches) ? branches : []
+    return list.filter((branch) => {
+      if (ownBranchId == null || Number.isNaN(ownBranchId)) return true
+      return Number(branch.id) !== ownBranchId
+    })
+  }, [branches, ownBranchId])
+
+  const selectedBranchId = selectedBranch?.id != null ? Number(selectedBranch.id) : null
+
+  const filteredInventory = useMemo(() => {
+    if (selectedBranchId == null || !Array.isArray(crossBranchData)) return []
+    return crossBranchData.filter((item) => {
+      const itemScopeType = (item.scopeType || item.scope_type || '').toUpperCase()
+      const itemScopeId = Number(item.scopeId ?? item.scope_id)
+      return itemScopeType === 'BRANCH' && itemScopeId === selectedBranchId
+    }).map((item) => {
+      const qty = Number(item.quantity ?? item.currentStock ?? item.current_stock ?? 0)
+      return {
+        ...item,
+        quantity: qty,
+        currentStock: qty,
+        minStockLevel: Number(item.minStockLevel ?? item.min_stock_level ?? 0),
+        costPrice: Number(item.costPrice ?? item.cost_price ?? 0),
+        sellingPrice: Number(item.sellingPrice ?? item.selling_price ?? 0),
+        category: item.category || 'Uncategorized',
+        totalSold: Number(item.totalSold || 0),
+        totalReturned: Number(item.totalReturned || 0),
+        totalPurchased: Number(item.totalPurchased || 0),
+      }
+    })
   }, [selectedBranchId, crossBranchData])
 
-  // Get other branches (excluding current user's branch) and filter by search term
-  const otherBranches = branches?.filter(branch => branch.id !== user?.branchId) || []
-  const filteredBranches = otherBranches.filter(branch => 
-    branch.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    branch.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (branch.address && branch.address.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
-
-  // Calculate summary statistics
   const totalItems = filteredInventory.length
-  const lowStockItems = filteredInventory.filter(item => 
+  const lowStockItems = filteredInventory.filter((item) =>
     item.quantity <= (item.minStockLevel || 10)
   ).length
-  const totalValue = filteredInventory.reduce((sum, item) => 
+  const totalValue = filteredInventory.reduce((sum, item) =>
     sum + (item.quantity * (item.costPrice || 0)), 0
   )
-  const categories = [...new Set(filteredInventory.map(item => item.category))].length
+  const categories = [...new Set(filteredInventory.map((item) => item.category))].length
 
-  // Define columns for the inventory table
-  const columns = [
-    { field: 'name', headerName: 'Item Name', width: 200 },
-    { field: 'category', headerName: 'Category', width: 150 },
-    { field: 'quantity', headerName: 'Quantity', width: 100, type: 'number' },
-    { field: 'minStockLevel', headerName: 'Min Stock', width: 100, type: 'number' },
-    { field: 'costPrice', headerName: 'Cost Price', width: 120, type: 'number' },
-    { field: 'sellingPrice', headerName: 'Selling Price', width: 120, type: 'number' },
-    { 
-      field: 'status', 
-      headerName: 'Status', 
-      width: 120,
-      renderCell: (params) => {
-        const isLowStock = params.row.quantity <= (params.row.minStockLevel || 10)
-        const isOutOfStock = params.row.quantity <= 0
-        
-        if (isOutOfStock) {
-          return <Chip label="Out of Stock" color="error" size="small" />
-        } else if (isLowStock) {
-          return <Chip label="Low Stock" color="warning" size="small" />
-        } else {
-          return <Chip label="In Stock" color="success" size="small" />
-        }
-      }
-    },
-  ]
-
-  const handleBranchChange = (event, newValue) => {
-    if (newValue) {
-      setSelectedBranch(newValue)
-      setSelectedBranchId(newValue.id)
-    } else {
-      setSelectedBranch(null)
-      setSelectedBranchId(null)
-    }
+  const handleBranchChange = (_event, newValue) => {
+    setSelectedBranch(newValue || null)
   }
 
-  const handleClearSelection = () => {
+  const handleClearSelection = (event) => {
+    event?.stopPropagation?.()
     setSelectedBranch(null)
-    setSelectedBranchId(null)
-    setSearchTerm('')
   }
 
-  const getSelectedBranchName = () => {
-    return selectedBranch ? selectedBranch.name : 'Select Branch'
-  }
+  const errorMessage = typeof crossBranchError === 'string'
+    ? crossBranchError
+    : (crossBranchError?.message || null)
 
   return (
     <RoleGuard allowedRoles={['CASHIER']}>
@@ -154,14 +127,14 @@ function OtherBranchesInventoryPage() {
                 View inventory from other branches (Read Only)
               </Typography>
             </Box>
-            <Chip 
-              label="CASHIER" 
-              color="primary" 
-              variant="outlined" 
+            <Chip
+              label="CASHIER"
+              color="primary"
+              variant="outlined"
             />
           </Box>
 
-          {/* Enhanced Branch Selection */}
+          {/* Branch Selection — full-width searchable dropdown */}
           <Card sx={{ mb: 3, boxShadow: 2 }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -170,40 +143,61 @@ function OtherBranchesInventoryPage() {
                   Branch Selection
                 </Typography>
               </Box>
-              
-              <Grid container spacing={3} alignItems="center">
-                <Grid item xs={12} md={9}>
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', md: 'row' },
+                  gap: 2,
+                  alignItems: { xs: 'stretch', md: 'flex-start' },
+                }}
+              >
+                <Box sx={{ flex: '1 1 auto', width: '100%', minWidth: 0 }}>
                   {branchesLoading ? (
-                    <Skeleton variant="rectangular" height={56} sx={{ borderRadius: 1 }} />
+                    <Skeleton variant="rectangular" height={64} sx={{ borderRadius: 1, width: '100%' }} />
                   ) : (
                     <Autocomplete
+                      fullWidth
                       value={selectedBranch}
                       onChange={handleBranchChange}
-                      inputValue={searchTerm}
-                      onInputChange={(event, newInputValue) => {
-                        setSearchTerm(newInputValue)
+                      options={otherBranches}
+                      getOptionLabel={(option) =>
+                        option ? `${option.name || ''} (${option.code || ''})` : ''
+                      }
+                      isOptionEqualToValue={(option, value) =>
+                        Number(option?.id) === Number(value?.id)
+                      }
+                      filterOptions={(options, state) => {
+                        const q = (state.inputValue || '').trim().toLowerCase()
+                        if (!q) return options
+                        return options.filter((branch) => {
+                          const name = (branch.name || '').toLowerCase()
+                          const code = (branch.code || '').toLowerCase()
+                          const loc = (branch.location || branch.address || '').toLowerCase()
+                          return name.includes(q) || code.includes(q) || loc.includes(q)
+                        })
                       }}
-                      options={filteredBranches}
-                      getOptionLabel={(option) => `${option.name} (${option.code})`}
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
                       renderInput={(params) => (
                         <TextField
                           {...params}
                           label="Search and Select Branch"
-                          placeholder="Type to search branches..."
+                          placeholder="Type branch name or code..."
                           fullWidth
                           InputProps={{
                             ...params.InputProps,
                             startAdornment: (
-                              <InputAdornment position="start">
-                                <Search color="action" />
-                              </InputAdornment>
+                              <>
+                                <InputAdornment position="start">
+                                  <Search color="action" />
+                                </InputAdornment>
+                                {params.InputProps.startAdornment}
+                              </>
                             ),
                             endAdornment: (
                               <>
                                 {selectedBranch && (
                                   <InputAdornment position="end">
-                                    <Clear 
+                                    <Clear
                                       onClick={handleClearSelection}
                                       sx={{ cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
                                     />
@@ -214,28 +208,24 @@ function OtherBranchesInventoryPage() {
                             ),
                           }}
                           sx={{
+                            width: '100%',
                             '& .MuiOutlinedInput-root': {
-                              minHeight: 68,
-                              '&:hover fieldset': {
-                                borderColor: 'primary.main',
-                              },
-                            },
-                            '& .MuiInputBase-input': {
+                              minHeight: 64,
                               fontSize: '1.05rem',
-                              padding: '16px 16px',
                             },
                           }}
                         />
                       )}
                       renderOption={(props, option) => (
-                        <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', py: 1.5, px: 2 }}>
+                        <Box component="li" {...props} key={option.id} sx={{ display: 'flex', alignItems: 'center', py: 1.5, px: 2 }}>
                           <LocationOn sx={{ mr: 2, color: 'text.secondary', fontSize: 24 }} />
                           <Box sx={{ flexGrow: 1 }}>
                             <Typography variant="body1" fontWeight="medium" sx={{ mb: 0.5 }}>
                               {option.name}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                              {option.code} {option.address && `• ${option.address}`}
+                              {option.code}
+                              {(option.location || option.address) ? ` • ${option.location || option.address}` : ''}
                             </Typography>
                           </Box>
                         </Box>
@@ -244,34 +234,35 @@ function OtherBranchesInventoryPage() {
                         <Box sx={{ textAlign: 'center', py: 2 }}>
                           <Store sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
                           <Typography variant="body2" color="text.secondary">
-                            {searchTerm ? 'No branches found matching your search' : 'No other branches available'}
+                            {otherBranches.length === 0
+                              ? 'No other branches available'
+                              : 'No branches found matching your search'}
                           </Typography>
                         </Box>
                       }
-                      sx={{
-                        '& .MuiAutocomplete-paper': {
-                          boxShadow: 3,
-                          borderRadius: 2,
-                          minWidth: 480,
-                        },
-                        '& .MuiAutocomplete-listbox': {
-                          minWidth: 480,
+                      slotProps={{
+                        paper: {
+                          sx: {
+                            boxShadow: 3,
+                            borderRadius: 2,
+                            minWidth: { xs: '100%', sm: 480 },
+                          },
                         },
                       }}
                     />
                   )}
-                </Grid>
-                
-                <Grid item xs={12} md={3}>
+                </Box>
+
+                <Box sx={{ width: { xs: '100%', md: 280 }, flexShrink: 0 }}>
                   <Fade in={!!selectedBranch}>
-                    <Card 
-                      variant="outlined" 
-                      sx={{ 
-                        p: 2, 
+                    <Card
+                      variant="outlined"
+                      sx={{
+                        p: 2,
                         bgcolor: selectedBranch ? 'primary.50' : 'grey.50',
                         border: selectedBranch ? '1px solid' : '1px dashed',
                         borderColor: selectedBranch ? 'primary.main' : 'grey.300',
-                        transition: 'all 0.3s ease',
+                        minHeight: 64,
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -281,130 +272,126 @@ function OtherBranchesInventoryPage() {
                         </Typography>
                       </Box>
                       <Typography variant="body2" color="text.secondary">
-                        {selectedBranch 
-                          ? `Viewing inventory for: ${getSelectedBranchName()}`
-                          : 'Please select a branch to view its inventory'
-                        }
+                        {selectedBranch
+                          ? `Viewing inventory for: ${selectedBranch.name}`
+                          : 'Please select a branch to view its inventory'}
                       </Typography>
                       {selectedBranch && (
                         <Box sx={{ mt: 1 }}>
-                          <Chip 
-                            label={`${filteredInventory.length} items`} 
-                            size="small" 
-                            color="primary" 
+                          <Chip
+                            label={`${filteredInventory.length} items`}
+                            size="small"
+                            color="primary"
                             variant="outlined"
                           />
                         </Box>
                       )}
                     </Card>
                   </Fade>
-                </Grid>
-              </Grid>
+                </Box>
+              </Box>
             </CardContent>
           </Card>
 
-          {/* Summary Cards */}
-          {selectedBranchId && (
-            <Fade in={!!selectedBranchId}>
-              <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box>
-                        <Typography color="textSecondary" gutterBottom variant="h6">
-                          Total Items
-                        </Typography>
-                        <Typography variant="h4">
-                          {totalItems.toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <Inventory sx={{ fontSize: 40, color: 'primary.main' }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box>
-                        <Typography color="textSecondary" gutterBottom variant="h6">
-                          Low Stock Items
-                        </Typography>
-                        <Typography variant="h4" color="warning.main">
-                          {lowStockItems.toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <Warning sx={{ fontSize: 40, color: 'warning.main' }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box>
-                        <Typography color="textSecondary" gutterBottom variant="h6">
-                          Total Value
-                        </Typography>
-                        <Typography variant="h4" color="success.main">
-                          {totalValue.toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Box>
-                        <Typography color="textSecondary" gutterBottom variant="h6">
-                          Categories
-                        </Typography>
-                        <Typography variant="h4" color="info.main">
-                          {categories.toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <Category sx={{ fontSize: 40, color: 'info.main' }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-            </Fade>
-          )}
-
-          {/* Error Display */}
-          {crossBranchError && (
+          {errorMessage && (
             <Alert severity="error" sx={{ mb: 3 }}>
-              {crossBranchError}
+              {errorMessage}
             </Alert>
           )}
 
-          {/* Simple Inventory Table */}
-          {selectedBranchId ? (
-            <Fade in={!!selectedBranchId}>
+          {selectedBranchId != null && (
+            <Fade in>
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Typography color="textSecondary" gutterBottom variant="h6">
+                            Total Items
+                          </Typography>
+                          <Typography variant="h4">
+                            {totalItems.toLocaleString()}
+                          </Typography>
+                        </Box>
+                        <Inventory sx={{ fontSize: 40, color: 'primary.main' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Typography color="textSecondary" gutterBottom variant="h6">
+                            Low Stock Items
+                          </Typography>
+                          <Typography variant="h4" color="warning.main">
+                            {lowStockItems.toLocaleString()}
+                          </Typography>
+                        </Box>
+                        <Warning sx={{ fontSize: 40, color: 'warning.main' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Typography color="textSecondary" gutterBottom variant="h6">
+                            Total Value
+                          </Typography>
+                          <Typography variant="h4" color="success.main">
+                            {totalValue.toLocaleString()}
+                          </Typography>
+                        </Box>
+                        <TrendingUp sx={{ fontSize: 40, color: 'success.main' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Typography color="textSecondary" gutterBottom variant="h6">
+                            Categories
+                          </Typography>
+                          <Typography variant="h4" color="info.main">
+                            {categories.toLocaleString()}
+                          </Typography>
+                        </Box>
+                        <Category sx={{ fontSize: 40, color: 'info.main' }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Fade>
+          )}
+
+          {selectedBranchId != null ? (
+            <Fade in>
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    {getSelectedBranchName()} Inventory (View Only) ({filteredInventory.length})
+                    {selectedBranch?.name} Inventory (View Only) ({filteredInventory.length})
                   </Typography>
-                  
+
                   {crossBranchLoading ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                       <CircularProgress />
                     </Box>
-                  ) : crossBranchError ? (
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                      {crossBranchError}
+                  ) : filteredInventory.length === 0 ? (
+                    <Alert severity="info">
+                      No inventory items found for this branch.
                     </Alert>
                   ) : (
                     <TableContainer>
@@ -414,9 +401,6 @@ function OtherBranchesInventoryPage() {
                             <TableCell>Item Name</TableCell>
                             <TableCell>Category</TableCell>
                             <TableCell align="right">Quantity</TableCell>
-                            <TableCell align="right">Sold</TableCell>
-                            <TableCell align="right">Returned</TableCell>
-                            <TableCell align="right">Purchased</TableCell>
                             <TableCell align="right">Min Stock</TableCell>
                             <TableCell align="right">Cost Price</TableCell>
                             <TableCell align="right">Selling Price</TableCell>
@@ -425,12 +409,11 @@ function OtherBranchesInventoryPage() {
                         </TableHead>
                         <TableBody>
                           {filteredInventory.map((item) => {
-                            const isLowStock = item.quantity <= (item.minStockLevel || 10)
                             const isOutOfStock = item.quantity <= 0
-                            
+                            const isLowStock = item.quantity <= (item.minStockLevel || 10)
+
                             let statusColor = 'success'
                             let statusLabel = 'In Stock'
-                            
                             if (isOutOfStock) {
                               statusColor = 'error'
                               statusLabel = 'Out of Stock'
@@ -438,7 +421,7 @@ function OtherBranchesInventoryPage() {
                               statusColor = 'warning'
                               statusLabel = 'Low Stock'
                             }
-                            
+
                             return (
                               <TableRow key={item.id}>
                                 <TableCell>{item.name}</TableCell>
@@ -446,48 +429,25 @@ function OtherBranchesInventoryPage() {
                                   <Chip label={item.category} size="small" />
                                 </TableCell>
                                 <TableCell align="right">
-                                  <Chip 
-                                    label={item.quantity || 0} 
-                                    size="small" 
+                                  <Chip
+                                    label={item.quantity || 0}
+                                    size="small"
                                     color={
-                                      item.quantity === 0 ? 'error' : 
-                                      item.quantity <= item.minStockLevel ? 'warning' : 'success'
+                                      item.quantity === 0 ? 'error'
+                                        : item.quantity <= item.minStockLevel ? 'warning'
+                                          : 'success'
                                     }
                                     variant="outlined"
                                   />
                                 </TableCell>
-                                <TableCell align="right">
-                                  <Chip 
-                                    label={item.totalSold || 0} 
-                                    size="small" 
-                                    color="primary"
-                                    variant="outlined"
-                                  />
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Chip 
-                                    label={item.totalReturned || 0} 
-                                    size="small" 
-                                    color="warning"
-                                    variant="outlined"
-                                  />
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Chip 
-                                    label={item.totalPurchased || 0} 
-                                    size="small" 
-                                    color="success"
-                                    variant="outlined"
-                                  />
-                                </TableCell>
                                 <TableCell align="right">{item.minStockLevel || 0}</TableCell>
-                                <TableCell align="right">${item.costPrice?.toFixed(2) || '0.00'}</TableCell>
-                                <TableCell align="right">${item.sellingPrice?.toFixed(2) || '0.00'}</TableCell>
+                                <TableCell align="right">{(item.costPrice || 0).toFixed(2)}</TableCell>
+                                <TableCell align="right">{(item.sellingPrice || 0).toFixed(2)}</TableCell>
                                 <TableCell>
-                                  <Chip 
-                                    label={statusLabel} 
-                                    color={statusColor} 
-                                    size="small" 
+                                  <Chip
+                                    label={statusLabel}
+                                    color={statusColor}
+                                    size="small"
                                   />
                                 </TableCell>
                               </TableRow>
@@ -512,22 +472,22 @@ function OtherBranchesInventoryPage() {
                     Choose a branch from the searchable dropdown above to view its inventory details
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
-                    <Chip 
-                      icon={<Search />} 
-                      label="Search by name or code" 
-                      variant="outlined" 
+                    <Chip
+                      icon={<Search />}
+                      label="Search by name or code"
+                      variant="outlined"
                       color="primary"
                     />
-                    <Chip 
-                      icon={<LocationOn />} 
-                      label="View branch details" 
-                      variant="outlined" 
+                    <Chip
+                      icon={<LocationOn />}
+                      label="View branch details"
+                      variant="outlined"
                       color="secondary"
                     />
-                    <Chip 
-                      icon={<Inventory />} 
-                      label="Read-only access" 
-                      variant="outlined" 
+                    <Chip
+                      icon={<Inventory />}
+                      label="Read-only access"
+                      variant="outlined"
                       color="info"
                     />
                   </Box>

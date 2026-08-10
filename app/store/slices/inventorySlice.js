@@ -40,7 +40,11 @@ export const fetchCrossBranchInventory = createAsyncThunk(
       const response = await api.get('/inventory/cross-branch', { params })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch cross-branch inventory')
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to fetch cross-branch inventory'
+      return rejectWithValue(message)
     }
   }
 )
