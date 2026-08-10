@@ -50,18 +50,29 @@ export const createSale = createAsyncThunk(
       }
     } catch (error) {
       const status = error.response?.status
-      const apiMessage = error.response?.data?.message || error.response?.data?.errors
+      const data = error.response?.data
+      const detail =
+        data?.error ||
+        data?.sqlMessage ||
+        (Array.isArray(data?.errors)
+          ? data.errors.map((e) => e.msg || e.message).filter(Boolean).join('; ')
+          : null)
+      const apiMessage = data?.message || data?.errors
       const defaultMessage = 'Failed to create sale'
+
+      // Prefer specific backend detail when message is a generic wrapper like "Error creating sale"
+      const combinedMessage =
+        detail && apiMessage && detail !== apiMessage
+          ? `${apiMessage}: ${detail}`
+          : detail || apiMessage || error.message || defaultMessage
 
       if (status === 403) {
         const permissionMessage =
-          apiMessage || 'Permission denied. You may not have access to this scope.'
+          combinedMessage || 'Permission denied. You may not have access to this scope.'
         return rejectWithValue({ message: permissionMessage, status })
       }
 
-
-      const errorMessage = apiMessage || error.message || defaultMessage
-      return rejectWithValue({ message: errorMessage, status })
+      return rejectWithValue({ message: combinedMessage, status })
     }
   }
 )

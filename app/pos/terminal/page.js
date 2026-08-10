@@ -2148,6 +2148,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         const error = result.payload || result.error
         const message = error?.message || 'Sale failed'
         const severity = error?.status === 403 ? 'warning' : 'error'
+        console.error('[POS] createSale failed:', error)
         showToast(message, severity)
       }
 
