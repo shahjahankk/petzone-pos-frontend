@@ -56,9 +56,17 @@ export const updateBranch = createAsyncThunk(
   async ({ branchId, branchData }, { rejectWithValue }) => {
     try {
       const response = await api.put(`/branches/${branchId}`, branchData)
+      if (response.data?.success === false) {
+        return rejectWithValue(response.data.message || 'Failed to update branch')
+      }
       return response.data
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to update branch')
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        'Failed to update branch'
+      return rejectWithValue(message)
     }
   }
 )
@@ -191,10 +199,11 @@ const branchesSlice = createSlice({
         state.isLoading = false
         state.loading = false
         const updatedBranch = action.payload.data || action.payload
-        const index = state.branches.findIndex(b => b.id === updatedBranch.id)
+        const updatedId = Number(updatedBranch?.id)
+        const index = state.branches.findIndex(b => Number(b.id) === updatedId)
         if (index !== -1) {
-          state.branches[index] = updatedBranch
-          state.data[index] = updatedBranch
+          state.branches[index] = { ...state.branches[index], ...updatedBranch }
+          state.data[index] = { ...state.data[index], ...updatedBranch }
         }
         state.error = null
       })

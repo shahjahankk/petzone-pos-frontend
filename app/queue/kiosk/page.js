@@ -40,7 +40,7 @@ import {
   resetQueueToday,
 } from '../../../utils/queueApi'
 import { printQueueTicket } from '../../../utils/queueThermalPrinter'
-import { PETZONE_LOGO_PNG, PETZONE_LOGO_SVG } from '../../../utils/brandAssets'
+import { PETZONE_LOGO_PNG } from '../../../utils/brandAssets'
 import { config } from '../../../config/environment'
 import ScreenLockGate from '../../../components/queue/ScreenLockGate'
 
@@ -391,7 +391,6 @@ function QueueKioskPage() {
           component="img"
           src={PETZONE_LOGO_PNG}
           alt="PetZone"
-          onError={(e) => { e.currentTarget.src = PETZONE_LOGO_SVG }}
           sx={{ height: { xs: 56, md: 72 }, mb: 2, objectFit: 'contain', maxWidth: '80%' }}
         />
 

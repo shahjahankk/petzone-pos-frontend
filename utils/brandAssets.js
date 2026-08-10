@@ -1,6 +1,5 @@
 /** Same branding assets as petzone-pos-frontend (login, receipts, invoices). */
 export const PETZONE_LOGO_PNG = '/petzonelogo.png'
-export const PETZONE_LOGO_SVG = '/petzonelogo.svg'
 
 /** Prefer PNG brand mark for print + UI. */
 export function resolvePetzoneLogoUrl(origin = '') {

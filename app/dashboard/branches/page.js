@@ -205,17 +205,49 @@ function BranchesPage() {
   }, [dispatch])
 
   // Handle CRUD operations
-  const handleCreate = (data) => {
-    dispatch(createBranch(data)).then(() => {
-      // Close modal after successful creation
-      crud.handleFormClose()
+  const handleUpdate = (data) => {
+    const payload = {
+      name: data.name,
+      code: data.code,
+      location: data.location,
+      phone: data.phone ?? null,
+      email: data.email ?? null,
+      managerName: data.managerName ?? null,
+      managerPhone: data.managerPhone ?? null,
+      managerEmail: data.managerEmail ?? null,
+      linkedWarehouseId: data.linkedWarehouseId ?? null,
+      status: data.status || 'active',
+      settings: data.settings && typeof data.settings === 'object' ? data.settings : undefined,
+    }
+
+    dispatch(updateBranch({ branchId: crud.selectedEntity.id, branchData: payload })).then((result) => {
+      if (updateBranch.fulfilled.match(result)) {
+        crud.handleFormClose()
+        dispatch(fetchBranches())
+      }
     })
   }
 
-  const handleUpdate = (data) => {
-    dispatch(updateBranch({ branchId: crud.selectedEntity.id, branchData: data })).then(() => {
-      // Close modal after successful update
-      crud.handleFormClose()
+  const handleCreate = (data) => {
+    const payload = {
+      name: data.name,
+      code: data.code,
+      location: data.location,
+      phone: data.phone ?? null,
+      email: data.email ?? null,
+      managerName: data.managerName ?? null,
+      managerPhone: data.managerPhone ?? null,
+      managerEmail: data.managerEmail ?? null,
+      linkedWarehouseId: data.linkedWarehouseId ?? null,
+      status: data.status || 'active',
+      settings: data.settings && typeof data.settings === 'object' ? data.settings : undefined,
+    }
+
+    dispatch(createBranch(payload)).then((result) => {
+      if (createBranch.fulfilled.match(result)) {
+        crud.handleFormClose()
+        dispatch(fetchBranches())
+      }
     })
   }
 
