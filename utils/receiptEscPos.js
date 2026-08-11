@@ -175,9 +175,11 @@ function resolveLogoCandidates(logoUrl) {
   const push = (u) => {
     if (u && !list.includes(u)) list.push(u)
   }
-  push('/petzonelogo.png')
+  // Prefer the branch/warehouse brand logo first
   push(logoUrl)
   if (logoUrl?.includes('.svg')) push(String(logoUrl).replace(/\.svg/i, '.png'))
+  push('/petzonelogo.png')
+  push('/petfamilylogo.png')
   return list
 }
 

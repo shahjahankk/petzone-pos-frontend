@@ -10,6 +10,7 @@
   import ConfirmationDialog from '../../../components/crud/ConfirmationDialog'
   import useEntityCRUD from '../../../hooks/useEntityCRUD'
   import { fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse } from '../../store/slices/warehousesSlice'
+  import { BRAND_OPTIONS, normalizeBrand } from '../../../utils/brandAssets'
 
   // Updated validation schema - removed transfer settings
   const warehouseSchema = yup.object({
@@ -29,6 +30,9 @@
       .min(1, 'Location must be between 1 and 200 characters')
       .max(200, 'Location must be between 1 and 200 characters')
       .required('Location is required'),
+    brand: yup.string()
+      .oneOf(['petzone', 'petfamily'], 'Select a valid logo')
+      .default('petzone'),
     capacity: yup.mixed()
       .transform((value) => {
         if (value === '' || value === null || value === undefined) return null
@@ -131,6 +135,14 @@
       ]
     },
     {
+      name: 'brand',
+      label: 'Receipt / Invoice Logo',
+      type: 'select',
+      defaultValue: 'petzone',
+      description: 'Logo printed on billing receipts and invoices for this warehouse',
+      options: BRAND_OPTIONS,
+    },
+    {
       name: 'linkedBranchId',
       label: 'Linked Branch ID',
       type: 'number',
@@ -143,7 +155,13 @@
     const dispatch = useDispatch()
     const crud = useEntityCRUD('warehouses', 'warehouse')
     const formInitialData = crud.selectedEntity
-      ? { ...crud.selectedEntity, linkedBranchId: crud.selectedEntity.branchId ?? crud.selectedEntity.linkedBranchId ?? null }
+      ? {
+          ...crud.selectedEntity,
+          linkedBranchId: crud.selectedEntity.branchId ?? crud.selectedEntity.linkedBranchId ?? null,
+          brand: normalizeBrand(
+            crud.selectedEntity.brand || crud.selectedEntity.settings?.brand
+          ),
+        }
       : null
 
     // Load data on component mount
@@ -153,13 +171,31 @@
 
     // Handle CRUD operations
     const handleCreate = (data) => {
-      dispatch(createWarehouse(data)).then(() => {
+      const brand = normalizeBrand(data.brand || data.settings?.brand)
+      const payload = {
+        ...data,
+        brand,
+        settings: {
+          ...(data.settings && typeof data.settings === 'object' ? data.settings : {}),
+          brand,
+        },
+      }
+      dispatch(createWarehouse(payload)).then(() => {
         crud.handleFormClose()
       })
     }
 
     const handleUpdate = (data) => {
-      dispatch(updateWarehouse({ id: crud.selectedEntity.id, data })).then(() => {
+      const brand = normalizeBrand(data.brand || data.settings?.brand)
+      const payload = {
+        ...data,
+        brand,
+        settings: {
+          ...(data.settings && typeof data.settings === 'object' ? data.settings : {}),
+          brand,
+        },
+      }
+      dispatch(updateWarehouse({ id: crud.selectedEntity.id, data: payload })).then(() => {
         crud.handleFormClose()
       })
     }

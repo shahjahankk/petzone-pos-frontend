@@ -9,6 +9,7 @@ import EntityFormDialog from '../../../components/crud/EntityFormDialog'
 import ConfirmationDialog from '../../../components/crud/ConfirmationDialog'
 import useEntityCRUD from '../../../hooks/useEntityCRUD'
 import { fetchBranches, createBranch, updateBranch, deleteBranch } from '../../store/slices/branchesSlice'
+import { BRAND_OPTIONS, normalizeBrand } from '../../../utils/brandAssets'
 
 // Validation schema - matches backend validation exactly
 const branchSchema = yup.object({
@@ -28,6 +29,9 @@ const branchSchema = yup.object({
     .min(1, 'Location must be between 1 and 200 characters')
     .max(200, 'Location must be between 1 and 200 characters')
     .required('Location is required'),
+  brand: yup.string()
+    .oneOf(['petzone', 'petfamily'], 'Select a valid logo')
+    .default('petzone'),
   phone: yup.string()
     .nullable()
     .transform((value) => value === '' ? null : value)
@@ -124,6 +128,7 @@ const columns = [
   { field: 'phone', headerName: 'Phone', width: 120 },
   { field: 'email', headerName: 'Email', width: 150 },
   { field: 'managerName', headerName: 'Manager', width: 120 },
+  { field: 'brand', headerName: 'Logo', width: 110 },
   { field: 'status', headerName: 'Status', width: 100 },
   { field: 'created_at', headerName: 'Created', width: 150 },
 ]
@@ -149,6 +154,14 @@ const fields = [
       { value: 'inactive', label: 'Inactive' },
       { value: 'maintenance', label: 'Maintenance' }
     ]
+  },
+  {
+    name: 'brand',
+    label: 'Receipt / Invoice Logo',
+    type: 'select',
+    defaultValue: 'petzone',
+    description: 'Logo printed on POS receipts and invoices for this branch',
+    options: BRAND_OPTIONS,
   },
   
   // Transfer Settings Section
@@ -198,6 +211,14 @@ const fields = [
 function BranchesPage() {
   const dispatch = useDispatch()
   const crud = useEntityCRUD('branches', 'branch')
+  const formInitialData = crud.selectedEntity
+    ? {
+        ...crud.selectedEntity,
+        brand: normalizeBrand(
+          crud.selectedEntity.brand || crud.selectedEntity.settings?.brand
+        ),
+      }
+    : null
 
   // Load data on component mount
   useEffect(() => {
@@ -206,6 +227,7 @@ function BranchesPage() {
 
   // Handle CRUD operations
   const handleUpdate = (data) => {
+    const brand = normalizeBrand(data.brand || data.settings?.brand)
     const payload = {
       name: data.name,
       code: data.code,
@@ -217,7 +239,11 @@ function BranchesPage() {
       managerEmail: data.managerEmail ?? null,
       linkedWarehouseId: data.linkedWarehouseId ?? null,
       status: data.status || 'active',
-      settings: data.settings && typeof data.settings === 'object' ? data.settings : undefined,
+      brand,
+      settings: {
+        ...(data.settings && typeof data.settings === 'object' ? data.settings : {}),
+        brand,
+      },
     }
 
     dispatch(updateBranch({ branchId: crud.selectedEntity.id, branchData: payload })).then((result) => {
@@ -229,6 +255,7 @@ function BranchesPage() {
   }
 
   const handleCreate = (data) => {
+    const brand = normalizeBrand(data.brand || data.settings?.brand)
     const payload = {
       name: data.name,
       code: data.code,
@@ -240,7 +267,11 @@ function BranchesPage() {
       managerEmail: data.managerEmail ?? null,
       linkedWarehouseId: data.linkedWarehouseId ?? null,
       status: data.status || 'active',
-      settings: data.settings && typeof data.settings === 'object' ? data.settings : undefined,
+      brand,
+      settings: {
+        ...(data.settings && typeof data.settings === 'object' ? data.settings : {}),
+        brand,
+      },
     }
 
     dispatch(createBranch(payload)).then((result) => {
@@ -293,7 +324,7 @@ function BranchesPage() {
         title={crud.dialogTitle}
         fields={fields}
         validationSchema={branchSchema}
-        initialData={crud.selectedEntity}
+        initialData={formInitialData}
         isEdit={crud.isEdit}
         onSubmit={handleFormSubmit}
         loading={crud.loading}
