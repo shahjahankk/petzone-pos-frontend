@@ -409,9 +409,10 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
 
   out.push(...center())
   out.push(...textLine('-'.repeat(width)))
-  out.push(...textLine(printData.footerMessage || 'Thank you for your business!'))
+  out.push(...textLine(printData.footerMessage || 'Thank you for choosing us!'))
   out.push(...textLine('Return within 3 days'))
   out.push(...textLine('Powered by Tychora'))
+  out.push(...textLine('www.tychora.com'))
   out.push(...fontA())
   out.push(...cutSafe())
 

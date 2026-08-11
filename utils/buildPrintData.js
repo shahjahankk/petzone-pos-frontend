@@ -299,7 +299,7 @@ const branchName    = sale.branchName    || sale.branch_name    || (scopeType !=
 
     // misc
     notes,
-    footerMessage: 'Thank you for choosing PetZone!',
+    footerMessage: 'Thank you for choosing us!',
   }
 
   // Allow caller to force-override specific fields

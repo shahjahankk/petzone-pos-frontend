@@ -91,7 +91,7 @@ export default function PrintLayout({
   change = 0,
   shippingHandling = 0,
   notes = '',
-  footerMessage = 'Thank you for your business!',
+  footerMessage = 'Thank you for choosing us!',
   showLogo = true,
   layout = 'thermal',
   invoiceTotal = null,

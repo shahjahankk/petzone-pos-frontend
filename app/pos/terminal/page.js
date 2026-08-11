@@ -2000,7 +2000,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         remainingBalance: Math.round(Math.max(0, totalWithOutstanding - finalPaymentAmount)),
         change: isPartialPayment ? 0 : Math.round((parseFloat(paymentAmount) || finalPaymentAmount) - totalWithOutstanding),
         customerLabel: 'Customer',
-        footerMessage: 'Thank you for choosing PetZone!'
+        footerMessage: 'Thank you for choosing us!'
       }
 
       setPendingSaleData({
@@ -2266,7 +2266,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         remainingBalance: Math.round(Math.max(0, totalWithOutstanding - finalPaymentAmount)),
         change: isPartialPayment ? 0 : Math.round((parseFloat(paymentAmount) || finalPaymentAmount) - totalWithOutstanding),
         customerLabel: 'Customer',
-        footerMessage: 'Thank you for choosing PetZone!'
+        footerMessage: 'Thank you for choosing us!'
       }
 
       setPendingSaleData({
@@ -2488,7 +2488,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           </div>
           <div style="text-align: center; margin-top: 4px;">
             <div style="border-top: 2px solid #000; margin-bottom: 3px;"></div>
-            <div style="font-size: 9px; margin-bottom: 2px;">${printData.footerMessage || 'Thank you for your business!'}</div>
+            <div style="font-size: 9px; margin-bottom: 2px;">${printData.footerMessage || 'Thank you for choosing us!'}</div>
             <div style="font-size: 9px; margin-bottom: 2px;">Return within 3 days</div>
             <div style="border-top: 1px solid #000; margin: 3px 0;"></div>
             <div style="font-size: 10px; margin-bottom: 1px;">Powered by Tychora</div>
@@ -2726,7 +2726,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           remainingBalance: Math.round(Math.max(0, totalWithOutstanding - finalPaymentAmount)),
           change: isPartialPayment ? 0 : Math.round((parseFloat(paymentAmount) || finalPaymentAmount) - totalWithOutstanding),
           notes: isPartialPayment ? `Partial Payment - Credit Amount: ${finalCreditAmount.toFixed(2)}` : '',
-          footerMessage: 'Thank you for choosing PetZone!'
+          footerMessage: 'Thank you for choosing us!'
         }
 
         setPrintData(receiptPrintData)
