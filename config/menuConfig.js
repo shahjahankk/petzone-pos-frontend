@@ -30,6 +30,7 @@ import {
   AccountBalanceWallet,
   ShoppingCartCheckout,
   ConfirmationNumber,
+  Forum,
 } from '@mui/icons-material'
 
 // Centralized menu configuration organized by sections
@@ -146,11 +147,19 @@ export const menuConfig = [
       },
       {
         id: 'clinic-queue',
-        label: 'Queue Token',
+        label: 'Queue Settings',
         icon: <ConfirmationNumber />,
         path: '/dashboard/queue',
         roles: ['ADMIN', 'CASHIER'],
         order: 7,
+      },
+      {
+        id: 'clinic-opd',
+        label: 'OPD & Clinic Chat',
+        icon: <Forum />,
+        path: '/queue/counter',
+        roles: ['ADMIN', 'CASHIER'],
+        order: 8,
       },
     ],
   },
@@ -189,6 +198,15 @@ export const menuConfig = [
         path: '/queue/kiosk',
         roles: ['ADMIN', 'CASHIER'],
         order: 1.5,
+        newWindow: true,
+      },
+      {
+        id: 'queue-opd',
+        label: 'OPD Counter',
+        icon: <MedicalServices />,
+        path: '/queue/counter',
+        roles: ['ADMIN', 'CASHIER'],
+        order: 1.6,
         newWindow: true,
       },
       {

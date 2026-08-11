@@ -10,6 +10,22 @@ import { getClinicChat, postClinicChat } from '../../utils/queueApi'
 
 const PRESETS = ['Reception', 'Cashier', 'OPD 1', 'OPD 2', 'Grooming', 'OT', 'Lab', 'custom']
 
+/** Show time always; include date when message is not from today. */
+function formatChatStamp(createdAt) {
+  if (!createdAt) return ''
+  const d = new Date(createdAt)
+  if (Number.isNaN(d.getTime())) return ''
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const today = new Date()
+  const sameDay =
+    d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate()
+  if (sameDay) return time
+  const date = d.toLocaleDateString([], { day: '2-digit', month: 'short' })
+  return `${date} ${time}`
+}
+
 /**
  * Shared clinic chat for OPD / Reception / Cashier.
  * Polling only — safe for cPanel Node hosting (no websockets).
@@ -56,13 +72,32 @@ export default function ClinicChat({ orgSlug, branchSlug, defaultSender = 'Recep
     if (!orgSlug || !branchSlug) return
     try {
       const sinceId = initialRef.current ? 0 : lastIdRef.current
-      const rows = await getClinicChat(orgSlug, branchSlug, {
-        sinceId: sinceId || undefined,
-        limit: 50,
-      })
+      const { messages: rows, latest_id: latestId, chat_cleared: cleared } = await getClinicChat(
+        orgSlug,
+        branchSlug,
+        {
+          sinceId: sinceId || undefined,
+          limit: 50,
+        }
+      )
+
+      // Queue "Reset Today" clears chat — drop local history and reload
+      if (!initialRef.current && (cleared || (latestId < lastIdRef.current))) {
+        initialRef.current = true
+        lastIdRef.current = 0
+        setMessages([])
+        const fresh = await getClinicChat(orgSlug, branchSlug, { limit: 50 })
+        setMessages(fresh.messages || [])
+        lastIdRef.current = Number(fresh.latest_id || 0)
+        initialRef.current = false
+        setTimeout(scrollBottom, 50)
+        setStatus('Live')
+        return
+      }
+
       if (initialRef.current) {
         setMessages(rows)
-        lastIdRef.current = rows.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0)
+        lastIdRef.current = rows.reduce((m, r) => Math.max(m, Number(r.id) || 0), latestId || 0)
         initialRef.current = false
         setTimeout(scrollBottom, 50)
       } else if (rows.length) {
@@ -175,14 +210,12 @@ export default function ClinicChat({ orgSlug, branchSlug, defaultSender = 'Recep
           ) : (
             messages.map((m) => (
               <Box key={m.id} sx={{ mb: 1.25, pb: 1, borderBottom: '1px solid #e2e8f0' }}>
-                <Stack direction="row" justifyContent="space-between" gap={1}>
+                <Stack direction="row" justifyContent="space-between" alignItems="baseline" gap={1}>
                   <Typography variant="subtitle2" fontWeight={700} color="primary">
                     {m.sender_name}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {m.created_at
-                      ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      : ''}
+                  <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {formatChatStamp(m.created_at)}
                   </Typography>
                 </Stack>
                 <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{m.body}</Typography>

@@ -6,6 +6,7 @@ import {
   InputLabel, Chip, Alert, Snackbar, CircularProgress, Paper
 } from '@mui/material'
 import { PhoneCallback, CheckCircle, SkipNext, Replay } from '@mui/icons-material'
+import { useSelector } from 'react-redux'
 import withAuth from '../../../components/auth/withAuth'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
@@ -21,6 +22,8 @@ const STATUS_COLORS = {
 }
 
 function QueueCounterPage() {
+  const { user } = useSelector((s) => s.auth)
+  const isCashier = String(user?.role || '').toUpperCase() === 'CASHIER'
   const [branchCtx, setBranchCtx] = useState(null)
   const [services, setServices] = useState([])
   const [counters, setCounters] = useState([])
@@ -34,6 +37,9 @@ function QueueCounterPage() {
 
   const selectedCounter = counters.find((c) => String(c.id) === String(counterId)) || null
   const serviceFilter = selectedCounter?.service_type_id || ''
+  const chatDefaultSender = isCashier
+    ? 'Cashier'
+    : (selectedCounter?.counter_label || selectedCounter?.name || 'OPD 1')
 
   const refresh = useCallback(async () => {
     if (!branchCtx) return
@@ -62,7 +68,8 @@ function QueueCounterPage() {
   useEffect(() => {
     (async () => {
       try {
-        const ctx = await resolveQueueBranch()
+        const posBranchId = user?.branchId || user?.branch_id || null
+        const ctx = await resolveQueueBranch(posBranchId)
         setBranchCtx(ctx)
         const [info, counterList] = await Promise.all([
           getQueueBranchInfo(ctx.orgSlug, ctx.branchSlug),
@@ -85,7 +92,7 @@ function QueueCounterPage() {
         setLoading(false)
       }
     })()
-  }, [])
+  }, [user?.branchId, user?.branch_id])
 
   useEffect(() => {
     if (branchCtx) {
@@ -155,13 +162,15 @@ function QueueCounterPage() {
       <ScreenLockGate screen="counter" orgSlug={branchCtx?.orgSlug} branchSlug={branchCtx?.branchSlug}>
       <Box sx={{ p: 3 }}>
         <Typography variant="h5" fontWeight={700} color="primary" gutterBottom>
-          PetZone Hospital
+          OPD Attendant
         </Typography>
         <Typography variant="h6" fontWeight={600} color="text.secondary" gutterBottom>
-          Queue Counter — {branchCtx?.branchName}
+          {branchCtx?.branchName || 'Branch'} — Call next &amp; clinic chat
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          OPD stations call consultation tokens. Grooming station calls grooming tokens.
+          {isCashier
+            ? 'Cashiers can watch the queue, talk in Clinic Chat, and help OPD/Grooming stations.'
+            : 'OPD stations call consultation tokens. Grooming station calls grooming tokens.'}
         </Typography>
 
         <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -265,7 +274,7 @@ function QueueCounterPage() {
           <ClinicChat
             orgSlug={branchCtx.orgSlug}
             branchSlug={branchCtx.branchSlug}
-            defaultSender={selectedCounter?.counter_label || selectedCounter?.name || 'OPD 1'}
+            defaultSender={chatDefaultSender}
           />
         )}
 

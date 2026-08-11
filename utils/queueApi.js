@@ -156,7 +156,11 @@ export async function getClinicChat(orgSlug, branchSlug, { sinceId, limit = 50 }
   if (limit) params.set('limit', String(limit))
   const q = params.toString() ? `?${params.toString()}` : ''
   const json = await qmsRequest(`/queue/public/${orgSlug}/${branchSlug}/chat${q}`)
-  return json.data || []
+  return {
+    messages: json.data || [],
+    latest_id: Number(json.latest_id || 0),
+    chat_cleared: Boolean(json.chat_cleared),
+  }
 }
 
 export async function postClinicChat(orgSlug, branchSlug, { sender_name, sender_role, body }) {
