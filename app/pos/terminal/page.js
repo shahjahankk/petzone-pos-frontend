@@ -150,11 +150,29 @@ const mapCartLineForSale = (item) => {
   )
   const qty = parseFloat(item.quantity)
   const discount = parseFloat(item.discount || 0)
-  if (item.isService) {
+
+  const clinicFromFlag = item.isService || item.is_service
+  const clinicIdRaw =
+    item.clinicServiceId ||
+    item.clinic_service_id ||
+    (typeof item.id === 'string' && String(item.id).startsWith('service-')
+      ? String(item.id).replace(/^service-/i, '')
+      : null) ||
+    (item.sku && /^CLINIC-(\d+)$/i.test(String(item.sku))
+      ? String(item.sku).match(/^CLINIC-(\d+)$/i)[1]
+      : null)
+  const clinicServiceId = clinicFromFlag || clinicIdRaw
+    ? parseInt(clinicIdRaw, 10)
+    : null
+  const isClinic = Boolean(clinicFromFlag || (clinicServiceId && clinicServiceId > 0))
+
+  if (isClinic) {
+    const id = Number.isFinite(clinicServiceId) && clinicServiceId > 0 ? clinicServiceId : null
     return {
       inventoryItemId: null,
-      clinicServiceId: item.clinicServiceId,
-      sku: item.sku || `CLINIC-${item.clinicServiceId}`,
+      clinicServiceId: id,
+      isService: true,
+      sku: item.sku || (id ? `CLINIC-${id}` : 'CLINIC'),
       name: item.name,
       quantity: qty,
       unitPrice,
@@ -163,8 +181,12 @@ const mapCartLineForSale = (item) => {
       total: unitPrice * qty - discount,
     }
   }
+
+  const inventoryItemId = parseInt(item.inventoryItemId ?? item.id, 10)
   return {
-    inventoryItemId: parseInt(item.id, 10),
+    inventoryItemId: Number.isFinite(inventoryItemId) && inventoryItemId > 0 ? inventoryItemId : null,
+    clinicServiceId: null,
+    isService: false,
     name: item.name,
     quantity: qty,
     unitPrice,

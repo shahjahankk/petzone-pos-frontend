@@ -200,7 +200,7 @@ export default function ClinicSalesReportPage() {
                 Clinic Sales Report
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.4 }}>
-                Clinic service revenue only · Product sales are on Sales Report
+                Clinic service revenue only · Mixed bills keep full invoice in Sales; inventory portion stays on Sales Report
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
