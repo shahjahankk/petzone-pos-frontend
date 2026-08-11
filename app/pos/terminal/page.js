@@ -144,11 +144,23 @@ const createEmptyTabState = (overrides = {}) => ({
   ...overrides
 })
 
+/** Effective unit price shown/edited in the cart Price column. */
+const getCartLineUnitPrice = (item) => {
+  const raw =
+    item?.customPrice !== null && item?.customPrice !== undefined
+      ? item.customPrice
+      : item?.price
+  const n = parseFloat(raw)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Price must be > 0; free lines use Disc (or cart discount), not a zero price. */
+const getZeroPriceCartItems = (cart) =>
+  (cart || []).filter((item) => getCartLineUnitPrice(item) <= 0)
+
 /** Map cart row → sale API line (inventory or clinic service). */
 const mapCartLineForSale = (item) => {
-  const unitPrice = parseFloat(
-    item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0
-  )
+  const unitPrice = getCartLineUnitPrice(item)
   const qty = parseFloat(item.quantity)
   const discount = parseFloat(item.discount || 0)
 
@@ -1942,6 +1954,16 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         return
       }
 
+      const zeroPriceItems = getZeroPriceCartItems(currentCart)
+      if (zeroPriceItems.length > 0) {
+        const names = zeroPriceItems.map((item) => item.name || 'Item').join(', ')
+        showToast(
+          `${names} has price 0. Enter a price in the Price field — use Disc for free/zero total.`,
+          'warning'
+        )
+        return
+      }
+
       const selectedOutstandingTotal = outstandingPayments
         .filter(payment => selectedOutstandingPayments.includes(payment.id))
         .reduce((total, payment) => {
@@ -2205,6 +2227,16 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
       if (total <= 0 && currentCart.length === 0) {
         alert('❌ Cannot process a sale without items.')
+        return
+      }
+
+      const zeroPriceItems = getZeroPriceCartItems(currentCart)
+      if (zeroPriceItems.length > 0) {
+        const names = zeroPriceItems.map((item) => item.name || 'Item').join(', ')
+        showToast(
+          `${names} has price 0. Enter a price in the Price field — use Disc for free/zero total.`,
+          'warning'
+        )
         return
       }
 

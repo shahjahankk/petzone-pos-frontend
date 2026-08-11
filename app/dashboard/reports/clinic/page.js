@@ -187,6 +187,49 @@ export default function ClinicSalesReportPage() {
     setExportAnchor(null)
   }
 
+  const handleExportPDF = () => {
+    const w = window.open('', '_blank')
+    if (!w) return
+    const catFilter = filters.category === 'all' ? 'All categories' : filters.category
+    w.document.write(`<html><head><title>Clinic Sales Report</title><style>
+      body{font-family:Arial;padding:32px;color:#333;font-size:13px}
+      h1{color:#0288d1;border-bottom:2px solid #0288d1;padding-bottom:8px}
+      h2{color:#0277bd;margin-top:20px;font-size:14px}
+      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+      th,td{border:1px solid #e0e0e0;padding:7px 10px}
+      th{background:#e1f5fe;font-weight:700}
+      tr:nth-child(even){background:#fafafa}
+      .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+      .card{border:1px solid #e0e0e0;border-radius:8px;padding:14px;text-align:center;background:#f5fbff}
+      .val{font-size:1.1rem;font-weight:800;color:#0288d1}
+      .lbl{font-size:.7rem;color:#888;text-transform:uppercase}
+    </style></head><body>
+      <h1>Clinic Sales Report — ${periodStr}</h1>
+      <p style="color:#666;margin-top:-4px">Filter: ${catFilter} · Clinic services only</p>
+      <div class="grid">
+        <div class="card"><div class="val">PKR ${fmt(totalRevenue)}</div><div class="lbl">Clinic Revenue</div></div>
+        <div class="card"><div class="val" style="color:#2e7d32">${fmt(totalQuantity)}</div><div class="lbl">Services Sold</div></div>
+        <div class="card"><div class="val">${fmt(totalInvoices)}</div><div class="lbl">Invoices</div></div>
+        <div class="card"><div class="val" style="color:#e65100">PKR ${fmt(averageTicket)}</div><div class="lbl">Avg / Invoice</div></div>
+      </div>
+      <h2>By Category</h2>
+      <table><tr><th>Category</th><th>Revenue</th><th>Qty</th><th>Lines</th></tr>
+      ${byCategory.map((c) => `<tr><td>${c.category || ''}</td><td>PKR ${fmt(c.revenue)}</td><td>${fmt(c.quantity)}</td><td>${fmt(c.lines)}</td></tr>`).join('') || '<tr><td colspan="4">No data</td></tr>'}
+      </table>
+      <h2>Top Services</h2>
+      <table><tr><th>Service</th><th>Category</th><th>Qty</th><th>Revenue</th></tr>
+      ${byService.slice(0, 25).map((s) => `<tr><td>${s.name || ''}</td><td>${s.category || ''}</td><td>${fmt(s.quantity)}</td><td>PKR ${fmt(s.revenue)}</td></tr>`).join('') || '<tr><td colspan="4">No data</td></tr>'}
+      </table>
+      <h2>Recent Clinic Line Items</h2>
+      <table><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Service</th><th>Category</th><th>Qty</th><th>Total</th><th>Branch</th></tr>
+      ${recentLines.slice(0, 40).map((r) => `<tr><td>${r.date || ''}</td><td>${r.invoiceNo || ''}</td><td>${r.customerName || ''}</td><td>${r.serviceName || ''}</td><td>${r.category || ''}</td><td>${fmt(r.quantity)}</td><td>PKR ${fmt(r.total)}</td><td>${r.branch || ''}</td></tr>`).join('') || '<tr><td colspan="8">No data</td></tr>'}
+      </table>
+    </body></html>`)
+    w.document.close()
+    setTimeout(() => w.print(), 400)
+    setExportAnchor(null)
+  }
+
   return (
     <RouteGuard allowedRoles={['ADMIN', 'CASHIER', 'WAREHOUSE_KEEPER']}>
       <Box sx={{ bgcolor: '#f7f8fa', minHeight: '100vh', width: '100%' }}>
@@ -232,6 +275,7 @@ export default function ClinicSalesReportPage() {
                 PaperProps={{ elevation: 3, sx: { borderRadius: 2, minWidth: 160, mt: 0.5 } }}
               >
                 <MenuItem onClick={handleExportCSV}>Export CSV</MenuItem>
+                <MenuItem onClick={handleExportPDF}>Export PDF</MenuItem>
               </Menu>
             </Box>
           </Box>
