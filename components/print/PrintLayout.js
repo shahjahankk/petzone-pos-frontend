@@ -40,11 +40,11 @@ function ThermalRow({ label, value, bold, large, color }) {
     <div style={{
       display: 'flex', justifyContent: 'space-between',
       marginBottom: '3px',
-      fontSize: large ? '13px' : '10px',
-      fontWeight: bold ? 'bold' : 'normal',
+      fontSize: large ? '14px' : '11px',
+      fontWeight: bold ? 800 : 700,
       color: color || '#000'
     }}>
-      <span>{label}:</span>
+      <span>{label}</span>
       <span>{value}</span>
     </div>
   )
@@ -396,14 +396,22 @@ export default function PrintLayout({
   // ─────────────────────────────────────────────────────────────────────────────
   // THERMAL LAYOUT  (also handles isItemSheet for thermal item sheets)
   // ─────────────────────────────────────────────────────────────────────────────
-  const LINE      = <div style={{ borderTop: '1px dashed #000', margin: '5px 0' }} />
-  const BOLD_LINE = <div style={{ borderTop: '2px solid #000', margin: '5px 0' }} />
+  const LINE      = <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }} />
+  const BOLD_LINE = <div style={{ borderTop: '2px solid #000', margin: '4px 0' }} />
   const EQ_LINE   = (
     <div style={{
-      borderBottom: '2px solid #000', margin: '5px 0',
-      letterSpacing: '2px', textAlign: 'center', fontSize: '10px'
+      letterSpacing: '1px', textAlign: 'center', fontSize: '10px',
+      fontWeight: 900, margin: '4px 0', overflow: 'hidden', whiteSpace: 'nowrap'
     }}>
       {'================================'}
+    </div>
+  )
+  const STAR_BANNER = (
+    <div style={{
+      textAlign: 'center', fontWeight: 900, fontSize: '11px',
+      letterSpacing: '1px', margin: '2px 0'
+    }}>
+      ********** RECEIPT **********
     </div>
   )
 
@@ -418,8 +426,8 @@ export default function PrintLayout({
         lineHeight: '1.15',
         color: '#000',
         backgroundColor: '#fff',
-        padding: '8px 16px',
-        margin: '0 auto',
+        padding: '4px 2px',
+        margin: '0',
         boxSizing: 'border-box',
       }}
     >
@@ -433,7 +441,8 @@ export default function PrintLayout({
                 alt={locationName}
                 style={{
                   maxHeight: logoSizes.thermalMaxHeight,
-                  maxWidth: logoSizes.thermalMaxWidth,
+                  maxWidth: '100%',
+                  width: '100%',
                   objectFit: 'contain',
                   display: 'block',
                   margin: '0 auto',
@@ -441,24 +450,23 @@ export default function PrintLayout({
                 onError={() => setLogoError(true)}
               />
             ) : (
-              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{locationName}</div>
+              <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{locationName}</div>
             )}
           </div>
         )}
-        <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '2px' }}>{locationName}</div>
+        <div style={{ fontWeight: '900', fontSize: '14px', marginBottom: '2px', letterSpacing: '0.3px' }}>{locationName}</div>
         {companyPhone   && <div style={{ fontSize: '10px', marginBottom: '1px' }}>Tel: {companyPhone}</div>}
         {companyAddress && <div style={{ fontSize: '9px',  marginBottom: '1px', lineHeight: '1.3' }}>{companyAddress}</div>}
         {companyEmail   && <div style={{ fontSize: '9px',  marginBottom: '1px' }}>{companyEmail}</div>}
       </div>
 
-      {BOLD_LINE}
-
-      {/* Title */}
-      <div style={{ fontWeight: 'bold', textAlign: 'center', fontSize: '12px', textTransform: 'uppercase', marginBottom: '5px' }}>
+      {EQ_LINE}
+      {STAR_BANNER}
+      <div style={{ fontWeight: '900', textAlign: 'center', fontSize: '13px', textTransform: 'uppercase', margin: '3px 0', letterSpacing: '1.5px' }}>
         {isItemSheet ? 'ITEM SHEET' : (title || 'RECEIPT')}
       </div>
-
-      {BOLD_LINE}
+      {STAR_BANNER}
+      {EQ_LINE}
 
       {/* ══ META ══ */}
       <ThermalRow label={isItemSheet ? 'Sheet #' : 'Receipt #'} value={receiptNumber || '—'} />
@@ -472,21 +480,19 @@ export default function PrintLayout({
 
       {/* ══ ITEMS HEADER ══ */}
       {isItemSheet ? (
-        <div style={{ display: 'flex', fontWeight: 'bold', fontSize: '10px', marginBottom: '3px' }}>
-          <div style={{ flex: 3 }}>Item</div>
-          <div style={{ width: '40px', textAlign: 'center' }}>Qty</div>
-          <div style={{ width: '50px', textAlign: 'right' }}>Unit</div>
+        <div style={{ display: 'flex', fontWeight: 900, fontSize: '11px', marginBottom: '3px', borderBottom: '1px dashed #000', paddingBottom: '3px' }}>
+          <div style={{ flex: 3 }}>ITEM</div>
+          <div style={{ width: '40px', textAlign: 'right' }}>QTY</div>
+          <div style={{ width: '50px', textAlign: 'right' }}>UNIT</div>
         </div>
       ) : (
-        <div style={{ display: 'flex', fontWeight: 'bold', fontSize: '10px', marginBottom: '3px' }}>
-          <div style={{ flex: 2 }}>Item</div>
-          <div style={{ width: '30px', textAlign: 'center' }}>Qty</div>
-          <div style={{ width: '52px', textAlign: 'right' }}>Price</div>
-          <div style={{ width: '52px', textAlign: 'right' }}>Total</div>
+        <div style={{ display: 'flex', fontWeight: 900, fontSize: '11px', marginBottom: '3px', borderBottom: '1px dashed #000', paddingBottom: '3px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>ITEM</div>
+          <div style={{ width: '32px', textAlign: 'right', flexShrink: 0 }}>QTY</div>
+          <div style={{ width: '52px', textAlign: 'right', flexShrink: 0 }}>PRICE</div>
+          <div style={{ width: '52px', textAlign: 'right', flexShrink: 0 }}>TOTAL</div>
         </div>
       )}
-
-      {LINE}
 
       {/* ══ ITEMS ══ */}
       {items && items.length
@@ -500,25 +506,25 @@ export default function PrintLayout({
             if (!lineTotal && unitPrice && qty)  lineTotal = unitPrice * qty - safeNumber(item.discount || 0)
 
             return (
-              <div key={index} style={{ marginBottom: '4px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '10px' }}>{item.name}</div>
+              <div key={index} style={{ marginBottom: '5px', paddingBottom: '3px', borderBottom: '1px dotted #bbb' }}>
+                <div style={{ fontWeight: 800, fontSize: '11px' }}>{item.name}</div>
                 {isItemSheet ? (
-                  <div style={{ display: 'flex', fontSize: '10px' }}>
+                  <div style={{ display: 'flex', fontSize: '11px' }}>
                     <div style={{ flex: 3 }}></div>
-                    <div style={{ width: '40px', textAlign: 'center' }}>{formatCurrency(qty)}</div>
+                    <div style={{ width: '40px', textAlign: 'right', fontWeight: 700 }}>{formatCurrency(qty)}</div>
                     <div style={{ width: '50px', textAlign: 'right' }}>{item.unit || ''}</div>
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', fontSize: '10px' }}>
-                      <div style={{ flex: 2 }}></div>
-                      <div style={{ width: '30px', textAlign: 'center' }}>{formatCurrency(qty)}</div>
-                      <div style={{ width: '52px', textAlign: 'right' }}>{formatCurrency(unitPrice)}</div>
-                      <div style={{ width: '52px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(lineTotal)}</div>
+                    <div style={{ display: 'flex', fontSize: '11px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}></div>
+                      <div style={{ width: '32px', textAlign: 'right', flexShrink: 0, fontWeight: 700 }}>{formatCurrency(qty)}</div>
+                      <div style={{ width: '52px', textAlign: 'right', flexShrink: 0, fontWeight: 700 }}>{formatCurrency(unitPrice)}</div>
+                      <div style={{ width: '52px', textAlign: 'right', flexShrink: 0, fontWeight: 900 }}>{formatCurrency(lineTotal)}</div>
                     </div>
                     {item.discount > 0 && (
-                      <div style={{ fontSize: '9px', color: '#d32f2f', textAlign: 'right' }}>
-                        Discount: -{formatCurrency(item.discount)}
+                      <div style={{ fontSize: '10px', color: '#d32f2f', textAlign: 'right', fontWeight: 700 }}>
+                        Disc: -{formatCurrency(item.discount)}
                       </div>
                     )}
                   </>
@@ -534,35 +540,39 @@ export default function PrintLayout({
       {/* ══ TOTALS — hidden for item sheet ══ */}
       {!isItemSheet && (
         <>
-          {BOLD_LINE}
-          <ThermalRow label="Subtotal"     value={formatCurrency(nSubtotal)} />
-          {nTax > 0      && <ThermalRow label="Tax"      value={formatCurrency(nTax)} />}
+          {EQ_LINE}
+          <ThermalRow label="Subtotal" value={formatCurrency(nSubtotal)} bold />
+          {nTax > 0 && <ThermalRow label="Tax" value={formatCurrency(nTax)} bold />}
           {(() => {
             const itemDiscSum = (items || []).reduce((s, it) => s + safeNumber(it.discount), 0)
             return itemDiscSum > 0
-              ? <ThermalRow label="Item Disc" value={`-${formatCurrency(itemDiscSum)}`} color="#d32f2f" />
+              ? <ThermalRow label="Item Disc" value={`-${formatCurrency(itemDiscSum)}`} color="#d32f2f" bold />
               : null
           })()}
-          {nDiscount > 0 && <ThermalRow label="Discount" value={`-${formatCurrency(nDiscount)}`} color="#d32f2f" />}
+          {nDiscount > 0 && <ThermalRow label="Discount" value={`-${formatCurrency(nDiscount)}`} color="#d32f2f" bold />}
           {LINE}
-          <ThermalRow label="Invoice Total" value={formatCurrency(computedInvoiceTotal)} bold />
-          {nOld !== 0 && <ThermalRow label="Old Balance" value={formatCurrency(nOld)} />}
-          {BOLD_LINE}
-          <ThermalRow label="TOTAL" value={formatCurrency(displayedTotal)} bold large />
-          {EQ_LINE}
+          <ThermalRow label="Invoice" value={formatCurrency(computedInvoiceTotal)} bold />
+          {nOld !== 0 && <ThermalRow label="Old Balance" value={formatCurrency(nOld)} bold />}
+          <div style={{
+            border: '2px solid #000', margin: '6px 0', padding: '6px 4px', textAlign: 'center'
+          }}>
+            <div style={{ fontWeight: 900, fontSize: '15px', letterSpacing: '0.5px' }}>
+              TOTAL  {formatCurrency(displayedTotal)}
+            </div>
+          </div>
 
-          {/* Payment */}
-          <div style={{ marginTop: '4px' }}>
-            <ThermalRow label="Payment Method" value={paymentMethod} />
-            <ThermalRow label="Paid Amount"    value={formatCurrency(nPayment)} bold />
+          <div style={{ marginTop: '2px', borderTop: '1px dashed #000', paddingTop: '4px' }}>
+            <div style={{ fontWeight: 900, fontSize: '11px', marginBottom: '3px' }}>PAYMENT</div>
+            <ThermalRow label="Method" value={paymentMethod} bold />
+            <ThermalRow label="Paid" value={formatCurrency(nPayment)} bold />
             {(nCredit > 0 || paymentMethod === 'FULLY_CREDIT') && (
-              <ThermalRow label="Credit Amount" value={formatCurrency(nCredit || displayedTotal)} />
+              <ThermalRow label="Credit" value={formatCurrency(nCredit || displayedTotal)} bold />
             )}
             {shouldShowRemaining && (
-              <ThermalRow label="Remaining Balance" value={formatCurrency(computedRemaining)} bold />
+              <ThermalRow label="Remaining" value={formatCurrency(computedRemaining)} bold />
             )}
             {change > 0 && (
-              <ThermalRow label="Change" value={formatCurrency(change)} />
+              <ThermalRow label="Change" value={formatCurrency(change)} bold />
             )}
           </div>
         </>
@@ -590,9 +600,11 @@ export default function PrintLayout({
       {/* Footer */}
       {BOLD_LINE}
       <div style={{ textAlign: 'center', marginTop: '4px' }}>
-        <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>{footerMessage}</div>
-        <div style={{ fontSize: '9px' }}>Powered by Tychora</div>
-        <div style={{ fontSize: '8px', color: '#555' }}>www.tychora.com</div>
+        <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '2px' }}>{footerMessage}</div>
+        <div style={{ fontSize: '10px', marginBottom: '3px' }}>Return within 3 days with receipt</div>
+        {LINE}
+        <div style={{ fontSize: '11px', fontWeight: 700 }}>Powered by Tychora</div>
+        <div style={{ fontSize: '10px' }}>www.tychora.com</div>
       </div>
     </div>
   )

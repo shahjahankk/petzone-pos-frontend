@@ -1,7 +1,6 @@
 /**
- * Compact ESC/POS sales receipt for Epson TM-T88V 80mm.
- * Uses Font B (smaller) for body to save paper; bold only where needed.
- * Logo: brand PNG (fetch+bitmap), never SVG circle placeholder.
+ * ESC/POS sales receipt for Epson TM-T88V 80mm.
+ * Full printable width (512 dots) + structured layout (not plain text dump).
  */
 import { getPrintLogoSizes } from './brandAssets'
 
@@ -23,12 +22,21 @@ function left() {
   return bytes(0x1b, 0x61, 0x00)
 }
 
+function right() {
+  return bytes(0x1b, 0x61, 0x02)
+}
+
 function style(n = 0) {
   return bytes(0x1b, 0x21, n & 0xff)
 }
 
 function normal() {
   return style(0)
+}
+
+/** Double-width + double-height (Font A style bits) */
+function emphasize() {
+  return style(0x30)
 }
 
 function boldOn() {
@@ -43,13 +51,21 @@ function fontA() {
   return bytes(0x1b, 0x4d, 0x00)
 }
 
-/** Smaller font — more columns, less paper */
+/** Font B ≈ 56 cols on 80mm — fills printable width */
 function fontB() {
   return bytes(0x1b, 0x4d, 0x01)
 }
 
 function init() {
   return bytes(0x1b, 0x40)
+}
+
+/** Zero left margin + full 512-dot print area (avoids empty right strip) */
+function fullWidthArea() {
+  return [
+    0x1d, 0x4c, 0x00, 0x00, // GS L left margin = 0
+    0x1d, 0x57, 0x00, 0x02, // GS W print area = 512 dots
+  ]
 }
 
 function feed(n = 1) {
@@ -66,6 +82,20 @@ function money(v) {
   return String(Math.round(Number(v || 0)))
 }
 
+function rule(width, ch = '-') {
+  return textLine(ch.repeat(width))
+}
+
+function doubleRule(width) {
+  return textLine('='.repeat(width))
+}
+
+function stars(width) {
+  const mid = ' RECEIPT '
+  const side = Math.max(2, Math.floor((width - mid.length) / 2))
+  return textLine('*'.repeat(side) + mid + '*'.repeat(width - side - mid.length))
+}
+
 function row2(label, value, width) {
   const l = String(label)
   const r = String(value)
@@ -73,7 +103,7 @@ function row2(label, value, width) {
   return textLine(l + ' '.repeat(space) + r)
 }
 
-/** One compact line: name + qty + price + total (fills full receipt width) */
+/** Item line — qty / price / total flush to right edge */
 function itemLine(item, width) {
   const qty = Number.isFinite(item.quantity) ? item.quantity : 0
   const discountValue = Number(item.discount || 0)
@@ -89,14 +119,13 @@ function itemLine(item, width) {
           ? (resolvedTotal + discountValue) / qty
           : 0
 
-  // cols: name | qty(4) | price(7) | total(7) — flush to right edge
   const qtyW = 4
-  const priceW = 7
-  const totW = 7
+  const priceW = 8
+  const totW = 8
   const qtyS = String(qty).slice(0, qtyW)
   const priceS = money(unit).slice(0, priceW)
   const totS = money(resolvedTotal).slice(0, totW)
-  const nameW = Math.max(8, width - qtyW - priceW - totW)
+  const nameW = Math.max(10, width - qtyW - priceW - totW)
   const name = String(item.name || 'Item')
 
   const lines = []
@@ -107,15 +136,16 @@ function itemLine(item, width) {
       )
     )
   } else {
-    // Long name: wrap once, then qty/price/total on next line
     lines.push(...textLine(name.slice(0, width)))
     if (name.length > width) lines.push(...textLine(name.slice(width, width * 2)))
     lines.push(
-      ...textLine(pad(`${qtyS}x${priceS}`, width - totW) + pad(totS, totW, 'right'))
+      ...textLine(
+        pad('', nameW) + pad(qtyS, qtyW, 'right') + pad(priceS, priceW, 'right') + pad(totS, totW, 'right')
+      )
     )
   }
   if (discountValue > 0) {
-    lines.push(...textLine(pad(`  Disc -${money(discountValue)}`, width)))
+    lines.push(...textLine(pad(`  Disc  -${money(discountValue)}`, width, 'right')))
   }
   return lines
 }
@@ -179,7 +209,6 @@ function resolveLogoCandidates(logoUrl) {
   const push = (u) => {
     if (u && !list.includes(u)) list.push(u)
   }
-  // Prefer the branch/warehouse brand logo first
   push(logoUrl)
   if (logoUrl?.includes('.svg')) push(String(logoUrl).replace(/\.svg/i, '.png'))
   push('/petzonelogo.png')
@@ -195,7 +224,6 @@ function toAbsoluteUrl(logoUrl) {
 }
 
 async function loadImage(absolute) {
-  // Prefer fetch → ImageBitmap (avoids canvas-taint / stale cache issues)
   try {
     const res = await fetch(absolute, { cache: 'no-cache' })
     if (res.ok) {
@@ -214,7 +242,7 @@ async function loadImage(absolute) {
       return img
     }
   } catch (e) {
-    /* fall through to Image() */
+    /* fall through */
   }
 
   const img = new Image()
@@ -231,7 +259,7 @@ async function loadImage(absolute) {
 }
 
 /** Real PNG logo — sized for full 80mm printable width (~512 dots). */
-export async function logoToEscPosRaster(logoUrl, maxWidthDots = 448, maxHeightDots = 120) {
+export async function logoToEscPosRaster(logoUrl, maxWidthDots = 512, maxHeightDots = 140) {
   if (typeof window === 'undefined') return []
 
   const candidates = resolveLogoCandidates(logoUrl)
@@ -288,7 +316,6 @@ export async function logoToEscPosRaster(logoUrl, maxWidthDots = 448, maxHeightD
   return []
 }
 
-/** Minimal feed so cutter clears footer without wasting paper */
 function cutSafe() {
   return [
     0x0a, 0x0a, 0x0a, 0x0a, 0x0a,
@@ -297,20 +324,20 @@ function cutSafe() {
 }
 
 /**
- * Compact sales receipt ESC/POS.
+ * Structured sales receipt ESC/POS — full width, clearer hierarchy.
  */
 export async function buildReceiptEscPos(printData = {}, options = {}) {
-  // Font B ≈ 56 cols on 80mm — fill printable width (avoids empty right margin)
+  // Font B on 80mm ≈ 56 columns — use full width so amounts sit on the right edge
   const width = options.width || 56
   const logoUrl = printData.logoUrl || '/petzonelogo.png'
   const includeLogo = options.includeLogo !== false
-  // PetFamily needs a larger raster — default from brand when caller omits sizes
   const brandSizes = getPrintLogoSizes(logoUrl)
-  const logoWidth = options.logoWidth || brandSizes.escPosWidth
-  const logoHeight = options.logoHeight || brandSizes.escPosHeight
+  const logoWidth = options.logoWidth || Math.min(512, brandSizes.escPosWidth || 512)
+  const logoHeight = options.logoHeight || brandSizes.escPosHeight || 140
 
   const out = []
   out.push(...init())
+  out.push(...fullWidthArea())
   out.push(...fontB())
   out.push(...center())
 
@@ -318,16 +345,23 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     const logo = await logoToEscPosRaster(logoUrl, logoWidth, logoHeight)
     if (logo.length) {
       out.push(...logo)
+      out.push(...feed(1))
     }
   }
 
-  // Branch — bold normal size (not double-height)
+  // ── Brand header ──────────────────────────────────────────
+  out.push(...fontA())
   out.push(...boldOn())
-  out.push(...textLine((printData.companyName || printData.branchName || 'PetZone').slice(0, width)))
+  out.push(...emphasize())
+  out.push(...textLine((printData.companyName || printData.branchName || 'PetZone').slice(0, 20)))
+  out.push(...normal())
   out.push(...boldOff())
+  out.push(...fontB())
 
   if (printData.branchName && printData.branchName !== printData.companyName) {
+    out.push(...boldOn())
     out.push(...textLine(String(printData.branchName).slice(0, width)))
+    out.push(...boldOff())
   }
   if (printData.companyAddress) {
     out.push(...textLine(String(printData.companyAddress).slice(0, width)))
@@ -335,45 +369,55 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   if (printData.companyPhone) {
     out.push(...textLine(`Tel: ${String(printData.companyPhone).slice(0, width - 5)}`))
   }
+  if (printData.companyEmail) {
+    out.push(...textLine(String(printData.companyEmail).slice(0, width)))
+  }
 
-  out.push(...textLine('-'.repeat(width)))
+  out.push(...doubleRule(width))
   out.push(...boldOn())
+  out.push(...stars(width))
   out.push(...textLine((printData.title || 'SALES RECEIPT').toUpperCase().slice(0, width)))
+  out.push(...stars(width))
   out.push(...boldOff())
-  out.push(...textLine('-'.repeat(width)))
+  out.push(...doubleRule(width))
 
+  // ── Meta block ────────────────────────────────────────────
   out.push(...left())
-  out.push(...row2('Rcpt#', printData.receiptNumber || 'N/A', width))
-  const dateTime = [printData.date, printData.time].filter(Boolean).join(' ')
-  if (dateTime) out.push(...row2('Date', dateTime.slice(0, width - 5), width))
+  out.push(...boldOn())
+  out.push(...row2('Receipt #', printData.receiptNumber || 'N/A', width))
+  out.push(...boldOff())
+  const dateTime = [printData.date, printData.time].filter(Boolean).join('  ')
+  if (dateTime) out.push(...row2('Date/Time', dateTime.slice(0, width - 10), width))
   out.push(...row2('Cashier', printData.cashierName || 'N/A', width))
   out.push(...row2('Customer', (printData.customerName || 'Walk-in').slice(0, width - 10), width))
   if (printData.customerPhone) {
     out.push(...row2('Phone', printData.customerPhone, width))
   }
 
-  out.push(...textLine('-'.repeat(width)))
-  // Item | Qty(4) | Price(7) | Total(7) — uses full width so amounts sit on the right edge
+  out.push(...doubleRule(width))
+
+  // ── Items ─────────────────────────────────────────────────
   const qtyW = 4
-  const priceW = 7
-  const totW = 7
-  const nameHdrW = Math.max(8, width - qtyW - priceW - totW)
+  const priceW = 8
+  const totW = 8
+  const nameHdrW = Math.max(10, width - qtyW - priceW - totW)
   out.push(
     ...boldOn(),
     ...textLine(
-      pad('Item', nameHdrW) + pad('Qty', qtyW, 'right') + pad('Price', priceW, 'right') + pad('Total', totW, 'right')
+      pad('ITEM', nameHdrW) + pad('QTY', qtyW, 'right') + pad('PRICE', priceW, 'right') + pad('TOTAL', totW, 'right')
     ),
     ...boldOff()
   )
-  out.push(...textLine('-'.repeat(width)))
+  out.push(...rule(width, '-'))
 
   const items = Array.isArray(printData.items) ? printData.items : []
   items.forEach((item) => {
     out.push(...itemLine(item, width))
   })
 
-  out.push(...textLine('-'.repeat(width)))
+  out.push(...doubleRule(width))
 
+  // ── Totals ────────────────────────────────────────────────
   const subtotal = printData.subtotal || 0
   const tax = printData.tax || 0
   const cartDiscount = Number(printData.discount || 0)
@@ -395,30 +439,51 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   if (cartDiscount > 0) out.push(...row2('Discount', `-${money(cartDiscount)}`, width))
   if (tax > 0) out.push(...row2('Tax', money(tax), width))
   out.push(...row2('Invoice', money(invoiceTotal), width))
-  if (oldBalance > 0) out.push(...row2('Old Bal', money(oldBalance), width))
+  if (oldBalance > 0) out.push(...row2('Old Balance', money(oldBalance), width))
 
-  out.push(...textLine('-'.repeat(width)))
+  out.push(...doubleRule(width))
+  out.push(...center())
+  out.push(...fontA())
   out.push(...boldOn())
-  out.push(...row2('TOTAL', money(total), width))
+  out.push(...emphasize())
+  out.push(...textLine(`TOTAL  ${money(total)}`))
+  out.push(...normal())
   out.push(...boldOff())
-  out.push(...row2('Pay', printData.paymentMethod || 'CASH', width))
+  out.push(...fontB())
+  out.push(...doubleRule(width))
+
+  // ── Payment ───────────────────────────────────────────────
+  out.push(...left())
+  out.push(...boldOn())
+  out.push(...textLine('PAYMENT'))
+  out.push(...boldOff())
+  out.push(...rule(width, '-'))
+  out.push(...row2('Method', printData.paymentMethod || 'CASH', width))
   out.push(...row2('Paid', money(paymentAmount), width))
   if (creditAmount > 0 || printData.paymentMethod === 'FULLY_CREDIT') {
     out.push(...row2('Credit', money(creditAmount || total), width))
   }
   if (remaining > 0 || oldBalance > 0) {
-    out.push(...row2('Remain', money(remaining), width))
+    out.push(...boldOn())
+    out.push(...row2('Remaining', money(remaining), width))
+    out.push(...boldOff())
   }
   if (change > 0) out.push(...row2('Change', money(change), width))
 
   if (printData.notes && String(printData.notes).trim()) {
+    out.push(...rule(width, '-'))
+    out.push(...textLine('Notes:'))
     out.push(...textLine(String(printData.notes).slice(0, width * 2)))
   }
 
+  // ── Footer ────────────────────────────────────────────────
   out.push(...center())
-  out.push(...textLine('-'.repeat(width)))
+  out.push(...doubleRule(width))
+  out.push(...boldOn())
   out.push(...textLine(printData.footerMessage || 'Thank you for choosing us!'))
-  out.push(...textLine('Return within 3 days'))
+  out.push(...boldOff())
+  out.push(...textLine('Return within 3 days with receipt'))
+  out.push(...rule(width, '-'))
   out.push(...textLine('Powered by Tychora'))
   out.push(...textLine('www.tychora.com'))
   out.push(...fontA())

@@ -55,14 +55,14 @@ export function getPrintLogoSizes(logoUrlOrBrand) {
 
   return {
     brand: 'petzone',
-    cssMaxWidth: '200px',
-    cssWidth: '70%',
-    colorMaxHeight: '70px',
-    colorMaxWidth: '160px',
-    thermalMaxHeight: '60px',
-    thermalMaxWidth: '120px',
-    escPosWidth: 448,
-    escPosHeight: 120,
+    cssMaxWidth: '240px',
+    cssWidth: '88%',
+    colorMaxHeight: '80px',
+    colorMaxWidth: '180px',
+    thermalMaxHeight: '78px',
+    thermalMaxWidth: '200px',
+    escPosWidth: 512,
+    escPosHeight: 140,
   }
 }
 

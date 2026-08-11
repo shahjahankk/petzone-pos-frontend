@@ -24,12 +24,12 @@ html, body {
 
 /* Thermal: fixed narrow column */
 .receipt-container.thermal-layout {
-  width: 280px;
-  max-width: 280px;
-  font-family: monospace;
-  font-size: 11px;
-  line-height: 1.1;
-  padding: 8px 10px;
+  width: 302px;
+  max-width: 302px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 4px 2px;
   margin: 0 auto;
 }
 
@@ -69,34 +69,34 @@ html, body {
     display: none;
   }
 
-  /* ── Thermal 80mm ── */
+  /* ── Thermal 80mm — full width, minimal side margin ── */
   @page {
     size: 80mm auto;
-    margin: 4mm 2mm;
+    margin: 0;
   }
 
   .receipt-container.thermal-layout {
     width: 80mm !important;
     max-width: 80mm !important;
-    padding: 4px 6px !important;
+    padding: 2px 1px !important;
     margin: 0 !important;
-    font-family: monospace !important;
-    font-size: 11px !important;
-    line-height: 1.1 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 12px !important;
+    line-height: 1.25 !important;
     color: #000 !important;
     background: #fff !important;
-    /* No min-height — thermal rolls are continuous */
   }
 
   .receipt-container.thermal-layout * {
-    font-family: monospace !important;
+    font-family: 'Courier New', Courier, monospace !important;
     color: #000 !important;
     background: transparent !important;
   }
 
   .receipt-container.thermal-layout img {
-    width: 100px !important;
-    max-width: 100px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
     display: block !important;
     margin: 0 auto !important;
     filter: grayscale(100%) !important;
@@ -136,7 +136,7 @@ html, body {
 =========================== */
 
 /*
-  Thermal:   size: 80mm auto;   margin: 4mm 2mm;
+  Thermal:   size: 80mm auto;   margin: 0;
   A4:        size: A4 portrait; margin: 10mm 12mm;
   Letter:    size: Letter;      margin: 10mm 12mm;
   Landscape: size: A4 landscape; margin: 10mm 12mm;

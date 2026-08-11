@@ -148,11 +148,12 @@ export default function PrintDialog({
 
     let pageSize = isThermal ? '80mm auto' : printSettings.paperSize === 'Letter' ? 'Letter' : 'A4'
     if (!isThermal && isLandscape) pageSize += ' landscape'
-    const pageMargin = isThermal ? '1mm 1mm' : '10mm 12mm'
-    const fontFamily = isThermal ? 'monospace' : 'Arial, Helvetica, sans-serif'
-    const fontSize   = isThermal ? '11px' : (printSettings.fontSize || '12px')
-    const lineHeight = isThermal ? '1.1' : '1.4'
-    const wrapWidth  = isThermal ? '76mm' : '100%'
+    // Thermal: zero page margin + full 80mm width — avoids empty strip on the right
+    const pageMargin = isThermal ? '0' : '10mm 12mm'
+    const fontFamily = isThermal ? "'Courier New', Courier, monospace" : 'Arial, Helvetica, sans-serif'
+    const fontSize   = isThermal ? '12px' : (printSettings.fontSize || '12px')
+    const lineHeight = isThermal ? '1.25' : '1.4'
+    const wrapWidth  = isThermal ? '80mm' : '100%'
 
     printWindow.document.write(`<!DOCTYPE html>
 <html>
@@ -175,8 +176,10 @@ export default function PrintDialog({
     }
     .print-wrapper {
       width: ${wrapWidth};
-      max-width: ${isThermal ? '76mm' : '100%'};
-      margin: 0 ${isThermal ? 'auto' : '0'};
+      max-width: ${isThermal ? '80mm' : '100%'};
+      margin: 0;
+      padding: ${isThermal ? '2px 1px' : '0'};
+      box-sizing: border-box;
     }
     table { width: 100%; border-collapse: collapse; }
     th, td { text-align: left; vertical-align: top; }
