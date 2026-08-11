@@ -2484,15 +2484,13 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           <div style="text-align: center; margin-bottom: 6px;">
             <img src="${resolvedLogoPath}" alt="${safeCompanyName}" style="max-width: 100%; width: ${logoSizes.cssWidth}; height: auto; filter: grayscale(100%); display: block; margin: 0 auto 4px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
             <div style="font-size: 15px; font-weight: 900; display: none; text-align: center; border: 2px solid #000; padding: 6px;">${safeCompanyName}</div>
-            <div style="font-weight: 900; font-size: 14px; letter-spacing: 0.4px; margin-top: 2px;">${printData.branchName || safeCompanyName}</div>
-            <div style="font-size: 10px; margin-top: 2px;">${safeCompanyAddress.substring(0, 48)}</div>
+            <div style="font-weight: 900; font-size: 13px; letter-spacing: 0.2px; margin-top: 2px; word-break: break-word;">${printData.branchName || safeCompanyName}</div>
+            <div style="font-size: 10px; margin-top: 2px;">${safeCompanyAddress.substring(0, 56)}</div>
             <div style="font-size: 10px;">Tel: ${safeCompanyPhone}</div>
             <div style="font-size: 10px; margin-bottom: 4px;">${safeCompanyEmail}</div>
-            <div style="border-top: 2px solid #000; margin: 4px 0 2px;"></div>
-            <div style="font-weight: 900; letter-spacing: 2px; font-size: 11px;">********** RECEIPT **********</div>
-            <div style="font-weight: 900; text-transform: uppercase; font-size: 13px; margin: 3px 0;">${printData.title || 'SALES RECEIPT'}</div>
-            <div style="font-weight: 900; letter-spacing: 2px; font-size: 11px;">****************************</div>
-            <div style="border-top: 2px solid #000; margin: 2px 0 6px;"></div>
+            <div style="border-top: 1px dashed #000; margin: 4px 0 2px;"></div>
+            <div style="font-weight: 900; text-transform: uppercase; font-size: 12px; margin: 2px 0; letter-spacing: 0.8px;">${printData.title || 'SALES RECEIPT'}</div>
+            <div style="border-top: 1px dashed #000; margin: 2px 0 6px;"></div>
           </div>
           <div style="margin-bottom: 6px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 11px; font-weight: 700;">Receipt #</span><span style="font-weight: 900; font-size: 11px;">${(printData.receiptNumber || 'N/A').substring(0, 22)}</span></div>

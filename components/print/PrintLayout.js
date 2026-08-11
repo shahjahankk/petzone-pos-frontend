@@ -398,22 +398,7 @@ export default function PrintLayout({
   // ─────────────────────────────────────────────────────────────────────────────
   const LINE      = <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }} />
   const BOLD_LINE = <div style={{ borderTop: '2px solid #000', margin: '4px 0' }} />
-  const EQ_LINE   = (
-    <div style={{
-      letterSpacing: '1px', textAlign: 'center', fontSize: '10px',
-      fontWeight: 900, margin: '4px 0', overflow: 'hidden', whiteSpace: 'nowrap'
-    }}>
-      {'================================'}
-    </div>
-  )
-  const STAR_BANNER = (
-    <div style={{
-      textAlign: 'center', fontWeight: 900, fontSize: '11px',
-      letterSpacing: '1px', margin: '2px 0'
-    }}>
-      ********** RECEIPT **********
-    </div>
-  )
+  const EQ_LINE   = <div style={{ borderTop: '2px solid #000', margin: '4px 0' }} />
 
   return (
     <div
@@ -454,19 +439,17 @@ export default function PrintLayout({
             )}
           </div>
         )}
-        <div style={{ fontWeight: '900', fontSize: '14px', marginBottom: '2px', letterSpacing: '0.3px' }}>{locationName}</div>
+        <div style={{ fontWeight: '900', fontSize: '13px', marginBottom: '2px', letterSpacing: '0.2px', wordBreak: 'break-word' }}>{locationName}</div>
         {companyPhone   && <div style={{ fontSize: '10px', marginBottom: '1px' }}>Tel: {companyPhone}</div>}
-        {companyAddress && <div style={{ fontSize: '9px',  marginBottom: '1px', lineHeight: '1.3' }}>{companyAddress}</div>}
+        {companyAddress && <div style={{ fontSize: '9px',  marginBottom: '1px', lineHeight: '1.3', wordBreak: 'break-word' }}>{companyAddress}</div>}
         {companyEmail   && <div style={{ fontSize: '9px',  marginBottom: '1px' }}>{companyEmail}</div>}
       </div>
 
-      {EQ_LINE}
-      {STAR_BANNER}
-      <div style={{ fontWeight: '900', textAlign: 'center', fontSize: '13px', textTransform: 'uppercase', margin: '3px 0', letterSpacing: '1.5px' }}>
-        {isItemSheet ? 'ITEM SHEET' : (title || 'RECEIPT')}
+      {LINE}
+      <div style={{ fontWeight: '900', textAlign: 'center', fontSize: '12px', textTransform: 'uppercase', margin: '2px 0', letterSpacing: '0.8px' }}>
+        {isItemSheet ? 'ITEM SHEET' : (title || 'SALES RECEIPT')}
       </div>
-      {STAR_BANNER}
-      {EQ_LINE}
+      {LINE}
 
       {/* ══ META ══ */}
       <ThermalRow label={isItemSheet ? 'Sheet #' : 'Receipt #'} value={receiptNumber || '—'} />
