@@ -57,32 +57,32 @@ const yFmt = (v) => {
 function KpiCard({ label, value, sub, accent, icon }) {
   return (
     <Card elevation={0} sx={{
-      border: '1px solid #f0f0f0',
-      borderTop: `3px solid ${accent}`,
-      borderRadius: 2.5,
+      border: '1px solid #eceff1',
+      borderTop: `4px solid ${accent}`,
+      borderRadius: 3,
       height: '100%',
       bgcolor: '#fff',
     }}>
-      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+      <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{
-              color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1,
-              fontWeight: 700, fontSize: '.65rem', display: 'block', mb: 0.8,
+              color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1.2,
+              fontWeight: 700, fontSize: '.72rem', display: 'block', mb: 1,
             }}>
               {label}
             </Typography>
-            <Typography sx={{ fontWeight: 800, fontSize: '1.45rem', color: 'text.primary', lineHeight: 1.15, mb: 0.4 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.55rem', md: '1.85rem' }, color: 'text.primary', lineHeight: 1.1, mb: 0.6 }}>
               {value}
             </Typography>
             {sub && (
-              <Typography sx={{ color: 'text.secondary', fontSize: '.75rem', display: 'block', mt: 0.3, lineHeight: 1.4 }}>
+              <Typography sx={{ color: 'text.secondary', fontSize: '.85rem', display: 'block', mt: 0.4, lineHeight: 1.45 }}>
                 {sub}
               </Typography>
             )}
           </Box>
-          <Box sx={{ bgcolor: `${accent}14`, borderRadius: 2, p: 1.2, display: 'flex', flexShrink: 0, ml: 1.5 }}>
-            <Box sx={{ color: accent, display: 'flex', fontSize: 20 }}>{icon}</Box>
+          <Box sx={{ bgcolor: `${accent}16`, borderRadius: 2.5, p: 1.6, display: 'flex', flexShrink: 0, ml: 1.5 }}>
+            <Box sx={{ color: accent, display: 'flex', fontSize: 26 }}>{icon}</Box>
           </Box>
         </Box>
       </CardContent>
@@ -92,9 +92,9 @@ function KpiCard({ label, value, sub, accent, icon }) {
 
 function SectionTitle({ title, icon }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.4, mb: 3 }}>
-      <Box sx={{ color: 'primary.main', display: 'flex', fontSize: 24 }}>{icon}</Box>
-      <Typography sx={{ fontWeight: 800, fontSize: '1.15rem', color: 'text.primary', letterSpacing: '-.2px' }}>{title}</Typography>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3.5 }}>
+      <Box sx={{ color: 'primary.main', display: 'flex', fontSize: 28 }}>{icon}</Box>
+      <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.2rem', md: '1.35rem' }, color: 'text.primary', letterSpacing: '-.3px' }}>{title}</Typography>
     </Box>
   )
 }
@@ -158,17 +158,18 @@ export default function ClinicSalesReportPage() {
 
   const dateChart = byDate.map((d) => ({
     date: d.date?.slice(5) || '',
+    fullDate: d.date || '',
     revenue: Number(d.revenue || 0),
     quantity: Number(d.quantity || 0),
   }))
 
-  const barChartWidth =
-    dateChart.length <= 1 ? 320
-      : dateChart.length <= 3 ? 520
-        : dateChart.length <= 7 ? 780
-          : '100%'
-  const barCategoryGap = dateChart.length <= 2 ? '28%' : dateChart.length <= 5 ? '22%' : '18%'
-  const barMaxSize = dateChart.length <= 3 ? 96 : dateChart.length <= 7 ? 72 : 56
+  // Few days → horizontal bars so the chart fills the page width (no tiny centered column)
+  const useHorizontalBars = dateChart.length > 0 && dateChart.length <= 8
+  const barChartHeight = useHorizontalBars
+    ? Math.max(280, dateChart.length * 72 + 80)
+    : 460
+  const barCategoryGap = dateChart.length <= 3 ? '18%' : dateChart.length <= 8 ? '22%' : '16%'
+  const barMaxSize = useHorizontalBars ? 42 : (dateChart.length <= 5 ? 88 : 64)
 
   const handleExportCSV = () => {
     const rows = [
@@ -362,8 +363,8 @@ export default function ClinicSalesReportPage() {
           </Box>
         </Box>
 
-        <Box sx={{ px: { xs: 2, md: 4 }, py: 3, width: '100%', boxSizing: 'border-box' }}>
-          <Grid container spacing={2.5} sx={{ mb: 2.5 }} columns={12}>
+        <Box sx={{ px: { xs: 2, md: 3, lg: 4 }, py: 3.5, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+          <Grid container spacing={2.5} sx={{ mb: 3.5 }} columns={12}>
             <Grid item xs={12} sm={6} md={3}>
               <KpiCard label="Clinic Revenue" value={fmtPKR(totalRevenue)} sub={`${fmt(totalInvoices)} invoices`} accent="#0288d1" icon={<AttachMoney />} />
             </Grid>
@@ -378,91 +379,132 @@ export default function ClinicSalesReportPage() {
             </Grid>
           </Grid>
 
-          <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: { xs: 2.5, md: 4 }, mb: 3, bgcolor: '#fff' }}>
+          <Paper elevation={0} sx={{ border: '1px solid #eceff1', borderRadius: 3, p: { xs: 2.5, md: 4 }, mb: 3.5, bgcolor: '#fff', width: '100%' }}>
             <SectionTitle title="Daily Clinic Revenue" icon={<Assessment />} />
             {dateChart.length === 0 ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 320, color: 'text.disabled' }}>
-                <Typography sx={{ fontSize: '1rem' }}>No clinic sales in selected period</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 360, color: 'text.disabled' }}>
+                <Typography sx={{ fontSize: '1.1rem' }}>No clinic sales in selected period</Typography>
               </Box>
             ) : (
-              <Box sx={{ width: '100%', maxWidth: barChartWidth, mx: dateChart.length <= 7 ? 'auto' : 0 }}>
-                <ResponsiveContainer width="100%" height={420}>
-                  <BarChart
-                    data={dateChart}
-                    margin={{ top: 16, right: 16, left: 8, bottom: dateChart.length > 15 ? 48 : 28 }}
-                    barCategoryGap={barCategoryGap}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#eceff1" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fill: '#607d8b', fontSize: 14, fontWeight: 600 }}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e0e0e0' }}
-                      interval={dateChart.length > 25 ? Math.ceil(dateChart.length / 12) : dateChart.length > 15 ? 1 : 0}
-                      angle={dateChart.length > 15 ? -35 : 0}
-                      textAnchor={dateChart.length > 15 ? 'end' : 'middle'}
-                      height={dateChart.length > 15 ? 56 : 36}
-                    />
-                    <YAxis
-                      tick={{ fill: '#607d8b', fontSize: 14, fontWeight: 600 }}
-                      tickFormatter={yFmt}
-                      width={72}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip {...TT} formatter={(v) => [`PKR ${fmt(v)}`, 'Revenue']} cursor={{ fill: 'rgba(2,136,209,0.06)' }} />
-                    <Bar name="Revenue" dataKey="revenue" fill="#0288d1" radius={[8, 8, 0, 0]} maxBarSize={barMaxSize} />
-                  </BarChart>
+              <Box sx={{ width: '100%' }}>
+                <ResponsiveContainer width="100%" height={barChartHeight}>
+                  {useHorizontalBars ? (
+                    <BarChart
+                      layout="vertical"
+                      data={dateChart}
+                      margin={{ top: 8, right: 48, left: 16, bottom: 8 }}
+                      barCategoryGap={barCategoryGap}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#eceff1" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        tick={{ fill: '#546e7a', fontSize: 15, fontWeight: 600 }}
+                        tickFormatter={yFmt}
+                        tickLine={false}
+                        axisLine={{ stroke: '#e0e0e0' }}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="date"
+                        width={72}
+                        tick={{ fill: '#37474f', fontSize: 15, fontWeight: 700 }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip {...TT} formatter={(v) => [`PKR ${fmt(v)}`, 'Revenue']} cursor={{ fill: 'rgba(2,136,209,0.06)' }} />
+                      <Bar
+                        name="Revenue"
+                        dataKey="revenue"
+                        fill="#0288d1"
+                        radius={[0, 10, 10, 0]}
+                        maxBarSize={barMaxSize}
+                        label={{
+                          position: 'right',
+                          formatter: (v) => `PKR ${fmt(v)}`,
+                          fill: '#455a64',
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      />
+                    </BarChart>
+                  ) : (
+                    <BarChart
+                      data={dateChart}
+                      margin={{ top: 20, right: 24, left: 8, bottom: dateChart.length > 15 ? 52 : 28 }}
+                      barCategoryGap={barCategoryGap}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#eceff1" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fill: '#546e7a', fontSize: 14, fontWeight: 600 }}
+                        tickLine={false}
+                        axisLine={{ stroke: '#e0e0e0' }}
+                        interval={dateChart.length > 25 ? Math.ceil(dateChart.length / 12) : dateChart.length > 15 ? 1 : 0}
+                        angle={dateChart.length > 15 ? -35 : 0}
+                        textAnchor={dateChart.length > 15 ? 'end' : 'middle'}
+                        height={dateChart.length > 15 ? 56 : 36}
+                      />
+                      <YAxis
+                        tick={{ fill: '#546e7a', fontSize: 14, fontWeight: 600 }}
+                        tickFormatter={yFmt}
+                        width={72}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip {...TT} formatter={(v) => [`PKR ${fmt(v)}`, 'Revenue']} cursor={{ fill: 'rgba(2,136,209,0.06)' }} />
+                      <Bar name="Revenue" dataKey="revenue" fill="#0288d1" radius={[10, 10, 0, 0]} maxBarSize={barMaxSize} />
+                    </BarChart>
+                  )}
                 </ResponsiveContainer>
               </Box>
             )}
           </Paper>
 
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={5}>
-              <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: { xs: 2.5, md: 3.5 }, bgcolor: '#fff', height: '100%' }}>
+          <Grid container spacing={3} sx={{ mb: 3.5 }}>
+            <Grid item xs={12} lg={4}>
+              <Paper elevation={0} sx={{ border: '1px solid #eceff1', borderRadius: 3, p: { xs: 2.5, md: 4 }, bgcolor: '#fff', height: '100%', minHeight: 480 }}>
                 <SectionTitle title="By Category" icon={<Category />} />
                 {pieCats.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'text.disabled' }}>
-                    <Typography sx={{ fontSize: '1rem' }}>No data</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 320, color: 'text.disabled' }}>
+                    <Typography sx={{ fontSize: '1.05rem' }}>No data</Typography>
                   </Box>
                 ) : (
-                  <ResponsiveContainer width="100%" height={320}>
+                  <ResponsiveContainer width="100%" height={340}>
                     <PieChart>
                       <Pie
                         data={pieCats}
                         cx="50%"
-                        cy="48%"
-                        innerRadius={78}
-                        outerRadius={118}
+                        cy="46%"
+                        innerRadius={88}
+                        outerRadius={132}
                         dataKey="value"
                         paddingAngle={pieCats.length > 1 ? 3 : 0}
                         stroke="#fff"
-                        strokeWidth={2}
+                        strokeWidth={3}
                       >
                         {pieCats.map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Pie>
                       <Tooltip {...TT} formatter={(v) => [`PKR ${fmt(v)}`, '']} />
-                      <Legend iconSize={12} wrapperStyle={{ fontSize: 14, fontWeight: 600, paddingTop: 8 }} iconType="circle" />
+                      <Legend iconSize={14} wrapperStyle={{ fontSize: 15, fontWeight: 600, paddingTop: 12 }} iconType="circle" />
                     </PieChart>
                   </ResponsiveContainer>
                 )}
-                <Box sx={{ mt: 2 }}>
+                <Box sx={{ mt: 2.5 }}>
                   {categoriesWithRevenue.map((c, i) => {
                     const pct = totalRevenue > 0 ? ((c.revenue / totalRevenue) * 100).toFixed(1) : '0.0'
                     const color = CAT_COLORS[i % CAT_COLORS.length]
                     return (
-                      <Box key={c.categoryId ?? c.category} sx={{ mb: 1.8 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.6 }}>
-                          <Typography sx={{ fontSize: '.9rem', fontWeight: 600 }}>{c.category}</Typography>
-                          <Typography sx={{ fontSize: '.9rem', fontWeight: 800, color }}>{fmtPKR(c.revenue)}</Typography>
+                      <Box key={c.categoryId ?? c.category} sx={{ mb: 2.2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.8 }}>
+                          <Typography sx={{ fontSize: '1rem', fontWeight: 700 }}>{c.category}</Typography>
+                          <Typography sx={{ fontSize: '1rem', fontWeight: 800, color }}>{fmtPKR(c.revenue)} · {pct}%</Typography>
                         </Box>
                         <LinearProgress
                           variant="determinate"
                           value={Math.min(parseFloat(pct), 100)}
                           sx={{
-                            height: 8, borderRadius: 4, bgcolor: '#ececec',
-                            '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 4 },
+                            height: 10, borderRadius: 5, bgcolor: '#ececec',
+                            '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 5 },
                           }}
                         />
                       </Box>
@@ -472,37 +514,37 @@ export default function ClinicSalesReportPage() {
               </Paper>
             </Grid>
 
-            <Grid item xs={12} md={7}>
-              <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: { xs: 2.5, md: 3.5 }, bgcolor: '#fff', height: '100%' }}>
+            <Grid item xs={12} lg={8}>
+              <Paper elevation={0} sx={{ border: '1px solid #eceff1', borderRadius: 3, p: { xs: 2.5, md: 4 }, bgcolor: '#fff', height: '100%', minHeight: 480 }}>
                 <SectionTitle title="Top Services" icon={<MedicalServices />} />
-                <TableContainer>
-                  <Table size="medium">
+                <TableContainer sx={{ width: '100%' }}>
+                  <Table sx={{ tableLayout: 'fixed', width: '100%' }} size="medium">
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 800, fontSize: '.8rem' }}>Service</TableCell>
-                        <TableCell sx={{ fontWeight: 800, fontSize: '.8rem' }}>Category</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, fontSize: '.8rem' }}>Qty</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 800, fontSize: '.8rem' }}>Revenue</TableCell>
+                        <TableCell sx={{ fontWeight: 800, fontSize: '.9rem', width: '42%', py: 2, borderBottom: '2px solid #eceff1' }}>Service</TableCell>
+                        <TableCell sx={{ fontWeight: 800, fontSize: '.9rem', width: '22%', py: 2, borderBottom: '2px solid #eceff1' }}>Category</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800, fontSize: '.9rem', width: '14%', py: 2, borderBottom: '2px solid #eceff1' }}>Qty</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 800, fontSize: '.9rem', width: '22%', py: 2, borderBottom: '2px solid #eceff1' }}>Revenue</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {topServices.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} align="center" sx={{ color: 'text.disabled', py: 5, fontSize: '1rem' }}>
+                          <TableCell colSpan={4} align="center" sx={{ color: 'text.disabled', py: 8, fontSize: '1.05rem' }}>
                             No clinic services sold in this period
                           </TableCell>
                         </TableRow>
-                      ) : topServices.slice(0, 15).map((s) => (
+                      ) : topServices.slice(0, 20).map((s) => (
                         <TableRow key={`${s.clinicServiceId}-${s.name}`} hover>
-                          <TableCell sx={{ py: 1.6 }}>
-                            <Typography sx={{ fontWeight: 700, fontSize: '.95rem' }}>{s.name}</Typography>
-                            {s.code && <Typography sx={{ fontSize: '.75rem', color: 'text.disabled' }}>{s.code}</Typography>}
+                          <TableCell sx={{ py: 2.2 }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>{s.name}</Typography>
+                            {s.code && <Typography sx={{ fontSize: '.8rem', color: 'text.disabled', mt: 0.3 }}>{s.code}</Typography>}
                           </TableCell>
                           <TableCell>
-                            <Chip label={s.category} size="small" sx={{ height: 24, fontSize: '.75rem', fontWeight: 600, borderRadius: 1 }} />
+                            <Chip label={s.category} size="small" sx={{ height: 28, fontSize: '.8rem', fontWeight: 600, borderRadius: 1.5, px: 0.5 }} />
                           </TableCell>
-                          <TableCell align="right" sx={{ fontSize: '.95rem', fontWeight: 600 }}>{fmt(s.quantity)}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 800, fontSize: '.95rem' }}>{fmtPKR(s.revenue)}</TableCell>
+                          <TableCell align="right" sx={{ fontSize: '1.05rem', fontWeight: 700 }}>{fmt(s.quantity)}</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 800, fontSize: '1.1rem', color: '#0277bd' }}>{fmtPKR(s.revenue)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -512,41 +554,42 @@ export default function ClinicSalesReportPage() {
             </Grid>
           </Grid>
 
-          <Paper elevation={0} sx={{ border: '1px solid #f0f0f0', borderRadius: 2.5, p: 3, bgcolor: '#fff' }}>
+          <Paper elevation={0} sx={{ border: '1px solid #eceff1', borderRadius: 3, p: { xs: 2.5, md: 4 }, bgcolor: '#fff', width: '100%' }}>
             <SectionTitle title="Recent Clinic Line Items" icon={<Receipt />} />
-            <TableContainer>
-              <Table size="small">
+            <TableContainer sx={{ width: '100%' }}>
+              <Table sx={{ minWidth: 960, width: '100%' }} size="medium">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Invoice</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Service</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>Qty</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700 }}>Total</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Branch</TableCell>
+                    {['Date', 'Invoice', 'Customer', 'Service', 'Category', 'Qty', 'Total', 'Branch'].map((h) => (
+                      <TableCell
+                        key={h}
+                        align={h === 'Qty' || h === 'Total' ? 'right' : 'left'}
+                        sx={{ fontWeight: 800, fontSize: '.85rem', py: 2, borderBottom: '2px solid #eceff1', whiteSpace: 'nowrap' }}
+                      >
+                        {h}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {recentLines.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ color: 'text.disabled', py: 4 }}>
+                      <TableCell colSpan={8} align="center" sx={{ color: 'text.disabled', py: 6, fontSize: '1.05rem' }}>
                         No clinic line items
                       </TableCell>
                     </TableRow>
                   ) : recentLines.map((r) => (
                     <TableRow key={r.id} hover>
-                      <TableCell>{r.date}</TableCell>
-                      <TableCell>{r.invoiceNo}</TableCell>
-                      <TableCell>{r.customerName}</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{r.serviceName}</TableCell>
-                      <TableCell>
-                        <Chip label={r.category} size="small" sx={{ height: 20, fontSize: '.65rem', borderRadius: 1 }} />
+                      <TableCell sx={{ fontSize: '.95rem', py: 2, whiteSpace: 'nowrap' }}>{r.date}</TableCell>
+                      <TableCell sx={{ fontSize: '.95rem', fontWeight: 700, color: 'primary.main', py: 2 }}>{r.invoiceNo}</TableCell>
+                      <TableCell sx={{ fontSize: '.95rem', py: 2 }}>{r.customerName}</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '1rem', py: 2 }}>{r.serviceName}</TableCell>
+                      <TableCell sx={{ py: 2 }}>
+                        <Chip label={r.category} size="small" sx={{ height: 26, fontSize: '.78rem', fontWeight: 600, borderRadius: 1.5 }} />
                       </TableCell>
-                      <TableCell align="right">{fmt(r.quantity)}</TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700 }}>{fmtPKR(r.total)}</TableCell>
-                      <TableCell>{r.branch}</TableCell>
+                      <TableCell align="right" sx={{ fontSize: '1rem', fontWeight: 600, py: 2 }}>{fmt(r.quantity)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 800, fontSize: '1.05rem', py: 2 }}>{fmtPKR(r.total)}</TableCell>
+                      <TableCell sx={{ fontSize: '.9rem', py: 2 }}>{r.branch}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
