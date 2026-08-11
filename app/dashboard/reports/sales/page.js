@@ -245,7 +245,11 @@ import { useEffect, useState, useCallback } from 'react'
       ...(filters.branch  !== 'all' && { branch:  filters.branch }),
       ...(filters.cashier !== 'all' && { cashier: filters.cashier }),
     }), [filters])
-    const buildFP   = useCallback(() => ({ dateFrom: toStr(filters.dateFrom), dateTo: toStr(filters.dateTo) }), [filters])
+    const buildFP = useCallback(() => ({
+      dateFrom: toStr(filters.dateFrom),
+      dateTo: toStr(filters.dateTo),
+      ...(filters.branch !== 'all' && { branch: filters.branch }),
+    }), [filters])
     const loadAll   = useCallback(() => { dispatch(fetchSalesReports(buildSP())); dispatch(fetchFinancialReports(buildFP())) }, [dispatch, buildSP, buildFP])
     useEffect(() => { loadAll() }, [loadAll])
 
@@ -279,11 +283,17 @@ import { useEffect, useState, useCallback } from 'react'
     const refundCount            = Number(sr.refundCount            || 0)
     const costPriceWarning       = Boolean(sr.costPriceWarning)
 
-    const grossProfit       = Number(fr.grossProfit       || sr.grossProfit       || 0)
-    const totalCostOfGoods  = Number(fr.totalCostOfGoods  || sr.totalCostOfGoods  || 0)
-    const grossProfitMargin = Number(fr.grossProfitMargin || sr.grossProfitMargin || 0)
+    // Prefer product-sales profit from sales API so Overview matches "Total Invoiced"
+    const totalCostOfGoods  = Number(sr.totalCostOfGoods  ?? fr.totalCostOfGoods  ?? 0)
+    const grossProfit       = Number(
+      sr.grossProfit !== undefined && sr.grossProfit !== null
+        ? sr.grossProfit
+        : (fr.grossProfit || 0)
+    )
+    const grossProfitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : Number(sr.grossProfitMargin || fr.grossProfitMargin || 0)
     const totalExpenses     = Number(fr.totalExpenses     || 0)
-    const netProfit         = Number(fr.netProfit !== undefined ? fr.netProfit : (grossProfit - totalExpenses))
+    const salesMinusExpenses = totalRevenue - totalExpenses
+    const netProfit         = grossProfit - totalExpenses
     const netProfitMargin   = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
     const zakatDue          = netProfit > 0 ? netProfit * 0.025 : 0
     const collectionRate    = totalRevenue > 0 ? (totalCashReceived / totalRevenue) * 100 : 0
@@ -305,7 +315,8 @@ import { useEffect, useState, useCallback } from 'react'
       const rows = [
         ['Sales Report', periodStr],[],
         ['Total Revenue',totalRevenue],['COGS',totalCostOfGoods],['Gross Profit',grossProfit],['Expenses',totalExpenses],['Net Profit',netProfit],['Zakat Due',zakatDue],[],
-        ['Cash Collected',totalCashReceived],['Outstanding',totalOutstanding],['Credit Recovered',outstandingSettled],['Refunds',refundTotal],[],
+        ['Money Collected',totalCashReceived],['Outstanding',totalOutstanding],['Credit Recovered',outstandingSettled],['Refunds',refundTotal],
+        ['Expenses',totalExpenses],['Sales − Expenses',salesMinusExpenses],['Net Profit',netProfit],[],
         ['Date','Total','Collected','Credit','Txns'],
         ...salesByDate.map(r=>[r.date,r.total,r.collected,r.credit,r.transactions]),
       ]
@@ -435,22 +446,28 @@ import { useEffect, useState, useCallback } from 'react'
                 </Box>
               )}
 
-              {/* ── Row 1: Core 4 KPIs ─────────────────────────────────────── */}
+              {/* ── Row 1: Core KPIs ───────────────────────────────────────── */}
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
                 <Grid item xs={12} sm={6} md={3}>
-                  <KpiCard label="Total Invoiced" value={fmtPKR(totalRevenue)} sub={`${fmt(totalTransactions)} real sales`} accent="#1976d2" icon={<AttachMoney/>}/>
+                  <KpiCard label="Product Sales (Invoiced)" value={fmtPKR(totalRevenue)} sub={`${fmt(totalTransactions)} product sales in period`} accent="#1976d2" icon={<AttachMoney/>}/>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <KpiCard label="Cash Collected" value={fmtPKR(totalCashReceived)} sub={`${collectionRate.toFixed(1)}% of invoiced`} accent="#2e7d32" icon={<CheckCircle/>}
-                    chip={{ label:`${fullyPaidCount} fully paid`, bg:'#e8f5e9', color:'#2e7d32' }}/>
+                  <KpiCard
+                    label="Money Collected"
+                    value={fmtPKR(totalCashReceived)}
+                    sub={`Cash + Card + recoveries − refunds · ${collectionRate.toFixed(1)}% of invoiced`}
+                    accent="#2e7d32"
+                    icon={<CheckCircle/>}
+                    chip={{ label:`${fullyPaidCount} fully paid`, bg:'#e8f5e9', color:'#2e7d32' }}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                  <KpiCard label="Total Outstanding" value={fmtPKR(totalOutstanding)} sub={`${fullyCreditCount} credit · ${partialCount} partial`} accent="#c62828" icon={<Warning/>}
+                  <KpiCard label="Still Outstanding" value={fmtPKR(totalOutstanding)} sub={`${fullyCreditCount} credit · ${partialCount} partial unpaid`} accent="#c62828" icon={<Warning/>}
                     chip={{ label:`${fullyCreditCount+partialCount} unpaid`, bg:'#ffebee', color:'#c62828' }}/>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <KpiCard
-                    label="Gross Profit (Rev − COGS)"
+                    label="Gross Profit (Sales − Cost)"
                     value={fmtPKR(grossProfit)}
                     sub={costPriceWarning
                       ? `⚠ ${grossProfitMargin.toFixed(1)}% margin — cost prices missing`
@@ -462,12 +479,54 @@ import { useEffect, useState, useCallback } from 'react'
                 </Grid>
               </Grid>
 
-              {/* ── Row 2: Payment method KPIs ─────────────────────────────── */}
+              {/* ── Row 1b: Sales − Expenses (filter period) ───────────────── */}
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
-                <Grid item xs={6} sm={6} md={3}><KpiCard label="Cash Sales"    value={fmtPKR(cashSalesAmt)}     sub="Fully collected"                             accent="#388e3c" icon={<AttachMoney/>}/></Grid>
-                <Grid item xs={6} sm={6} md={3}><KpiCard label="Card Sales"    value={fmtPKR(cardSalesAmt)}     sub="Fully collected"                             accent="#1565c0" icon={<CreditCard/>}/></Grid>
-                <Grid item xs={6} sm={6} md={3}><KpiCard label="Full Credit"   value={fmtPKR(fullyCreditTotal)} sub={`${fullyCreditCount} invoices · 0 collected`} accent="#c62828" icon={<AccountBalance/>}/></Grid>
-                <Grid item xs={6} sm={6} md={3}><KpiCard label="Partial Sales" value={fmtPKR(partialTotal)}     sub={partialCount>0?`Collected ${fmtPKR(partialCollected)} · Due ${fmtPKR(partialCredit)}`:`${partialCount} partial`} accent="#e65100" icon={<Receipt/>}/></Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <KpiCard
+                    label="Expenses (Vouchers)"
+                    value={fmtPKR(totalExpenses)}
+                    sub="Expense vouchers in this date filter (auto-approved on create)"
+                    accent="#e65100"
+                    icon={<Receipt/>}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <KpiCard
+                    label="Sales − Expenses"
+                    value={fmtPKR(salesMinusExpenses)}
+                    sub="Product sales invoiced minus expense vouchers"
+                    accent={salesMinusExpenses>=0?'#0288d1':'#c62828'}
+                    icon={<Assessment/>}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <KpiCard
+                    label="Net Profit (Gross − Expenses)"
+                    value={fmtPKR(netProfit)}
+                    sub={`${netProfitMargin.toFixed(1)}% of sales · after product cost & expenses`}
+                    accent={netProfit>=0?'#2e7d32':'#c62828'}
+                    icon={netProfit>=0?<TrendingUp/>:<TrendingDown/>}
+                  />
+                </Grid>
+              </Grid>
+
+              {/* ── Row 2: How customers paid (splits Money Collected) ─────── */}
+              <Typography sx={{ fontWeight:700, fontSize:'.8rem', color:'text.secondary', mb:1.2, textTransform:'uppercase', letterSpacing:1 }}>
+                How customers paid (these add up toward Money Collected)
+              </Typography>
+              <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
+                <Grid item xs={6} sm={6} md={3}>
+                  <KpiCard label="Paid by Cash" value={fmtPKR(cashSalesAmt)} sub="Invoices paid with cash only" accent="#388e3c" icon={<AttachMoney/>}/>
+                </Grid>
+                <Grid item xs={6} sm={6} md={3}>
+                  <KpiCard label="Paid by Card" value={fmtPKR(cardSalesAmt)} sub="Invoices paid with card only" accent="#1565c0" icon={<CreditCard/>}/>
+                </Grid>
+                <Grid item xs={6} sm={6} md={3}>
+                  <KpiCard label="Full Credit" value={fmtPKR(fullyCreditTotal)} sub={`${fullyCreditCount} invoices · nothing collected yet`} accent="#c62828" icon={<AccountBalance/>}/>
+                </Grid>
+                <Grid item xs={6} sm={6} md={3}>
+                  <KpiCard label="Partial Sales" value={fmtPKR(partialTotal)} sub={partialCount>0?`Collected ${fmtPKR(partialCollected)} · Due ${fmtPKR(partialCredit)}`:`${partialCount} partial`} accent="#e65100" icon={<Receipt/>}/>
+                </Grid>
               </Grid>
 
               {/* ── Row 3: Recovery / misc KPIs ────────────────────────────── */}
@@ -480,7 +539,7 @@ import { useEffect, useState, useCallback } from 'react'
 
               {/* ── Chart 1: Daily Collected vs Credit — FULL WIDTH ─────────── */}
               <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, mb:3, bgcolor:'#fff' }}>
-                <SectionTitle title="Daily: Cash Collected vs Credit Given" icon={<BarIcon/>}/>
+                <SectionTitle title="Daily: Money Collected vs Credit Given" icon={<BarIcon/>}/>
                 {cfChart.length===0
                   ? <Box sx={{ display:'flex', alignItems:'center', justifyContent:'center', height:320, color:'text.disabled' }}><Typography>No data in selected period</Typography></Box>
                   : <ResponsiveContainer width="100%" height={360}>
@@ -772,8 +831,9 @@ import { useEffect, useState, useCallback } from 'react'
                         { label:'Revenue',       value:fmtPKR(totalRevenue) },
                         { label:'COGS',          value:`− ${fmtPKR(totalCostOfGoods)}` },
                         { label:'Gross Profit',  value:fmtPKR(grossProfit) },
+                        { label:'Money Collected',value:fmtPKR(totalCashReceived) },
                         { label:'Expenses',      value:`− ${fmtPKR(totalExpenses)}` },
-                        { label:'Cash Collected',value:fmtPKR(totalCashReceived) },
+                        { label:'Sales − Expenses', value:fmtPKR(salesMinusExpenses) },
                         { label:'Outstanding',   value:fmtPKR(totalOutstanding) },
                       ].map(item=>(
                         <Grid item xs={6} sm={4} key={item.label}>
@@ -833,9 +893,9 @@ import { useEffect, useState, useCallback } from 'react'
                 {expBreakdown.length===0
                   ? <Box sx={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:200, gap:2 }}>
                       <Receipt sx={{ fontSize:52, color:'text.disabled' }}/>
-                      <Typography color="text.disabled" sx={{ fontWeight:500 }}>No expense vouchers recorded in this period</Typography>
+                      <Typography color="text.disabled" sx={{ fontWeight:500 }}>No expense vouchers in this period for your branch</Typography>
                       <Typography variant="caption" color="text.disabled" sx={{ textAlign:'center', maxWidth:300 }}>
-                        Add expense vouchers (rent, salaries, utilities) to see accurate net profit
+                        Add an expense voucher (rent, salaries, utilities) — pending vouchers count too
                       </Typography>
                     </Box>
                   : <Grid container spacing={3}>

@@ -184,6 +184,7 @@ export const fetchFinancialReports = createAsyncThunk(
       if (args.period)  params.append('period',  args.period)
       if (args.year)    params.append('year',    args.year)
       if (args.quarter) params.append('quarter', args.quarter)
+      if (args.branch && args.branch !== 'all') params.append('branch', args.branch)
 
       // Normalize dates — accept Date objects or strings
       const dateFrom = toDateStr(args.dateFrom)

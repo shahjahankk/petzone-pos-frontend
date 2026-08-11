@@ -1470,7 +1470,21 @@ const FinancialVouchersPage = () => {
               {formDialog.mode === 'create' ? 'Create Financial Voucher' : 'Edit Financial Voucher'}
             </DialogTitle>
             <DialogContent sx={{ minWidth: 800 }}>
-              <Grid container spacing={3} sx={{ mt: 1 }}>
+              <Box sx={{ mt: 1, mb: 2, p: 2, bgcolor: '#f5f9ff', border: '1px solid #e3f2fd', borderRadius: 2 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '.85rem', mb: 1, color: 'primary.main' }}>
+                  Voucher types (saved immediately — no admin approval)
+                </Typography>
+                <Typography variant="body2" sx={{ fontSize: '.8rem', color: 'text.secondary', mb: 0.6 }}>
+                  <strong>Income</strong> — Extra money coming in (not from POS sales), e.g. owner capital, service fee received, misc cash in. Adds to branch income.
+                </Typography>
+                <Typography variant="body2" sx={{ fontSize: '.8rem', color: 'text.secondary', mb: 0.6 }}>
+                  <strong>Expense</strong> — Money going out for running costs (rent, salary, utility, fare, supplies). Subtracted from Sales − Expenses / Net Profit on reports.
+                </Typography>
+                <Typography variant="body2" sx={{ fontSize: '.8rem', color: 'text.secondary' }}>
+                  <strong>Transfer</strong> — Moving cash between accounts/locations (e.g. cash drawer → bank, or branch float adjustment). Record of movement, not a sale or operating expense.
+                </Typography>
+              </Box>
+              <Grid container spacing={3} sx={{ mt: 0 }}>
                 <Grid item xs={12} sm={6} md={4}>
                   <FormControl fullWidth required size="small" error={!!formErrors.type} sx={{ minWidth: 240 }}>
                     <InputLabel>Type</InputLabel>
@@ -1479,9 +1493,9 @@ const FinancialVouchersPage = () => {
                       onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
                       label="Type"
                     >
-                      <MenuItem value="INCOME">Income</MenuItem>
-                      <MenuItem value="EXPENSE">Expense</MenuItem>
-                      <MenuItem value="TRANSFER">Transfer</MenuItem>
+                      <MenuItem value="INCOME">Income — money in</MenuItem>
+                      <MenuItem value="EXPENSE">Expense — money out (costs)</MenuItem>
+                      <MenuItem value="TRANSFER">Transfer — move between accounts</MenuItem>
                     </Select>
                     {formErrors.type && (
                       <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
