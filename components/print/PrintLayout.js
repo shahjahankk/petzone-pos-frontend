@@ -439,7 +439,7 @@ export default function PrintLayout({
             )}
           </div>
         )}
-        <div style={{ fontWeight: '900', fontSize: '13px', marginBottom: '2px', letterSpacing: '0.2px', wordBreak: 'break-word' }}>{locationName}</div>
+        <div style={{ fontWeight: '900', fontSize: '16px', marginBottom: '2px', letterSpacing: '0.2px', wordBreak: 'break-word', lineHeight: 1.2 }}>{locationName}</div>
         {companyPhone   && <div style={{ fontSize: '10px', marginBottom: '1px' }}>Tel: {companyPhone}</div>}
         {companyAddress && <div style={{ fontSize: '9px',  marginBottom: '1px', lineHeight: '1.3', wordBreak: 'break-word' }}>{companyAddress}</div>}
         {companyEmail   && <div style={{ fontSize: '9px',  marginBottom: '1px' }}>{companyEmail}</div>}

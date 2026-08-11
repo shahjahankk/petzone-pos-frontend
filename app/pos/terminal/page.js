@@ -2484,7 +2484,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           <div style="text-align: center; margin-bottom: 6px;">
             <img src="${resolvedLogoPath}" alt="${safeCompanyName}" style="max-width: 100%; width: ${logoSizes.cssWidth}; height: auto; filter: grayscale(100%); display: block; margin: 0 auto 4px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
             <div style="font-size: 15px; font-weight: 900; display: none; text-align: center; border: 2px solid #000; padding: 6px;">${safeCompanyName}</div>
-            <div style="font-weight: 900; font-size: 13px; letter-spacing: 0.2px; margin-top: 2px; word-break: break-word;">${printData.branchName || safeCompanyName}</div>
+            <div style="font-weight: 900; font-size: 16px; letter-spacing: 0.2px; margin-top: 2px; word-break: break-word; line-height: 1.2;">${printData.branchName || safeCompanyName}</div>
             <div style="font-size: 10px; margin-top: 2px;">${safeCompanyAddress.substring(0, 56)}</div>
             <div style="font-size: 10px;">Tel: ${safeCompanyPhone}</div>
             <div style="font-size: 10px; margin-bottom: 4px;">${safeCompanyEmail}</div>

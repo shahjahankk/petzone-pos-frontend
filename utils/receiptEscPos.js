@@ -30,7 +30,12 @@ function normal() {
   return style(0)
 }
 
-/** Double-width + double-height (Font A style bits) */
+/** Double-height only (keeps full 42-col width — name won't truncate) */
+function doubleHeight() {
+  return style(0x10)
+}
+
+/** Double-width + double-height — for TOTAL only */
 function emphasize() {
   return style(0x30)
 }
@@ -375,17 +380,21 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     }
   }
 
-  // Brand — normal Font A, wraps (never truncates)
+  // Brand — bold + double-height (full width, wraps if longer than 42 chars)
   out.push(...boldOn())
+  out.push(...doubleHeight())
   for (const line of wrapTextLines(brandName, width)) {
     out.push(...textLine(line))
   }
+  out.push(...normal())
   out.push(...boldOff())
 
   if (printData.branchName && printData.branchName !== printData.companyName) {
+    out.push(...boldOn())
     for (const line of wrapTextLines(printData.branchName, width)) {
       out.push(...textLine(line))
     }
+    out.push(...boldOff())
   }
   if (printData.companyAddress) {
     for (const line of wrapTextLines(printData.companyAddress, width)) {
