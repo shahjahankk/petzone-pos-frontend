@@ -78,13 +78,14 @@ html, body {
   .receipt-container.thermal-layout {
     width: 80mm !important;
     max-width: 80mm !important;
-    padding: 2px 1px !important;
-    margin: 0 !important;
+    padding: 2mm !important;
+    margin: 0 auto !important;
     font-family: 'Courier New', Courier, monospace !important;
     font-size: 12px !important;
     line-height: 1.25 !important;
     color: #000 !important;
     background: #fff !important;
+    box-sizing: border-box !important;
   }
 
   .receipt-container.thermal-layout * {

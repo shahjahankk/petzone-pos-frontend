@@ -123,7 +123,7 @@ export default function PrintDialog({
             includeLogo: true,
             logoWidth: logoSizes.escPosWidth,
             logoHeight: logoSizes.escPosHeight,
-            width: 56,
+            width: 42,
           })
           await writeToThermalPrinter(payload)
           if (onPrintComplete) onPrintComplete()
@@ -148,7 +148,6 @@ export default function PrintDialog({
 
     let pageSize = isThermal ? '80mm auto' : printSettings.paperSize === 'Letter' ? 'Letter' : 'A4'
     if (!isThermal && isLandscape) pageSize += ' landscape'
-    // Thermal: zero page margin + full 80mm width — avoids empty strip on the right
     const pageMargin = isThermal ? '0' : '10mm 12mm'
     const fontFamily = isThermal ? "'Courier New', Courier, monospace" : 'Arial, Helvetica, sans-serif'
     const fontSize   = isThermal ? '12px' : (printSettings.fontSize || '12px')
@@ -173,12 +172,13 @@ export default function PrintDialog({
       background: #fff;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
+      ${isThermal ? 'padding: 2mm;' : ''}
     }
     .print-wrapper {
       width: ${wrapWidth};
       max-width: ${isThermal ? '80mm' : '100%'};
-      margin: 0;
-      padding: ${isThermal ? '2px 1px' : '0'};
+      margin: 0 auto;
+      padding: ${isThermal ? '0' : '0'};
       box-sizing: border-box;
     }
     table { width: 100%; border-collapse: collapse; }

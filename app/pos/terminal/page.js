@@ -2428,7 +2428,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           includeLogo: true,
           logoWidth: logoSizes.escPosWidth,
           logoHeight: logoSizes.escPosHeight,
-          width: 56,
+          width: 42,
         }
       )
 

@@ -22,10 +22,6 @@ function left() {
   return bytes(0x1b, 0x61, 0x00)
 }
 
-function right() {
-  return bytes(0x1b, 0x61, 0x02)
-}
-
 function style(n = 0) {
   return bytes(0x1b, 0x21, n & 0xff)
 }
@@ -47,24 +43,31 @@ function boldOff() {
   return bytes(0x1b, 0x45, 0x00)
 }
 
-function fontA() {
-  return bytes(0x1b, 0x4d, 0x00)
-}
-
-/** Font B ≈ 56 cols on 80mm — fills printable width */
-function fontB() {
-  return bytes(0x1b, 0x4d, 0x01)
-}
-
-function init() {
-  return bytes(0x1b, 0x40)
-}
-
-/** Zero left margin + full 512-dot print area (avoids empty right strip) */
-function fullWidthArea() {
+/** Epson TM-T88V 80mm: 512-dot area, Font A pitch, zero extra char gap */
+function setup80mm() {
   return [
-    0x1d, 0x4c, 0x00, 0x00, // GS L left margin = 0
-    0x1d, 0x57, 0x00, 0x02, // GS W print area = 512 dots
+    0x1b, 0x40,             // ESC @ init
+    0x1d, 0x50, 0xb4, 0xb4, // GS P — 180 dpi motion units (TM-T88V)
+    0x1b, 0x20, 0x00,       // ESC SP — character spacing 0
+    0x1d, 0x21, 0x00,       // GS ! — normal char size
+    0x1d, 0x4c, 0x00, 0x00, // GS L — left margin 0
+    0x1d, 0x57, 0x00, 0x02, // GS W — print area width 512 dots
+    0x1b, 0x4d, 0x00,       // ESC M — Font A (12-dot, 42 cols = full 80mm)
+  ]
+}
+
+/** Solid graphic rule across full 512 dots — fills paper edge-to-edge */
+function fullWidthRule(thickness = 2, dots = 512) {
+  const w = Math.floor(dots / 8) * 8
+  const bytesPerRow = w / 8
+  const body = new Uint8Array(bytesPerRow * thickness)
+  body.fill(0xff)
+  return [
+    0x1d, 0x76, 0x30, 0x00,
+    bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff,
+    thickness & 0xff, (thickness >> 8) & 0xff,
+    ...body,
+    0x0a,
   ]
 }
 
@@ -123,11 +126,6 @@ function row2(label, value, width) {
   return textLine(l + ' '.repeat(space) + r)
 }
 
-/** Zero character spacing so Font B fills 80mm better */
-function charSpacing(n = 0) {
-  return bytes(0x1b, 0x20, n & 0xff)
-}
-
 /** Item line — qty / price / total flush to right edge */
 function itemLine(item, width) {
   const qty = Number.isFinite(item.quantity) ? item.quantity : 0
@@ -144,13 +142,14 @@ function itemLine(item, width) {
           ? (resolvedTotal + discountValue) / qty
           : 0
 
+  // Font A 42-col layout: keep amounts on the right edge
   const qtyW = 4
-  const priceW = 8
-  const totW = 8
+  const priceW = 7
+  const totW = 7
   const qtyS = String(qty).slice(0, qtyW)
   const priceS = money(unit).slice(0, priceW)
   const totS = money(resolvedTotal).slice(0, totW)
-  const nameW = Math.max(10, width - qtyW - priceW - totW)
+  const nameW = Math.max(8, width - qtyW - priceW - totW)
   const name = String(item.name || 'Item')
 
   const lines = []
@@ -170,7 +169,7 @@ function itemLine(item, width) {
     )
   }
   if (discountValue > 0) {
-    lines.push(...textLine(pad(`  Disc  -${money(discountValue)}`, width, 'right')))
+    lines.push(...textLine(pad(`Disc -${money(discountValue)}`, width, 'right')))
   }
   return lines
 }
@@ -349,11 +348,11 @@ function cutSafe() {
 }
 
 /**
- * Compact ESC/POS sales receipt — full 80mm width, no truncated brand name.
+ * Compact ESC/POS sales receipt — Font A 42 cols fills 80mm evenly.
  */
 export async function buildReceiptEscPos(printData = {}, options = {}) {
-  // Font B on 80mm ≈ 56 columns
-  const width = options.width || 56
+  // Font A on TM-T88V 80mm = 42 columns (12 dots × 42 = 504 of 512) — even side margins
+  const width = options.width || 42
   const logoUrl = printData.logoUrl || '/petzonelogo.png'
   const includeLogo = options.includeLogo !== false
   const brandSizes = getPrintLogoSizes(logoUrl)
@@ -365,10 +364,7 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   const title = String(printData.title || 'SALES RECEIPT').toUpperCase()
 
   const out = []
-  out.push(...init())
-  out.push(...fullWidthArea())
-  out.push(...charSpacing(0))
-  out.push(...fontB())
+  out.push(...setup80mm())
   out.push(...center())
 
   if (includeLogo) {
@@ -379,7 +375,7 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     }
   }
 
-  // ── Brand header (normal width — wraps, never cuts mid-word) ──
+  // Brand — normal Font A, wraps (never truncates)
   out.push(...boldOn())
   for (const line of wrapTextLines(brandName, width)) {
     out.push(...textLine(line))
@@ -403,19 +399,18 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     out.push(...textLine(String(printData.companyEmail).slice(0, width)))
   }
 
-  // Compact title — one rule + title (no **** RECEIPT **** block)
-  out.push(...rule(width, '-'))
+  out.push(...fullWidthRule(2))
   out.push(...boldOn())
-  out.push(...textLine(title.slice(0, width)))
+  out.push(...textLine(pad(title.slice(0, width), width)))
   out.push(...boldOff())
-  out.push(...rule(width, '-'))
+  out.push(...fullWidthRule(2))
 
-  // ── Meta block ────────────────────────────────────────────
+  // Meta
   out.push(...left())
   out.push(...boldOn())
   out.push(...row2('Receipt #', printData.receiptNumber || 'N/A', width))
   out.push(...boldOff())
-  const dateTime = [printData.date, printData.time].filter(Boolean).join('  ')
+  const dateTime = [printData.date, printData.time].filter(Boolean).join(' ')
   if (dateTime) out.push(...row2('Date/Time', dateTime.slice(0, width - 10), width))
   out.push(...row2('Cashier', printData.cashierName || 'N/A', width))
   out.push(...row2('Customer', (printData.customerName || 'Walk-in').slice(0, width - 10), width))
@@ -423,13 +418,13 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     out.push(...row2('Phone', printData.customerPhone, width))
   }
 
-  out.push(...rule(width, '='))
+  out.push(...fullWidthRule(2))
 
-  // ── Items ─────────────────────────────────────────────────
+  // Items
   const qtyW = 4
-  const priceW = 8
-  const totW = 8
-  const nameHdrW = Math.max(10, width - qtyW - priceW - totW)
+  const priceW = 7
+  const totW = 7
+  const nameHdrW = Math.max(8, width - qtyW - priceW - totW)
   out.push(
     ...boldOn(),
     ...textLine(
@@ -444,9 +439,9 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     out.push(...itemLine(item, width))
   })
 
-  out.push(...rule(width, '='))
+  out.push(...fullWidthRule(2))
 
-  // ── Totals ────────────────────────────────────────────────
+  // Totals
   const subtotal = printData.subtotal || 0
   const tax = printData.tax || 0
   const cartDiscount = Number(printData.discount || 0)
@@ -472,21 +467,18 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   }
   if (oldBalance > 0) out.push(...row2('Old Balance', money(oldBalance), width))
 
-  out.push(...rule(width, '='))
+  out.push(...fullWidthRule(3))
   out.push(...center())
   out.push(...boldOn())
   out.push(...emphasize())
-  out.push(...fontA())
-  // Double-width TOTAL only — keep amount short so it fits
   out.push(...textLine(`TOTAL ${money(total)}`.slice(0, 21)))
   out.push(...normal())
   out.push(...boldOff())
-  out.push(...fontB())
-  out.push(...rule(width, '='))
+  out.push(...fullWidthRule(3))
 
-  // ── Payment ───────────────────────────────────────────────
+  // Payment
   out.push(...left())
-  out.push(...row2('Paid', `${printData.paymentMethod || 'CASH'}  ${money(paymentAmount)}`, width))
+  out.push(...row2('Paid', `${printData.paymentMethod || 'CASH'} ${money(paymentAmount)}`, width))
   if (creditAmount > 0 || printData.paymentMethod === 'FULLY_CREDIT') {
     out.push(...row2('Credit', money(creditAmount || total), width))
   }
@@ -503,16 +495,15 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
     out.push(...textLine(String(printData.notes).slice(0, width * 2)))
   }
 
-  // ── Footer ────────────────────────────────────────────────
+  // Footer
   out.push(...center())
-  out.push(...rule(width, '-'))
+  out.push(...fullWidthRule(1))
   out.push(...boldOn())
   out.push(...textLine(printData.footerMessage || 'Thank you for choosing us!'))
   out.push(...boldOff())
   out.push(...textLine('Return within 3 days with receipt'))
   out.push(...textLine('Powered by Tychora'))
   out.push(...textLine('www.tychora.com'))
-  out.push(...fontA())
   out.push(...cutSafe())
 
   return new Uint8Array(out)
