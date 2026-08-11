@@ -345,7 +345,7 @@ import { useEffect, useState, useCallback } from 'react'
           <Box>
             <Typography sx={{ color:'primary.main', textTransform:'uppercase', letterSpacing:2, fontWeight:700, fontSize:'.65rem' }}>Reports / Sales</Typography>
             <Typography variant="h4" sx={{ fontWeight:800, mt:.4, letterSpacing:'-.5px' }}>Sales Report</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt:.4 }}>Revenue · COGS · Gross Profit · Net Profit · Zakat</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt:.4 }}>Product sales only · Clinic services are on Clinic Sales Report</Typography>
           </Box>
           <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap', alignItems:'center' }}>
             <Button onClick={loadAll} disabled={isLoading} startIcon={isLoading?<CircularProgress size={14}/>:<Refresh/>} variant="outlined" size="small" sx={{ borderRadius:2 }}>

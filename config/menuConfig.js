@@ -418,6 +418,15 @@ export const menuConfig = [
         newWindow: true,
       },
       {
+        id: 'reports-clinic',
+        label: 'Clinic Sales',
+        icon: <MedicalServices />,
+        path: '/dashboard/reports/clinic',
+        roles: ['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'],
+        order: 2.5,
+        newWindow: true,
+      },
+      {
         id: 'customer-balances',
         label: 'Customer Balances',
         icon: <AccountBalanceWallet />,

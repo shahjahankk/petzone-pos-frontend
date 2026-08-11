@@ -39,6 +39,29 @@ export const fetchSalesReports = createAsyncThunk(
   }
 )
 
+export const fetchClinicSalesReports = createAsyncThunk(
+  'reports/fetchClinicSales',
+  async (args = {}, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams()
+
+      const startDate = toDateStr(args.dateFrom || args.dateRange?.start)
+      const endDate   = toDateStr(args.dateTo   || args.dateRange?.end)
+
+      if (args.branch && args.branch !== 'all') params.append('branch', args.branch)
+      if (args.cashier && args.cashier !== 'all') params.append('cashier', args.cashier)
+      if (args.category && args.category !== 'all') params.append('category', args.category)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate)   params.append('endDate',   endDate)
+
+      const response = await api.get(`/reports/clinic?${params.toString()}`)
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch clinic sales reports')
+    }
+  }
+)
+
 export const fetchInventoryReports = createAsyncThunk(
   'reports/fetchInventory',
   async (filters = {}, { rejectWithValue }) => {
@@ -190,6 +213,7 @@ export const fetchReportsSummary = createAsyncThunk(
 
 const initialState = {
   salesReports: null,
+  clinicSalesReports: null,
   inventoryReports: null,
   stockSummary: null,
   stockStatistics: null,
@@ -226,6 +250,22 @@ const reportsSlice = createSlice({
         state.error = null
       })
       .addCase(fetchSalesReports.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload
+      })
+
+      // Clinic sales reports
+      .addCase(fetchClinicSalesReports.pending, (state) => {
+        state.isLoading = true
+        state.error = null
+      })
+      .addCase(fetchClinicSalesReports.fulfilled, (state, action) => {
+        state.isLoading = false
+        state.clinicSalesReports = action.payload
+        state.lastUpdated = new Date().toISOString()
+        state.error = null
+      })
+      .addCase(fetchClinicSalesReports.rejected, (state, action) => {
         state.isLoading = false
         state.error = action.payload
       })

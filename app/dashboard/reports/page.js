@@ -21,6 +21,7 @@ import {
   AccountBalance,
   ArrowForward,
   ShowChart,
+  MedicalServices,
 } from '@mui/icons-material'
 import { useRouter } from 'next/navigation'
 import { fetchReportsSummary } from '../../store/slices/reportsSlice'
@@ -50,6 +51,14 @@ const ReportsPage = () => {
             icon: <TrendingUp sx={{ fontSize: 40 }} />,
             color: 'primary.main',
             stats: { total: '125,000', growth: '+12.5%' }
+          },
+          {
+            id: 'clinic',
+            title: 'Clinic Sales',
+            description: 'Clinic service revenue by category, service, and branch',
+            icon: <MedicalServices sx={{ fontSize: 40 }} />,
+            color: 'info.main',
+            stats: { total: 'Clinic', growth: 'Services' }
           },
           {
             id: 'inventory',
@@ -101,6 +110,14 @@ const ReportsPage = () => {
             }
           },
           {
+            id: 'clinic',
+            title: 'Clinic Sales',
+            description: 'Clinic service revenue by category and service',
+            icon: <MedicalServices sx={{ fontSize: 40 }} />,
+            color: 'info.main',
+            stats: { total: 'Clinic', growth: 'Services' }
+          },
+          {
             id: 'ledger',
             title: 'Ledger Reports',
             description: 'Financial transactions and account balances for your warehouse',
@@ -121,6 +138,14 @@ const ReportsPage = () => {
             icon: <TrendingUp sx={{ fontSize: 40 }} />,
             color: 'primary.main',
             stats: { total: '2,500', transactions: '85' }
+          },
+          {
+            id: 'clinic',
+            title: 'Clinic Sales',
+            description: 'Clinic service revenue for your branch',
+            icon: <MedicalServices sx={{ fontSize: 40 }} />,
+            color: 'info.main',
+            stats: { total: 'Clinic', growth: 'Services' }
           },
         ]
       default:
