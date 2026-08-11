@@ -1,8 +1,9 @@
 /**
  * Compact ESC/POS sales receipt for Epson TM-T88V 80mm.
  * Uses Font B (smaller) for body to save paper; bold only where needed.
- * Logo: always petzonelogo.png (fetch+bitmap), never SVG circle placeholder.
+ * Logo: brand PNG (fetch+bitmap), never SVG circle placeholder.
  */
+import { getPrintLogoSizes } from './brandAssets'
 
 const encoder = () => new TextEncoder()
 
@@ -300,8 +301,10 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   const width = options.width || 56
   const logoUrl = printData.logoUrl || '/petzonelogo.png'
   const includeLogo = options.includeLogo !== false
-  const logoWidth = options.logoWidth || 448
-  const logoHeight = options.logoHeight || 120
+  // PetFamily needs a larger raster — default from brand when caller omits sizes
+  const brandSizes = getPrintLogoSizes(logoUrl)
+  const logoWidth = options.logoWidth || brandSizes.escPosWidth
+  const logoHeight = options.logoHeight || brandSizes.escPosHeight
 
   const out = []
   out.push(...init())

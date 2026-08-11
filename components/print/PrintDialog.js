@@ -26,6 +26,7 @@ import {
   resetCachedPrinter,
 } from '../../utils/thermalPrinter'
 import { buildReceiptEscPos } from '../../utils/receiptEscPos'
+import { getPrintLogoSizes } from '../../utils/brandAssets'
 
 /**
  * PrintDialog — full version with Item Sheet toggle
@@ -117,10 +118,11 @@ export default function PrintDialog({
         if (await hasDirectPrinterPaired()) {
           setPrinterMode(PRINTER_MODE_DIRECT)
           await acquirePrinter({ allowRequest: false })
+          const logoSizes = getPrintLogoSizes(printData?.logoUrl)
           const payload = await buildReceiptEscPos(printData, {
             includeLogo: true,
-            logoWidth: 448,
-            logoHeight: 120,
+            logoWidth: logoSizes.escPosWidth,
+            logoHeight: logoSizes.escPosHeight,
             width: 56,
           })
           await writeToThermalPrinter(payload)

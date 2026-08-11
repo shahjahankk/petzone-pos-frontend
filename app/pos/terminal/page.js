@@ -107,6 +107,7 @@ import {
   writeToThermalPrinter,
 } from '../../../utils/thermalPrinter'
 import { buildReceiptEscPos } from '../../../utils/receiptEscPos'
+import { getPrintLogoSizes } from '../../../utils/brandAssets'
 
 const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 const generateTabName = (tabNumber) => `Sale ${tabNumber}`
@@ -2378,6 +2379,9 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       setPrinterMode(PRINTER_MODE_DIRECT)
       await acquirePrinter({ allowRequest: allowPortRequest })
 
+      const logoUrl = printData.logoUrl || companyInfo?.logoUrl || DEFAULT_COMPANY_INFO.logoUrl
+      const logoSizes = getPrintLogoSizes(logoUrl)
+
       const payload = await buildReceiptEscPos(
         {
           ...printData,
@@ -2386,9 +2390,14 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
           companyAddress: printData.companyAddress || DEFAULT_COMPANY_INFO.address,
           companyPhone: printData.companyPhone || DEFAULT_COMPANY_INFO.phone,
           companyEmail: printData.companyEmail || DEFAULT_COMPANY_INFO.email,
-          logoUrl: printData.logoUrl || companyInfo?.logoUrl || DEFAULT_COMPANY_INFO.logoUrl,
+          logoUrl,
         },
-        { includeLogo: true, logoWidth: 448, logoHeight: 120, width: 56 }
+        {
+          includeLogo: true,
+          logoWidth: logoSizes.escPosWidth,
+          logoHeight: logoSizes.escPosHeight,
+          width: 56,
+        }
       )
 
       await writeToThermalPrinter(payload)
@@ -2428,6 +2437,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         const normalizedLogo = rawLogo.startsWith('/') ? rawLogo : `/${rawLogo}`
         return baseOrigin ? `${baseOrigin}${normalizedLogo}` : normalizedLogo
       })()
+      const logoSizes = getPrintLogoSizes(rawLogo)
 
       const safeCompanyName = printData.companyName || DEFAULT_COMPANY_INFO.name
       const safeCompanyAddress = printData.companyAddress || DEFAULT_COMPANY_INFO.address
@@ -2441,7 +2451,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         <div style="font-family: monospace; width: 72mm; max-width: 72mm; margin: 0 auto; padding: ${containerPadding}; box-sizing: border-box; font-size: 11px; line-height: 1.25; color: #000; background-color: #fff;">
           <div style="text-align: center; margin-bottom: ${isSettlementReceipt ? '6px' : '4px'};">
             <div style="margin-bottom: 2px;">
-              <img src="${resolvedLogoPath}" alt="${safeCompanyName}" style="max-width: 200px; width: 70%; height: auto; filter: grayscale(100%); display: block; margin: 0 auto;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+              <img src="${resolvedLogoPath}" alt="${safeCompanyName}" style="max-width: ${logoSizes.cssMaxWidth}; width: ${logoSizes.cssWidth}; height: auto; filter: grayscale(100%); display: block; margin: 0 auto;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
               <div style="font-size: 14px; font-weight: bold; display: none; text-align: center; border: 1px solid #000; padding: 4px; min-height: 50px;">${safeCompanyName}</div>
               ${printData.branchName ? `<div style="margin:4px 0 2px; font-weight:bold; text-align:center; font-size:12px;">${printData.branchName}</div>` : ''}
             </div>

@@ -3,6 +3,7 @@
 
 import React from 'react'
 import './PrintLayout.css'
+import { getPrintLogoSizes } from '../../utils/brandAssets'
 
 function safeNumber(v) {
   return v == null || isNaN(Number(v)) ? 0 : Number(v)
@@ -110,6 +111,8 @@ export default function PrintLayout({
     return logoUrl
   }, [logoUrl])
 
+  const logoSizes = React.useMemo(() => getPrintLogoSizes(effectiveLogoUrl), [effectiveLogoUrl])
+
   React.useEffect(() => setLogoError(false), [effectiveLogoUrl])
 
   // ── Computed numbers ──
@@ -173,7 +176,12 @@ export default function PrintLayout({
                   <img
                     src={effectiveLogoUrl}
                     alt={locationName}
-                    style={{ maxHeight: '70px', maxWidth: '160px', objectFit: 'contain', display: 'block' }}
+                    style={{
+                      maxHeight: logoSizes.colorMaxHeight,
+                      maxWidth: logoSizes.colorMaxWidth,
+                      objectFit: 'contain',
+                      display: 'block',
+                    }}
                     onError={() => setLogoError(true)}
                   />
                 ) : (
@@ -417,7 +425,13 @@ export default function PrintLayout({
               <img
                 src={effectiveLogoUrl}
                 alt={locationName}
-                style={{ maxHeight: '60px', maxWidth: '120px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                style={{
+                  maxHeight: logoSizes.thermalMaxHeight,
+                  maxWidth: logoSizes.thermalMaxWidth,
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto',
+                }}
                 onError={() => setLogoError(true)}
               />
             ) : (
