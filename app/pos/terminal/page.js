@@ -2478,22 +2478,41 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
               <div style="width: 48px; flex-shrink: 0; text-align: right; font-size: 10px;">Total</div>
             </div>
             <div style="border-top: 2px solid #000; margin-bottom: 4px;"></div>
-            ${printData.items.map(item => `
+            ${printData.items.map(item => {
+              const qty = Number(item.quantity || 0)
+              const unit = Number(item.unitPrice || item.price || 0)
+              const disc = Number(item.discount || 0)
+              const lineTotal = Number.isFinite(Number(item.total))
+                ? Number(item.total)
+                : Math.max(0, unit * qty - disc)
+              return `
               <div style="margin-bottom: 4px;">
                 <div style="font-weight: bold; margin-bottom: 1px; font-size: 10px;">${item.name || 'Unknown Item'}</div>
                 <div style="display: flex; margin-top: 1px;">
                   <div style="flex: 1; min-width: 0;"></div>
-                  <div style="width: 28px; flex-shrink: 0; text-align: right; font-size: 10px; font-weight: bold;">${item.quantity || 0}</div>
-                  <div style="width: 48px; flex-shrink: 0; text-align: right; font-size: 10px; font-weight: bold;">${Math.round(item.unitPrice || 0)}</div>
-                  <div style="width: 48px; flex-shrink: 0; text-align: right; font-weight: bold; font-size: 10px;">${Math.round((item.unitPrice || 0) * (item.quantity || 0))}</div>
+                  <div style="width: 28px; flex-shrink: 0; text-align: right; font-size: 10px; font-weight: bold;">${qty}</div>
+                  <div style="width: 48px; flex-shrink: 0; text-align: right; font-size: 10px; font-weight: bold;">${Math.round(unit)}</div>
+                  <div style="width: 48px; flex-shrink: 0; text-align: right; font-weight: bold; font-size: 10px;">${Math.round(lineTotal)}</div>
                 </div>
+                ${disc > 0 ? `<div style="font-size: 9px; color: #d32f2f; text-align: right;">Disc: -${Math.round(disc)}</div>` : ''}
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
           <div style="border-top: 2px solid #000; margin: 2px 0;"></div>
           <div style="margin-bottom: ${isSettlementReceipt ? '6px' : '4px'};">
             <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Subtotal:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.subtotal || 0)}</span></div>
-            ${(printData.discount || 0) > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">Discount:</span><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">-${Math.round(printData.discount || 0)}</span></div>` : ''}
+            ${(() => {
+              const itemDiscSum = (printData.items || []).reduce((s, it) => s + Number(it.discount || 0), 0)
+              const cartDisc = Number(printData.discount || 0)
+              let html = ''
+              if (itemDiscSum > 0) {
+                html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">Item Disc:</span><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">-${Math.round(itemDiscSum)}</span></div>`
+              }
+              if (cartDisc > 0) {
+                html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">Discount:</span><span style="font-size: 10px; font-weight: bold; color: #d32f2f;">-${Math.round(cartDisc)}</span></div>`
+              }
+              return html
+            })()}
             <div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Tax:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.tax || 0)}</span></div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 2px; border-bottom: 1px dashed #000; padding-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Invoice Total:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(printData.invoiceTotal !== undefined ? printData.invoiceTotal : ((printData.subtotal || 0) + (printData.tax || 0) - (printData.discount || 0)))}</span></div>
             ${(() => { const ob = Math.max(0, printData.oldBalance || 0); return ob > 0 ? `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span style="font-size: 10px; font-weight: bold;">Old Balance:</span><span style="font-size: 10px; font-weight: bold;">${Math.round(ob)}</span></div>` : '' })()}

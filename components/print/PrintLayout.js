@@ -321,6 +321,12 @@ export default function PrintLayout({
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '28px' }}>
             <div style={{ width: '55%', minWidth: '320px' }}>
               <Row label="SUBTOTAL"   value={formatCurrency(nSubtotal)} bold />
+              {(() => {
+                const itemDiscSum = (items || []).reduce((s, it) => s + safeNumber(it.discount), 0)
+                return itemDiscSum > 0
+                  ? <Row label="ITEM DISC" value={`-${formatCurrency(itemDiscSum)}`} bold color="#d32f2f" />
+                  : null
+              })()}
               {nDiscount > 0 && (
                 <Row label="DISCOUNT" value={`-${formatCurrency(nDiscount)}`} bold color="#d32f2f" />
               )}
@@ -531,6 +537,12 @@ export default function PrintLayout({
           {BOLD_LINE}
           <ThermalRow label="Subtotal"     value={formatCurrency(nSubtotal)} />
           {nTax > 0      && <ThermalRow label="Tax"      value={formatCurrency(nTax)} />}
+          {(() => {
+            const itemDiscSum = (items || []).reduce((s, it) => s + safeNumber(it.discount), 0)
+            return itemDiscSum > 0
+              ? <ThermalRow label="Item Disc" value={`-${formatCurrency(itemDiscSum)}`} color="#d32f2f" />
+              : null
+          })()}
           {nDiscount > 0 && <ThermalRow label="Discount" value={`-${formatCurrency(nDiscount)}`} color="#d32f2f" />}
           {LINE}
           <ThermalRow label="Invoice Total" value={formatCurrency(computedInvoiceTotal)} bold />

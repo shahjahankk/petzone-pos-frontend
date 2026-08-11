@@ -706,9 +706,8 @@ import { useEffect, useState, useCallback } from 'react'
               )}
 
               {/* ── Top Products ───────────────────────────────────────────── */}
-              {topProducts.length>0 && (
-                <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, bgcolor:'#fff' }}>
-                  <SectionTitle title="Top Products" icon={<ShoppingCart/>}/>
+              <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, bgcolor:'#fff' }}>
+                  <SectionTitle title="Sold Products (Inventory)" icon={<ShoppingCart/>}/>
                   <TableContainer>
                     <Table>
                       <TableHead>
@@ -719,7 +718,13 @@ import { useEffect, useState, useCallback } from 'react'
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {topProducts.map((row,i)=>(
+                        {topProducts.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} align="center" sx={{ color:'text.disabled', py:4 }}>
+                              No inventory products sold in this period (clinic services are on Clinic Sales Report)
+                            </TableCell>
+                          </TableRow>
+                        ) : topProducts.map((row,i)=>(
                           <TableRow key={i} sx={{ '&:hover':{ bgcolor:'#fafafa' }, borderBottom:'1px solid #f5f5f5' }}>
                             <TableCell sx={{ color:'text.disabled', width:40, fontWeight:600 }}>{i+1}</TableCell>
                             <TableCell sx={{ fontWeight:700 }}>{row.name}</TableCell>
@@ -733,7 +738,6 @@ import { useEffect, useState, useCallback } from 'react'
                     </Table>
                   </TableContainer>
                 </Paper>
-              )}
             </Box>
           )}
 

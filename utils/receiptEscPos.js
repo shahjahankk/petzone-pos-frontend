@@ -76,7 +76,7 @@ function row2(label, value, width) {
 /** One compact line: name + qty + price + total (fills full receipt width) */
 function itemLine(item, width) {
   const qty = Number.isFinite(item.quantity) ? item.quantity : 0
-  const discountValue = Number.isFinite(item.discount) ? item.discount : 0
+  const discountValue = Number(item.discount || 0)
   const resolvedTotal = Number.isFinite(item.total)
     ? item.total
     : Number(item.unitPrice || item.price || 0) * qty - discountValue
@@ -113,6 +113,9 @@ function itemLine(item, width) {
     lines.push(
       ...textLine(pad(`${qtyS}x${priceS}`, width - totW) + pad(totS, totW, 'right'))
     )
+  }
+  if (discountValue > 0) {
+    lines.push(...textLine(pad(`  Disc -${money(discountValue)}`, width)))
   }
   return lines
 }
@@ -373,11 +376,12 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
 
   const subtotal = printData.subtotal || 0
   const tax = printData.tax || 0
-  const discount = printData.discount || 0
+  const cartDiscount = Number(printData.discount || 0)
+  const itemDiscountSum = items.reduce((sum, item) => sum + Number(item.discount || 0), 0)
   const invoiceTotal =
     printData.invoiceTotal !== undefined
       ? printData.invoiceTotal
-      : subtotal + tax - discount
+      : subtotal + tax - cartDiscount
   const oldBalance = Math.max(0, printData.oldBalance || 0)
   const total =
     printData.total !== undefined ? printData.total : invoiceTotal + oldBalance
@@ -387,7 +391,8 @@ export async function buildReceiptEscPos(printData = {}, options = {}) {
   const change = paymentAmount > total ? paymentAmount - total : 0
 
   out.push(...row2('Subtotal', money(subtotal), width))
-  if (discount > 0) out.push(...row2('Discount', `-${money(discount)}`, width))
+  if (itemDiscountSum > 0) out.push(...row2('Item Disc', `-${money(itemDiscountSum)}`, width))
+  if (cartDiscount > 0) out.push(...row2('Discount', `-${money(cartDiscount)}`, width))
   if (tax > 0) out.push(...row2('Tax', money(tax), width))
   out.push(...row2('Invoice', money(invoiceTotal), width))
   if (oldBalance > 0) out.push(...row2('Old Bal', money(oldBalance), width))
