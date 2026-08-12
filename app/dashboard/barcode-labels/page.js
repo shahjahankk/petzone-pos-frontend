@@ -1,12 +1,11 @@
 'use client'
 
 /**
- * Opens LabelPress full-page (own design), same pattern as Queue OPD redirect.
- * Menu uses newWindow so it opens in a new tab without POS sidebar.
+ * Opens LabelPress full-page with SSO (own design), like Queue OPD redirect.
  */
 
 import { useEffect, useState } from 'react'
-import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import withAuth from '../../../components/auth/withAuth'
 import RouteGuard from '../../../components/auth/RouteGuard'
@@ -20,39 +19,37 @@ const FALLBACK_APP_URL = (
 ).replace(/\/$/, '')
 
 function BarcodeLabelsRedirectPage() {
-  const [targetUrl, setTargetUrl] = useState(FALLBACK_APP_URL)
-  const [status, setStatus] = useState('Opening LabelPress…')
+  const [targetUrl, setTargetUrl] = useState('')
+  const [status, setStatus] = useState('Signing you in to LabelPress…')
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(true)
 
   useEffect(() => {
     let cancelled = false
 
     async function go() {
-      let url = FALLBACK_APP_URL
-
+      setBusy(true)
+      setError('')
       try {
         const res = await api.post('/barcode/sso')
         const ssoUrl = res.data?.ssoUrl
-        if (ssoUrl) {
-          url = ssoUrl
-          if (!cancelled) setStatus('Signing you in to LabelPress…')
-        } else if (!cancelled) {
-          setStatus('Opening LabelPress…')
+        if (!ssoUrl) {
+          throw new Error(res.data?.message || 'No SSO URL returned from multipos')
         }
+        if (cancelled) return
+        setTargetUrl(ssoUrl)
+        setStatus('Opening LabelPress…')
+        window.location.replace(ssoUrl)
       } catch (err) {
         const msg =
           err?.response?.data?.message ||
           err?.message ||
-          'SSO unavailable — opening LabelPress login'
+          'Could not sign in to LabelPress'
         if (!cancelled) {
           setError(msg)
-          setStatus('Opening LabelPress…')
+          setStatus('SSO failed')
+          setBusy(false)
         }
-      }
-
-      if (!cancelled) {
-        setTargetUrl(url)
-        window.location.replace(url)
       }
     }
 
@@ -73,8 +70,8 @@ function BarcodeLabelsRedirectPage() {
         background: 'linear-gradient(135deg, #ecfdf5 0%, #f8fafc 50%, #e0f2fe 100%)',
       }}
     >
-      <Stack spacing={2} alignItems="center" sx={{ maxWidth: 480, textAlign: 'center' }}>
-        <CircularProgress />
+      <Stack spacing={2} alignItems="center" sx={{ maxWidth: 520, textAlign: 'center' }}>
+        {busy ? <CircularProgress /> : null}
         <Typography variant="h6" fontWeight={800}>
           {status}
         </Typography>
@@ -82,22 +79,23 @@ function BarcodeLabelsRedirectPage() {
           Barcode labels open in LabelPress with its own screen — not inside the POS dashboard.
         </Typography>
         {error ? (
-          <Typography variant="body2" color="warning.main">
+          <Alert severity="error" sx={{ width: '100%', textAlign: 'left' }}>
             {error}
-          </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Check multipos env: BARCODE_API_URL, BARCODE_APP_URL, BARCODE_SSO_SECRET.
+              On LabelPress cPanel set SSO_SHARED_SECRET to the same value, then Restart both apps.
+            </Typography>
+          </Alert>
         ) : null}
         <Button
           variant="contained"
           size="large"
           endIcon={<OpenInNewIcon />}
-          href={targetUrl}
+          href={targetUrl || FALLBACK_APP_URL}
           component="a"
           sx={{ borderRadius: 2, mt: 1 }}
         >
-          Open LabelPress
-        </Button>
-        <Button variant="text" href={FALLBACK_APP_URL} component="a">
-          {FALLBACK_APP_URL}
+          {targetUrl ? 'Open LabelPress (SSO)' : 'Open LabelPress (password login)'}
         </Button>
       </Stack>
     </Box>
