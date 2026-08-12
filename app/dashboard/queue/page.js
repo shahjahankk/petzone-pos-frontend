@@ -15,11 +15,13 @@ import {
   getQueueSequence,
   hasQueueAdminSession,
   queueAdminLogin,
+  queueAdminSsoFromPos,
   resetQueueToday,
   resolveQueueBranch,
   setQueueNextNumber,
 } from '../../../utils/queueApi'
 import ClinicChat from '../../../components/queue/ClinicChat'
+import api from '../../../utils/axios'
 
 function QueueDashboardPage() {
   const { user } = useSelector((state) => state.auth)
@@ -65,7 +67,11 @@ function QueueDashboardPage() {
   const unlockControls = async () => {
     setBusy(true)
     try {
-      await queueAdminLogin(credentials.email, credentials.password)
+      try {
+        await queueAdminSsoFromPos((path, body) => api.post(path, body))
+      } catch {
+        await queueAdminLogin(credentials.email, credentials.password)
+      }
       await loadSequence(branch)
       setCredentials((previous) => ({ ...previous, password: '' }))
       setLoginOpen(false)
@@ -79,15 +85,24 @@ function QueueDashboardPage() {
   }
 
   const openControls = async () => {
-    if (!hasQueueAdminSession()) {
-      setLoginOpen(true)
-      return
+    if (hasQueueAdminSession()) {
+      setBusy(true)
+      try {
+        await loadSequence(branch)
+        return
+      } catch {
+        clearQueueAdminSession()
+      } finally {
+        setBusy(false)
+      }
     }
+
     setBusy(true)
     try {
+      await queueAdminSsoFromPos((path, body) => api.post(path, body))
       await loadSequence(branch)
+      setToast({ open: true, message: 'Unlocked with PetZone login', severity: 'success' })
     } catch {
-      clearQueueAdminSession()
       setLoginOpen(true)
     } finally {
       setBusy(false)
@@ -184,7 +199,7 @@ function QueueDashboardPage() {
                   ) : !sequence ? (
                     <Box sx={{ textAlign: 'center', py: 4 }}>
                       <Typography color="text.secondary" sx={{ mb: 2 }}>
-                        Unlock with your QMS administrator account.
+                        Unlock with your PetZone login (SSO). Password login is only a fallback.
                       </Typography>
                       <Button variant="outlined" startIcon={<LockOpen />} onClick={openControls}>
                         Unlock Controls

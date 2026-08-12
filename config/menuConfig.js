@@ -150,9 +150,10 @@ export const menuConfig = [
         id: 'clinic-queue',
         label: 'Queue Settings',
         icon: <ConfirmationNumber />,
-        path: '/dashboard/queue',
+        path: '/queue/admin',
         roles: ['ADMIN', 'CASHIER'],
         order: 7,
+        newWindow: true,
       },
       {
         id: 'clinic-opd',

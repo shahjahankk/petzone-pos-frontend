@@ -92,6 +92,22 @@ export async function queueAdminLogin(email, password) {
   return json.user
 }
 
+/** Unlock QMS admin via POS SSO (no QMS password). Uses multipos /api/qms/sso. */
+export async function queueAdminSsoFromPos(posApiPost) {
+  const res = await posApiPost('/qms/sso', { redirectPath: '/admin' })
+  const ssoToken = res?.data?.ssoToken || res?.ssoToken
+  if (!ssoToken) {
+    throw new Error(res?.data?.message || res?.message || 'No SSO token from POS')
+  }
+  const json = await qmsRequest('/auth/sso/exchange', {
+    method: 'POST',
+    body: JSON.stringify({ ssoToken }),
+  })
+  if (!json.token) throw new Error('Queue SSO exchange did not return a token')
+  window.localStorage.setItem(QMS_ADMIN_TOKEN_KEY, json.token)
+  return json.user
+}
+
 export async function getQueueSequence(branchId) {
   const json = await qmsRequest(`/admin/branches/${branchId}/sequence`)
   return json.data
