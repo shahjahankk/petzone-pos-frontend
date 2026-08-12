@@ -1,29 +1,25 @@
 'use client'
 
 /**
- * POS OPD Counter UI was moved to the standalone Queue Management System.
- * Legacy implementation kept at: ./page.legacy.js (not routed).
- *
- * Menu → OPD Counter redirects to QMS attendant screens, e.g.:
- *   https://queue-management.petzone.pk/opd/petzone/main
- *   https://queue-management.petzone.pk/opd/petzone/north
+ * Opens QMS OPD counter with POS unlock (skips branch PIN).
  */
 
 import { useEffect, useState } from 'react'
-import { Box, CircularProgress, Typography, Button, Stack } from '@mui/material'
+import { Box, CircularProgress, Typography, Button, Stack, Alert } from '@mui/material'
 import { OpenInNew } from '@mui/icons-material'
 import { useSelector } from 'react-redux'
 import withAuth from '../../../components/auth/withAuth'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import { resolveQueueBranch } from '../../../utils/queueApi'
 import { config } from '../../../config/environment'
+import api from '../../../utils/axios'
 
 const QMS_HOME = 'https://queue-management.petzone.pk/'
 
 function qmsOrigin() {
   try {
-    const api = (config.QMS_API_URL || QMS_HOME).replace(/\/api\/?$/, '')
-    return api || QMS_HOME.replace(/\/$/, '')
+    const apiUrl = (config.QMS_API_URL || QMS_HOME).replace(/\/api\/?$/, '')
+    return apiUrl || QMS_HOME.replace(/\/$/, '')
   } catch {
     return QMS_HOME.replace(/\/$/, '')
   }
@@ -32,7 +28,8 @@ function qmsOrigin() {
 function QueueOpdRedirectPage() {
   const { user } = useSelector((s) => s.auth)
   const [targetUrl, setTargetUrl] = useState(QMS_HOME)
-  const [status, setStatus] = useState('Opening OPD on Queue Management…')
+  const [status, setStatus] = useState('Opening OPD…')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -45,12 +42,28 @@ function QueueOpdRedirectPage() {
         const posBranchId = user?.branchId || user?.branch_id || null
         const ctx = await resolveQueueBranch(posBranchId)
         if (ctx?.orgSlug && ctx?.branchSlug) {
-          url = `${origin}/opd/${ctx.orgSlug}/${ctx.branchSlug}`
           if (!cancelled) {
-            setStatus(`Opening ${ctx.branchName || ctx.branchSlug} OPD attendant…`)
+            setStatus(`Unlocking ${ctx.branchName || ctx.branchSlug} OPD…`)
           }
-        } else {
-          if (!cancelled) setStatus('Opening Queue Management home…')
+          try {
+            const res = await api.post('/qms/screen-sso', {
+              screen: 'counter',
+              orgSlug: ctx.orgSlug,
+              branchSlug: ctx.branchSlug,
+            })
+            url = res.data?.unlockUrl || `${origin}/opd/${ctx.orgSlug}/${ctx.branchSlug}`
+          } catch (err) {
+            url = `${origin}/opd/${ctx.orgSlug}/${ctx.branchSlug}`
+            if (!cancelled) {
+              setError(
+                err?.response?.data?.message ||
+                  err?.message ||
+                  'Could not auto-unlock — OPD PIN may still be required',
+              )
+            }
+          }
+        } else if (!cancelled) {
+          setStatus('Opening Queue Management home…')
         }
       } catch {
         if (!cancelled) setStatus('Opening Queue Management home…')
@@ -63,7 +76,9 @@ function QueueOpdRedirectPage() {
     }
 
     go()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [user?.branchId, user?.branch_id])
 
   return (
@@ -83,8 +98,13 @@ function QueueOpdRedirectPage() {
           {status}
         </Typography>
         <Typography color="text.secondary">
-          OPD call screen and clinic chat now open on Queue Management (same as ticketing).
+          Opened from POS — OPD unlocks automatically (no branch PIN).
         </Typography>
+        {error ? (
+          <Alert severity="warning" sx={{ width: '100%', textAlign: 'left' }}>
+            {error}
+          </Alert>
+        ) : null}
         <Button
           variant="contained"
           size="large"
@@ -94,9 +114,6 @@ function QueueOpdRedirectPage() {
           sx={{ borderRadius: 2, mt: 1 }}
         >
           Open OPD
-        </Button>
-        <Button variant="text" href={QMS_HOME} component="a">
-          {QMS_HOME}
         </Button>
       </Stack>
     </Box>
