@@ -31,6 +31,7 @@ import {
   ShoppingCartCheckout,
   ConfirmationNumber,
   Forum,
+  QrCode2,
 } from '@mui/icons-material'
 
 // Centralized menu configuration organized by sections
@@ -279,6 +280,15 @@ export const menuConfig = [
     newWindow: true,
   },
   {
+    id: 'barcode-labels-warehouse',
+    label: 'Barcode Labels',
+    icon: <QrCode2 />,
+    path: '/dashboard/barcode-labels',
+    roles: ['WAREHOUSE_KEEPER', 'ADMIN'],
+    order: 8.5,
+    section: 'warehouse',
+  },
+  {
     id: 'warehouse-ledger',
     label: 'Warehouse Ledger',
     icon: <AccountBalance />,
@@ -516,6 +526,15 @@ export const menuConfig = [
     path: '/dashboard/admin-dashboard',
     roles: ['ADMIN'],
     order: 16,
+    section: 'system',
+  },
+  {
+    id: 'barcode-labels-admin',
+    label: 'Barcode Labels',
+    icon: <QrCode2 />,
+    path: '/dashboard/barcode-labels',
+    roles: ['ADMIN'],
+    order: 16.5,
     section: 'system',
   },
   {

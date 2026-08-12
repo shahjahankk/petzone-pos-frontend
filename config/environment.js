@@ -19,6 +19,7 @@ export const config = {
   QMS_API_URL: process.env.NEXT_PUBLIC_QMS_API_URL || 'https://queue-management.petzone.pk/api',
   QMS_ORG_SLUG: process.env.NEXT_PUBLIC_QMS_ORG_SLUG || 'petzone',
   QMS_BRANCH_SLUG: process.env.NEXT_PUBLIC_QMS_BRANCH_SLUG || 'main',
+  BARCODE_APP_URL: process.env.NEXT_PUBLIC_BARCODE_APP_URL || '',
   
   // Database Configuration
   DATABASE_URL: process.env.DATABASE_URL || 'mysql://localhost:3306/petzonepos',
