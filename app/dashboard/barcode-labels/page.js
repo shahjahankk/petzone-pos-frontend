@@ -1,125 +1,111 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
-import {
-  Alert,
-  Box,
-  Button,
-  CircularProgress,
-  Stack,
-  Typography,
-} from '@mui/material'
+/**
+ * Opens LabelPress full-page (own design), same pattern as Queue OPD redirect.
+ * Menu uses newWindow so it opens in a new tab without POS sidebar.
+ */
+
+import { useEffect, useState } from 'react'
+import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-import RefreshIcon from '@mui/icons-material/Refresh'
-import DashboardLayout from '../../../components/layout/DashboardLayout'
+import withAuth from '../../../components/auth/withAuth'
+import RouteGuard from '../../../components/auth/RouteGuard'
 import api from '../../../utils/axios'
+import { config } from '../../../config/environment'
 
-const FALLBACK_APP_URL = process.env.NEXT_PUBLIC_BARCODE_APP_URL || ''
+const FALLBACK_APP_URL = (
+  config.BARCODE_APP_URL ||
+  process.env.NEXT_PUBLIC_BARCODE_APP_URL ||
+  'https://barcode-printer.petzone.pk'
+).replace(/\/$/, '')
 
-export default function BarcodeLabelsPage() {
-  const [ssoUrl, setSsoUrl] = useState('')
-  const [loading, setLoading] = useState(true)
+function BarcodeLabelsRedirectPage() {
+  const [targetUrl, setTargetUrl] = useState(FALLBACK_APP_URL)
+  const [status, setStatus] = useState('Opening LabelPress…')
   const [error, setError] = useState('')
 
-  const mintSso = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await api.post('/barcode/sso')
-      const url = res.data?.ssoUrl
-      if (!url) throw new Error('No SSO URL returned')
-      setSsoUrl(url)
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Could not open barcode service'
-      setError(msg)
-      if (FALLBACK_APP_URL) setSsoUrl(FALLBACK_APP_URL)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    let cancelled = false
+
+    async function go() {
+      let url = FALLBACK_APP_URL
+
+      try {
+        const res = await api.post('/barcode/sso')
+        const ssoUrl = res.data?.ssoUrl
+        if (ssoUrl) {
+          url = ssoUrl
+          if (!cancelled) setStatus('Signing you in to LabelPress…')
+        } else if (!cancelled) {
+          setStatus('Opening LabelPress…')
+        }
+      } catch (err) {
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          'SSO unavailable — opening LabelPress login'
+        if (!cancelled) {
+          setError(msg)
+          setStatus('Opening LabelPress…')
+        }
+      }
+
+      if (!cancelled) {
+        setTargetUrl(url)
+        window.location.replace(url)
+      }
+    }
+
+    go()
+    return () => {
+      cancelled = true
     }
   }, [])
 
-  useEffect(() => {
-    mintSso()
-  }, [mintSso])
-
   return (
-    <DashboardLayout>
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', minHeight: 480 }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={1.5}
-          alignItems={{ sm: 'center' }}
-          justifyContent="space-between"
-          sx={{ mb: 1.5 }}
-        >
-          <Box>
-            <Typography variant="h5" fontWeight={700}>
-              Barcode Labels
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Uses your PetZone login via SSO — no extra barcode password when opened from here.
-              Standalone URL still asks for login.
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<RefreshIcon />}
-              onClick={mintSso}
-              disabled={loading}
-            >
-              Refresh login
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={<OpenInNewIcon />}
-              href={ssoUrl || FALLBACK_APP_URL || undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              disabled={!ssoUrl && !FALLBACK_APP_URL}
-            >
-              Open standalone
-            </Button>
-          </Stack>
-        </Stack>
-
-        {error && (
-          <Alert severity="warning" sx={{ mb: 1.5 }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 3,
+        background: 'linear-gradient(135deg, #ecfdf5 0%, #f8fafc 50%, #e0f2fe 100%)',
+      }}
+    >
+      <Stack spacing={2} alignItems="center" sx={{ maxWidth: 480, textAlign: 'center' }}>
+        <CircularProgress />
+        <Typography variant="h6" fontWeight={800}>
+          {status}
+        </Typography>
+        <Typography color="text.secondary">
+          Barcode labels open in LabelPress with its own screen — not inside the POS dashboard.
+        </Typography>
+        {error ? (
+          <Typography variant="body2" color="warning.main">
             {error}
-            {FALLBACK_APP_URL ? ' Opening without SSO if possible.' : ''}
-          </Alert>
-        )}
-
-        {loading && !ssoUrl ? (
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <CircularProgress />
-          </Box>
-        ) : ssoUrl || FALLBACK_APP_URL ? (
-          <Box
-            component="iframe"
-            title="LabelPress"
-            src={ssoUrl || FALLBACK_APP_URL}
-            sx={{
-              flex: 1,
-              width: '100%',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              bgcolor: '#fff',
-            }}
-          />
-        ) : (
-          <Alert severity="error">
-            Set NEXT_PUBLIC_BARCODE_APP_URL and configure BARCODE_API_URL /
-            BARCODE_SSO_SECRET on the POS backend.
-          </Alert>
-        )}
-      </Box>
-    </DashboardLayout>
+          </Typography>
+        ) : null}
+        <Button
+          variant="contained"
+          size="large"
+          endIcon={<OpenInNewIcon />}
+          href={targetUrl}
+          component="a"
+          sx={{ borderRadius: 2, mt: 1 }}
+        >
+          Open LabelPress
+        </Button>
+        <Button variant="text" href={FALLBACK_APP_URL} component="a">
+          {FALLBACK_APP_URL}
+        </Button>
+      </Stack>
+    </Box>
   )
 }
+
+export default withAuth(() => (
+  <RouteGuard allowedRoles={['ADMIN', 'WAREHOUSE_KEEPER']}>
+    <BarcodeLabelsRedirectPage />
+  </RouteGuard>
+))

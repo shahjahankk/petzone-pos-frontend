@@ -287,6 +287,7 @@ export const menuConfig = [
     roles: ['WAREHOUSE_KEEPER', 'ADMIN'],
     order: 8.5,
     section: 'warehouse',
+    newWindow: true,
   },
   {
     id: 'warehouse-ledger',
@@ -536,6 +537,7 @@ export const menuConfig = [
     roles: ['ADMIN'],
     order: 16.5,
     section: 'system',
+    newWindow: true,
   },
   {
     id: 'ledger',
