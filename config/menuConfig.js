@@ -32,6 +32,7 @@ import {
   ConfirmationNumber,
   Forum,
   QrCode2,
+  DeleteOutline,
 } from '@mui/icons-material'
 
 // Centralized menu configuration organized by sections
@@ -107,12 +108,20 @@ export const menuConfig = [
         order: 1,
       },
       {
+        id: 'trash',
+        label: 'Trash',
+        icon: <DeleteOutline />,
+        path: '/dashboard/admin/trash',
+        roles: ['ADMIN'],
+        order: 2,
+      },
+      {
         id: 'simplified-settings',
         label: 'Settings',
         icon: <Settings />,
         path: '/dashboard/admin/simplified-settings',
         roles: ['ADMIN'],
-        order: 2,
+        order: 3,
       },
       {
         id: 'admin-inventory-sales',
@@ -120,7 +129,7 @@ export const menuConfig = [
         icon: <Assessment />,
         path: '/dashboard/admin/inventory-sales',
         roles: ['ADMIN'],
-        order: 3,
+        order: 4,
       },
       {
         id: 'salespeople',
@@ -128,7 +137,7 @@ export const menuConfig = [
         icon: <PersonAdd />,
         path: '/dashboard/salespeople',
         roles: ['ADMIN'],
-        order: 4,
+        order: 5,
       },
       {
         id: 'categories',
@@ -136,7 +145,7 @@ export const menuConfig = [
         icon: <Category />,
         path: '/dashboard/categories',
         roles: ['ADMIN'],
-        order: 5,
+        order: 6,
       },
       {
         id: 'clinic-services',
