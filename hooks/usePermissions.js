@@ -74,6 +74,8 @@ case 'CASHIER_RETURNS':
   return Boolean(branchSettings?.allowCashierReturns)
 case 'OPEN_ACCOUNT':
   return Boolean(branchSettings?.openAccountSystem)
+case 'COMPANY_VIEW':
+  return Boolean(branchSettings?.allowCompanyView)
     default:
       return false
   }

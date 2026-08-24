@@ -197,6 +197,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
     { key: 'allowWhatsappLedger',      label: 'Allow WhatsApp Ledger Share', description: 'Cashiers can share full detailed customer ledger via WhatsApp', type: 'switch', icon: 'whatsapp' },
 
     { type: 'section', section: 'Company Management' },
+    { key: 'allowCompanyView',   label: 'Allow Company Details',  description: 'Branch users can open company details with the eye icon', type: 'switch' },
     { key: 'allowCompanyCreate', label: 'Allow Company Creation', description: 'Branch users can add new companies',      type: 'switch' },
     { key: 'allowCompanyEdit',   label: 'Allow Company Edit',     description: 'Branch users can edit existing companies', type: 'switch' },
     { key: 'allowCompanyDelete', label: 'Allow Company Delete',   description: 'Branch users can delete companies',        type: 'switch' },
@@ -221,7 +222,7 @@ const SimplifiedBranchSettings = ({ branches, onBranchesChange }) => {
         </Box>
         <Typography variant="body2" color="text.secondary">
           Configure cashier permissions for each branch.{' '}
-          <strong>View (👁) is always visible</strong> — Edit and Delete are toggled separately.
+          Company details (eye icon), Edit, and Delete are each controlled separately.
         </Typography>
       </Box>
 

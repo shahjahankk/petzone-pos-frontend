@@ -55,6 +55,7 @@ import RouteGuard from '../../../../components/auth/RouteGuard'
 import withAuth from '../../../../components/auth/withAuth'
 import { useParams, useRouter } from 'next/navigation'
 import { fetchCompanyDetails, exportCompanyDetailsReport } from '../../../store/slices/companiesSlice'
+import { fetchBranchSettings } from '../../../store/slices/branchesSlice'
 
 const defaultMetrics = {
   purchaseOrderCount: 0,
@@ -82,6 +83,11 @@ const CompanyDetailPage = () => {
     error: null
   })
 
+  const { user } = useSelector((state) => state.auth)
+  const { branchSettings, isLoading: branchSettingsLoading } = useSelector(
+    (state) => state.branches || { branchSettings: null, isLoading: false }
+  )
+
   const [exportAnchor, setExportAnchor] = useState(null)
   const [historySearchTerm, setHistorySearchTerm] = useState('')
   const [historyStatus, setHistoryStatus] = useState('all')
@@ -89,10 +95,25 @@ const CompanyDetailPage = () => {
   const [historyEndDate, setHistoryEndDate] = useState(null)
 
   useEffect(() => {
-    if (companyId) {
-      dispatch(fetchCompanyDetails(companyId))
+    if (user?.role === 'CASHIER' && user?.branchId) {
+      dispatch(fetchBranchSettings(user.branchId))
     }
-  }, [dispatch, companyId])
+  }, [dispatch, user?.role, user?.branchId])
+
+  useEffect(() => {
+    if (user?.role !== 'CASHIER') return
+    if (branchSettingsLoading || !branchSettings) return
+    if (branchSettings.allowCompanyView !== true) {
+      router.replace('/dashboard/companies')
+    }
+  }, [user?.role, branchSettings, branchSettingsLoading, router])
+
+  useEffect(() => {
+    if (!companyId) return
+    if (user?.role === 'CASHIER' && !branchSettings) return
+    if (user?.role === 'CASHIER' && branchSettings?.allowCompanyView !== true) return
+    dispatch(fetchCompanyDetails(companyId))
+  }, [dispatch, companyId, user?.role, branchSettings])
 
   const handleOpenExportMenu = (event) => {
     setExportAnchor(event.currentTarget)

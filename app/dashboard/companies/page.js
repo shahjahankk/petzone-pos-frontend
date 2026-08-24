@@ -189,6 +189,10 @@ function CompaniesPage() {
   const isActualAdmin = originalUser?.role === 'ADMIN'
 
   // ── Permissions — isActualAdmin always has full access ───────────────────
+  const canViewCompany = isActualAdmin || user?.role === 'ADMIN' ||
+    user?.role === 'WAREHOUSE_KEEPER' ||
+    (user?.role === 'CASHIER' && branchSettings?.allowCompanyView === true)
+
   const canCreateCompany = isActualAdmin || user?.role === 'ADMIN' ||
     (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowCompanyCreate === true) ||
     (user?.role === 'CASHIER'          && branchSettings?.allowCompanyCreate    === true)
@@ -206,13 +210,15 @@ function CompaniesPage() {
     (user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings?.allowWarehouseCompanyCRUD === true) ||
     (user?.role === 'CASHIER'          && branchSettings?.allowCashierCustomers        === true)
 
+  const canView            = canViewCompany
   const canCreate          = canCreateCompany || canManageCompaniesOld
   const canEdit            = canEditCompany   || canManageCompaniesOld
   const canDelete          = canDeleteCompany || canManageCompaniesOld
   const canManageCompanies = canCreate || canEdit || canDelete
+  const showActions        = canView || canEdit || canDelete
 
   const showPermissionWarning = (user?.role === 'WAREHOUSE_KEEPER' || user?.role === 'CASHIER') &&
-    !canCreate && !canEdit && !canDelete &&
+    !canView && !canCreate && !canEdit && !canDelete &&
     ((user?.role === 'WAREHOUSE_KEEPER' && warehouseSettings && !warehouseLoading) ||
      (user?.role === 'CASHIER'          && branchSettings    && !branchLoading))
 
@@ -853,13 +859,13 @@ function CompaniesPage() {
                         <TableCell>Products Purchased</TableCell>
                         <TableCell>Inventory Items</TableCell>
                         <TableCell>Last Purchase</TableCell>
-                        {canManageCompanies && <TableCell align="center">Actions</TableCell>}
+                        {showActions && <TableCell align="center">Actions</TableCell>}
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {filteredCompanies.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={canManageCompanies ? 14 : 13} align="center" sx={{ py: 4 }}>
+                          <TableCell colSpan={showActions ? 14 : 13} align="center" sx={{ py: 4 }}>
                             <Typography variant="body2" color="textSecondary">
                               {companies?.length === 0
                                 ? 'No companies found. Click "Add Company" to create your first company.'
@@ -946,15 +952,17 @@ function CompaniesPage() {
                                 ? formatDisplayDate(company.metrics.lastPurchaseDate)
                                 : '—'}
                             </TableCell>
-                            {canManageCompanies && (
+                            {showActions && (
                               <TableCell align="center">
                                 <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                  {canView && (
                                   <Tooltip title="View Details">
                                     <IconButton size="small" color="primary"
                                       onClick={() => router.push(`/dashboard/companies/${company.id}`)}>
                                       <ViewIcon fontSize="small" />
                                     </IconButton>
                                   </Tooltip>
+                                  )}
                                   {canEdit && (
                                     <Tooltip title="Edit">
                                       <IconButton size="small" color="primary" onClick={() => handleEdit(company)}>
