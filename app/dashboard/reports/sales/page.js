@@ -28,7 +28,17 @@ import { useEffect, useState, useCallback } from 'react'
   // ─── Formatters ───────────────────────────────────────────────────────────────
   const fmt    = (v, d = 0) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
   const fmtPKR = (v) => `PKR ${fmt(v)}`
-  const toStr  = (d) => { if (!d) return null; if (d instanceof Date) return d.toISOString().split('T')[0]; return d }
+  // Use LOCAL date components so Pakistan midnight doesn't shift to the previous UTC day
+  const toStr = (d) => {
+    if (!d) return null
+    if (d instanceof Date) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    return d
+  }
   const today  = () => new Date()
   const som    = () => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d }
   const ago    = (n) => new Date(Date.now() - n * 86400000)
@@ -94,13 +104,26 @@ import { useEffect, useState, useCallback } from 'react'
     )
   }
 
+  const isRefundTx = (row) => {
+    const m = (row.payment_method || '').toUpperCase();
+    const t = (row.payment_type || '').toUpperCase();
+    return m === 'REFUND' || m === 'CASH_REFUND' || t === 'REFUND' || t === 'CASH_REFUND';
+  };
+  const isSettlementTx = (row) => (row.payment_type || '').toUpperCase() === 'OUTSTANDING_SETTLEMENT';
+
   function PayBadge({ method, paymentType }) {
+    const pm = (method || '').toUpperCase();
+    const pt = (paymentType || '').toUpperCase();
+    if (pm === 'REFUND' || pm === 'CASH_REFUND' || pt === 'REFUND' || pt === 'CASH_REFUND') {
+      return <Chip label="Refund" size="small" sx={{ fontSize: '0.62rem', height: 20, fontWeight: 700, bgcolor: '#ffebee', color: '#c62828', borderRadius: 1 }} />;
+    }
     const key = paymentType === 'OUTSTANDING_SETTLEMENT' ? 'OUTSTANDING_SETTLEMENT' : method
     const c = MC[key] || '#757575'
     return <Chip label={ML[key] || method} size="small" sx={{ fontSize: '0.62rem', height: 20, fontWeight: 700, bgcolor: `${c}18`, color: c, borderRadius: 1 }} />
   }
 
-  function StatBadge({ status, isSettlement }) {
+  function StatBadge({ status, isSettlement, isRefund }) {
+    if (isRefund) return <Chip label="Refund" size="small" sx={{ fontSize: '0.62rem', height: 20, fontWeight: 700, bgcolor: '#ffebee', color: '#c62828', borderRadius: 1 }} />
     if (isSettlement) return <Chip label="Settlement" size="small" sx={{ fontSize: '0.62rem', height: 20, fontWeight: 700, bgcolor: '#f3e5f5', color: '#6a1b9a', borderRadius: 1 }} />
     const m = { COMPLETED: { label:'Paid', bg:'#e8f5e9', color:'#2e7d32' }, PENDING: { label:'Pending', bg:'#fff3e0', color:'#e65100' }, PARTIAL: { label:'Partial', bg:'#fff3e0', color:'#e65100' } }
     const s = m[status] || { label: status || 'N/A', bg: '#f5f5f5', color: '#757575' }
@@ -697,28 +720,30 @@ import { useEffect, useState, useCallback } from 'react'
                     <TableBody>
                       {recentSales.length===0
                         ? <TableRow><TableCell colSpan={9} align="center" sx={{ py:6, color:'text.disabled' }}>No transactions</TableCell></TableRow>
-                        : recentSales.map((row,i)=>(
+                        : recentSales.map((row,i)=>{
+                            const isRefund = isRefundTx(row);
+                            return (
                             <TableRow key={i} sx={{
                               '&:hover':{ bgcolor:'#fafafa' },
-                              bgcolor: row.is_settlement?'#fdf4ff':row.credit_amount>0&&row.payment_amount===0?'#fff9f9':'inherit',
+                              bgcolor: isRefund?'#ffebee':row.is_settlement?'#fdf4ff':row.credit_amount>0&&row.payment_amount===0?'#fff9f9':'inherit',
                               borderBottom:'1px solid #f5f5f5'
                             }}>
                               <TableCell sx={{ fontSize:'.74rem', color:'text.secondary', whiteSpace:'nowrap' }}>{row.date}</TableCell>
-                              <TableCell sx={{ fontSize:'.74rem', fontWeight:700, whiteSpace:'nowrap', color:row.is_settlement?'#6a1b9a':'primary.main' }}>{row.invoice_no}</TableCell>
+                              <TableCell sx={{ fontSize:'.74rem', fontWeight:700, whiteSpace:'nowrap', color:isRefund?'#c62828':row.is_settlement?'#6a1b9a':'primary.main' }}>{row.invoice_no}</TableCell>
                               <TableCell sx={{ fontSize:'.78rem', maxWidth:140, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                                 <Typography sx={{ fontSize:'.78rem', fontWeight:500 }}>{row.customer_name}</Typography>
                                 {row.customer_phone&&<Typography variant="caption" color="text.disabled" sx={{ display:'block' }}>{row.customer_phone}</Typography>}
                               </TableCell>
                               <TableCell sx={{ fontSize:'.74rem', color:'text.secondary' }}>{row.cashier_name}</TableCell>
-                              <TableCell sx={{ fontSize:'.8rem', fontWeight:700, whiteSpace:'nowrap' }}>{row.is_settlement?'—':`PKR ${fmt(row.total)}`}</TableCell>
-                              <TableCell sx={{ fontSize:'.8rem', fontWeight:600, color:'success.dark', whiteSpace:'nowrap' }}>PKR {fmt(row.payment_amount)}</TableCell>
+                              <TableCell sx={{ fontSize:'.8rem', fontWeight:700, whiteSpace:'nowrap' }}>{row.is_settlement||isRefund?'—':`PKR ${fmt(row.total)}`}</TableCell>
+                              <TableCell sx={{ fontSize:'.8rem', fontWeight:600, color:row.payment_amount<0?'error.main':'success.dark', whiteSpace:'nowrap' }}>PKR {fmt(row.payment_amount)}</TableCell>
                               <TableCell sx={{ fontSize:'.8rem', fontWeight:row.credit_amount>0?700:400, color:row.credit_amount>0?'error.main':'text.disabled', whiteSpace:'nowrap' }}>
                                 {row.credit_amount>0?`PKR ${fmt(row.credit_amount)}`:'—'}
                               </TableCell>
                               <TableCell><PayBadge method={row.payment_method} paymentType={row.payment_type}/></TableCell>
-                              <TableCell><StatBadge status={row.payment_status} isSettlement={row.is_settlement}/></TableCell>
+                              <TableCell><StatBadge status={row.payment_status} isSettlement={row.is_settlement} isRefund={isRefund}/></TableCell>
                             </TableRow>
-                          ))}
+                          )})}
                     </TableBody>
                   </Table>
                 </TableContainer>

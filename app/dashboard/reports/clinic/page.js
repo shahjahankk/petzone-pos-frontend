@@ -24,7 +24,17 @@ import RouteGuard from '../../../../components/auth/RouteGuard'
 
 const fmt = (v, d = 0) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 const fmtPKR = (v) => `PKR ${fmt(v)}`
-const toStr = (d) => { if (!d) return null; if (d instanceof Date) return d.toISOString().split('T')[0]; return d }
+// Use LOCAL date components so Pakistan midnight doesn't shift to the previous UTC day
+const toStr = (d) => {
+  if (!d) return null
+  if (d instanceof Date) {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  return d
+}
 const today = () => new Date()
 const som = () => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d }
 const ago = (n) => new Date(Date.now() - n * 86400000)

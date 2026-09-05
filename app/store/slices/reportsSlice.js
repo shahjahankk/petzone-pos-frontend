@@ -1,18 +1,24 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
-// ── Helper: normalize a date value to YYYY-MM-DD string ──────────────────────
+// ── Helper: normalize a date value to YYYY-MM-DD string in LOCAL time ────────
 // Accepts: Date object, ISO string, or already-formatted string
+// IMPORTANT: do NOT use toISOString() — it converts local midnight to the
+// previous day for positive timezones (e.g. Pakistan +05:00), causing the
+// backend to query the wrong UTC date.
 const toDateStr = (val) => {
   if (!val) return null
-  if (val instanceof Date) return val.toISOString().split('T')[0]
-  if (typeof val === 'string') {
-    // Already YYYY-MM-DD
+  let d
+  if (val instanceof Date) d = val
+  else if (typeof val === 'string') {
     if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val
-    // ISO string like "2024-01-01T00:00:00.000Z"
-    return new Date(val).toISOString().split('T')[0]
+    d = new Date(val)
   }
-  return null
+  if (!d || Number.isNaN(d.getTime())) return null
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 // Async thunks for reports API calls

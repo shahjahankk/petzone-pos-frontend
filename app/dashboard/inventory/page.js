@@ -1352,7 +1352,7 @@ const canEditInventory = useMemo(() => {
                       <TableCell align="right">Selling Price</TableCell>
                       <TableCell align="right">Current Stock</TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Net sold = Gross sold - Returned - Restocked">
+                        <Tooltip title="Net sold = Gross sold - Returned">
                           <span>Net Sold</span>
                         </Tooltip>
                       </TableCell>
