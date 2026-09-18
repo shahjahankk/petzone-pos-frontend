@@ -91,6 +91,7 @@ import { formatDisplayDate, toIsoDateOnly } from '../../utils/displayDates'
     
     // Available inventory items for adding
     const [availableItems, setAvailableItems] = useState([])
+    const [clinicServices, setClinicServices] = useState([])
 
   // Initialize form data when sale changes
   useEffect(() => {
@@ -282,9 +283,32 @@ useEffect(() => {
 // Set availableItems when inventoryItems updates
 useEffect(() => {
   if (open && inventoryItems) {
-    setAvailableItems(inventoryItems)
+        const serviceItems = clinicServices.map((service) => ({
+            id: `service-${service.id}`,
+            clinicServiceId: service.id,
+            isService: true,
+            name: service.name,
+            sku: service.code || `CLINIC-${service.id}`,
+            category: service.categoryName || 'Clinic',
+            price: service.defaultPrice,
+            defaultPrice: service.defaultPrice,
+            sellingPrice: service.defaultPrice,
+            currentStock: null,
+        }))
+        setAvailableItems([...inventoryItems, ...serviceItems])
   }
-}, [open, inventoryItems])
+}, [open, inventoryItems, clinicServices])
+
+useEffect(() => {
+    if (!open) return
+
+    api.get('/clinic-services/billing')
+        .then((response) => {
+            const data = response.data?.data || {}
+            setClinicServices(data.services || [])
+        })
+        .catch(() => setClinicServices([]))
+}, [open])
 
     // Calculate totals
     const calculateTotals = useCallback(() => {
@@ -361,30 +385,35 @@ const handleItemQuantityChange = (itemId, newQuantity) => {
     // Handle item selection from autocomplete
     const handleItemSelection = (itemId, selectedItem) => {
         if (selectedItem) {
+        const isService = Boolean(selectedItem.isService)
+        const unitPrice = parseFloat(selectedItem.sellingPrice ?? selectedItem.defaultPrice ?? selectedItem.price) || 0
         setFormData(prev => ({
             ...prev,
             items: prev.items.map(item => 
             item.id === itemId 
                 ? { 
                     ...item, 
-                    inventoryItemId: selectedItem.id,
+                    inventoryItemId: isService ? null : selectedItem.id,
+                    clinicServiceId: isService ? selectedItem.clinicServiceId : null,
+                    isService,
                     itemName: selectedItem.name,
                     sku: selectedItem.sku,
                     category: selectedItem.category,
-                    unitPrice: parseFloat(selectedItem.sellingPrice) || 0,
+                    unitPrice,
                     quantity: 1, // Default quantity
-                    total: parseFloat(selectedItem.sellingPrice) || 0
+                    total: unitPrice
                 }
                 : item
             )
         }))
-        
-// ✅ FIX: When adding new item to sale, stock should DECREASE (negative change)
-trackInventoryChange({
-    inventoryItemId: selectedItem.id,
-    itemName: selectedItem.name,
-    quantity: 1
-}, -1, 'ADD')
+
+        if (!isService) {
+            trackInventoryChange({
+                inventoryItemId: selectedItem.id,
+                itemName: selectedItem.name,
+                quantity: 1
+            }, -1, 'ADD')
+        }
         }
     }
 
@@ -760,7 +789,7 @@ const handleRemoveItem = (itemId) => {
                                 size="small"
                                 options={availableItems}
                                 getOptionLabel={(option) => option.name || ''}
-                                value={availableItems.find(option => option.name === item.itemName) || null}
+                                value={availableItems.find(option => option.name === item.itemName && Boolean(option.isService) === Boolean(item.isService)) || null}
                                 onChange={(event, newValue) => {
                                 if (newValue) {
                                     handleItemSelection(item.id, newValue)
@@ -789,17 +818,17 @@ const handleRemoveItem = (itemId) => {
                                     <Typography variant="body2" fontWeight="medium">
                                         {option.name}
                                     </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                        {option.sku} • {option.category} • Stock: {option.currentStock} • Price: ${parseFloat(option.sellingPrice || 0).toFixed(2)}
+                                        <Typography variant="caption" color="text.secondary">
+                                        {option.sku} • {option.category} • {option.isService ? 'Clinic service' : `Stock: ${option.currentStock}`} • Price: ${parseFloat(option.sellingPrice || option.defaultPrice || option.price || 0).toFixed(2)}
                                     </Typography>
                                     </Box>
                                 </Box>
                                 )}
                                 filterOptions={(options, { inputValue }) => {
                                 return options.filter(option =>
-                                    option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                                    option.sku.toLowerCase().includes(inputValue.toLowerCase()) ||
-                                    option.category.toLowerCase().includes(inputValue.toLowerCase())
+                                    option.name?.toLowerCase().includes(inputValue.toLowerCase()) ||
+                                    option.sku?.toLowerCase().includes(inputValue.toLowerCase()) ||
+                                    option.category?.toLowerCase().includes(inputValue.toLowerCase())
                                 )
                                 }}
                                 noOptionsText="No items found"

@@ -109,6 +109,22 @@ function TotalBar({ totalAmount }) {
   )
 }
 
+function PaymentFields({ formData, totalAmount, onFieldChange }) {
+  const paidAmount = Number(formData.paidAmount) || 0
+  const balance = Math.max(0, totalAmount - paidAmount)
+  return (
+    <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: (t) => alpha(t.palette.success.main, 0.04), borderRadius: 2 }}>
+      <Typography variant="subtitle1" fontWeight="bold" gutterBottom>Supplier Payment</Typography>
+      <Grid container spacing={2} alignItems="center">
+        <Grid item xs={12} md={3}><FormControl fullWidth size="small"><InputLabel>Payment Category</InputLabel><Select value={formData.paymentMethod || 'CREDIT'} label="Payment Category" onChange={(e) => onFieldChange('paymentMethod', e.target.value)}><MenuItem value="CREDIT">Credit / Pay Later</MenuItem><MenuItem value="CASH">Cash</MenuItem><MenuItem value="CARD">Card</MenuItem><MenuItem value="BANK_TRANSFER">Bank Transfer</MenuItem><MenuItem value="CHEQUE">Cheque</MenuItem></Select></FormControl></Grid>
+        <Grid item xs={12} md={3}><TextField fullWidth size="small" type="number" label="Paid Now" value={formData.paidAmount ?? 0} onChange={(e) => onFieldChange('paidAmount', Math.max(0, Number(e.target.value) || 0))} inputProps={{ min: 0, max: totalAmount, step: 0.01 }} /></Grid>
+        <Grid item xs={12} md={3}><Typography variant="body2" color="text.secondary">Supplier Balance</Typography><Typography variant="h6" color={balance > 0 ? 'warning.main' : 'success.main'}>{balance.toFixed(2)}</Typography></Grid>
+        <Grid item xs={12} md={3}><Typography variant="body2" color="text.secondary">Status</Typography><Chip size="small" color={balance <= 0 ? 'success' : paidAmount > 0 ? 'warning' : 'default'} label={balance <= 0 ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'CREDIT'} /></Grid>
+      </Grid>
+    </Paper>
+  )
+}
+
 function ActionButtons({ onCancel, onSubmit, submitLabel, loadingLabel, isSubmitting, selectedRows, onDeleteSelected, onAddItem }) {
   return (
     <DialogActions sx={{ p: 3, borderTop: 1, borderColor: 'divider', justifyContent: 'space-between' }}>
@@ -530,6 +546,8 @@ function PurchaseOrdersPage() {
                         : '',
       orderDate:        new Date().toISOString().split('T')[0],
       expectedDelivery: '',
+        paymentMethod: 'CREDIT',
+        paidAmount: 0,
       notes:            '',
       items:            [emptyItem()],
     }
@@ -784,6 +802,8 @@ function PurchaseOrdersPage() {
         orderDate:        fullOrder.orderDate,
         expectedDelivery: fullOrder.expectedDelivery || '',
         notes:            fullOrder.notes || '',
+          paymentMethod:   fullOrder.paymentMethod || 'CREDIT',
+          paidAmount:      Number(fullOrder.paidAmount || 0),
         items: fullOrder.items.map(item => ({
           id:              item.id,
           inventoryItemId: item.inventoryItemId,
@@ -1135,6 +1155,7 @@ function PurchaseOrdersPage() {
                 formData={formData} formErrors={formErrors} suppliers={suppliers}
                 isScopeTypeLocked={isScopeTypeLocked} onFieldChange={handleFieldChange}
               />
+              <PaymentFields formData={formData} totalAmount={totalAmount} onFieldChange={handleFieldChange} />
               <OrderItemsTable {...itemsTableProps} />
               <TotalBar totalAmount={totalAmount} />
             </Box>
@@ -1159,6 +1180,7 @@ function PurchaseOrdersPage() {
                 formData={formData} formErrors={formErrors} suppliers={suppliers}
                 isScopeTypeLocked={isScopeTypeLocked} onFieldChange={handleFieldChange}
               />
+              <PaymentFields formData={formData} totalAmount={totalAmount} onFieldChange={handleFieldChange} />
               <OrderItemsTable {...itemsTableProps} />
               <TotalBar totalAmount={totalAmount} />
             </Box>

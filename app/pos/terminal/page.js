@@ -864,7 +864,7 @@ function POSTerminal() {
         setIsSettlementPartial(false)
         setIsSettlementFullyCredit(false)
         setShowSettlementOptions(false)
-        setSelectedOutstandingPayments(payments.map(p => p.id))
+        setSelectedOutstandingPayments([])
       } else {
         setOutstandingPayments([])
         setSelectedOutstandingPayments([])
@@ -1398,12 +1398,19 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
   const subtotal = useMemo(() => {
     return currentCart.reduce((sum, item) => {
       const itemPrice = parseFloat(item.customPrice !== null && item.customPrice !== undefined ? item.customPrice : item.price || 0)
-      const itemDiscount = parseFloat(item.discount || 0)
-      return sum + Math.max(0, (itemPrice * item.quantity) - itemDiscount)
+      return sum + (itemPrice * item.quantity)
     }, 0)
   }, [currentCart])
 
-  const tax = useMemo(() => subtotal * (taxRate / 100), [subtotal, taxRate])
+  const lineDiscountTotal = useMemo(() => currentCart.reduce(
+    (sum, item) => sum + (parseFloat(item.discount) || 0),
+    0
+  ), [currentCart])
+
+  const tax = useMemo(
+    () => Math.max(0, subtotal - lineDiscountTotal) * (taxRate / 100),
+    [subtotal, lineDiscountTotal, taxRate]
+  )
 
   const settlementTotal = useMemo(() => {
     if (currentCart.length === 0 && selectedOutstandingPayments.length > 0) {
@@ -1437,7 +1444,10 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       }, 0)
   }, [outstandingPayments, selectedOutstandingPayments, currentCart.length, isSettlementPartial, settlementPaymentAmount, isSettlementFullyCredit, settlementTotal])
 
-  const billAmount = useMemo(() => subtotal + tax - totalDiscount, [subtotal, tax, totalDiscount])
+  const billAmount = useMemo(
+    () => subtotal + tax - lineDiscountTotal - totalDiscount,
+    [subtotal, tax, lineDiscountTotal, totalDiscount]
+  )
 
   const total = useMemo(() => billAmount + outstandingTotal, [billAmount, outstandingTotal])
 
@@ -1623,7 +1633,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
   useEffect(() => {
     if (currentCart.length > 0 && outstandingTotal < 0 && !isPartialPayment && paymentAmount === '') {
-      const cartTotal = subtotal + tax - totalDiscount
+      const cartTotal = subtotal + tax - lineDiscountTotal - totalDiscount
       const netAmount = cartTotal + outstandingTotal
       if (netAmount > 0) {
         setPaymentAmount(netAmount.toString())
@@ -1633,7 +1643,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         setCreditAmount(Math.abs(netAmount).toString())
       }
     }
-  }, [currentCart.length, outstandingTotal, subtotal, tax, totalDiscount, isPartialPayment, paymentAmount])
+  }, [currentCart.length, outstandingTotal, subtotal, tax, lineDiscountTotal, totalDiscount, isPartialPayment, paymentAmount])
 
   useEffect(() => {
     if (!isPartialPayment && paymentMethod === 'FULLY_CREDIT') {
@@ -1817,7 +1827,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         return
       }
 
-      const billAmountCalc = subtotal + tax - totalDiscount
+      const billAmountCalc = subtotal + tax - lineDiscountTotal - totalDiscount
       const totalWithOutstanding = billAmountCalc + outstandingTotal
 
       let finalPaymentAmount, finalCreditAmount

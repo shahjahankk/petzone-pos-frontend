@@ -344,6 +344,15 @@ export const menuConfig = [
     order: 8.1,
     section: 'financial',
   },
+  {
+    id: 'company-ledger',
+    label: 'Company Ledger',
+    icon: <BusinessCenter />,
+    path: '/dashboard/company-ledger',
+    roles: ['ADMIN'],
+    order: 8.2,
+    section: 'financial',
+  },
 
   // INVENTORY SECTION
   {
@@ -452,7 +461,7 @@ export const menuConfig = [
         label: 'Sales Reports',
         icon: <TrendingUp />,
         path: '/dashboard/reports/sales',
-        roles: ['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'],
+        roles: ['ADMIN'],
         order: 2,
         newWindow: true,
       },
@@ -461,7 +470,7 @@ export const menuConfig = [
         label: 'Clinic Sales',
         icon: <MedicalServices />,
         path: '/dashboard/reports/clinic',
-        roles: ['ADMIN', 'WAREHOUSE_KEEPER', 'CASHIER'],
+        roles: ['ADMIN'],
         order: 2.5,
         newWindow: true,
       },

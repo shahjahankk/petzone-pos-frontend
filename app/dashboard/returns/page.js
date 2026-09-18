@@ -1026,11 +1026,13 @@ const ReturnsPage = () => {
                       value={returnForm.saleId}
                       onChange={(e) => {
                         handleReturnFormChange('saleId', e.target.value)
-                        if (e.target.value.length >= 3) {
-                          searchInvoice(e.target.value)
-                        } else {
-                          setInvoiceItems([])
-                          setSelectedInvoice(null)
+                        setInvoiceItems([])
+                        setSelectedInvoice(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          searchInvoice(e.currentTarget.value)
                         }
                       }}
                       placeholder="Enter Sale ID or Invoice Number"
