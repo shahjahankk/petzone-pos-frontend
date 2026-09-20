@@ -485,6 +485,7 @@ const ReturnsPage = () => {
     if (!invoiceNumber || invoiceNumber.trim().length < 3) {
       setInvoiceItems([])
       setSelectedInvoice(null)
+      showToast('Please enter at least 3 characters of the Sale ID or Invoice Number.', 'warning')
       return
     }
     setInvoiceSearchLoading(true)
@@ -1043,15 +1044,15 @@ const ReturnsPage = () => {
                       }}
                       required
                     />
-                    {selectedInvoice && (selectedInvoice.customer_name || selectedInvoice.customerName) && (
+                    {selectedInvoice && (selectedInvoice.customer_name || selectedInvoice.customerName || selectedInvoice.customerInfo?.name) && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                         Customer:{' '}
                         <Typography component="span" variant="body2" fontWeight="medium" color="text.primary">
-                          {selectedInvoice.customer_name || selectedInvoice.customerName}
+                          {selectedInvoice.customer_name || selectedInvoice.customerName || selectedInvoice.customerInfo?.name}
                         </Typography>
-                        {(selectedInvoice.customer_phone || selectedInvoice.customerPhone) && (
+                        {(selectedInvoice.customer_phone || selectedInvoice.customerPhone || selectedInvoice.customerInfo?.phone) && (
                           <Typography component="span" variant="body2" color="text.secondary">
-                            {' '}({selectedInvoice.customer_phone || selectedInvoice.customerPhone})
+                            {' '}({selectedInvoice.customer_phone || selectedInvoice.customerPhone || selectedInvoice.customerInfo?.phone})
                           </Typography>
                         )}
                       </Typography>
@@ -1092,14 +1093,14 @@ const ReturnsPage = () => {
                   </Grid>
 
                   {/* Invoice Items Section */}
-                  {selectedInvoice && invoiceItems.length > 0 && (
+                  {selectedInvoice && (
                     <Grid item xs={12}>
                       <Box sx={{ mt: 2, p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
                         <Typography variant="h6" sx={{ mb: 2, color: 'white' }}>
                           📋 Invoice Items - {selectedInvoice.invoice_no}
-                          {(selectedInvoice.customer_name || selectedInvoice.customerName) && (
+                          {(selectedInvoice.customer_name || selectedInvoice.customerName || selectedInvoice.customerInfo?.name) && (
                             <Typography component="span" variant="body1" sx={{ display: 'block', mt: 0.5, fontWeight: 'normal', opacity: 0.95 }}>
-                              Customer: {selectedInvoice.customer_name || selectedInvoice.customerName}
+                              Customer: {selectedInvoice.customer_name || selectedInvoice.customerName || selectedInvoice.customerInfo?.name}
                             </Typography>
                           )}
                         </Typography>
@@ -1110,32 +1111,39 @@ const ReturnsPage = () => {
                           <Button
                             variant="contained" color="secondary" size="small" startIcon={<Add />}
                             onClick={() => addAllInvoiceItems(invoiceItems)}
+                            disabled={invoiceItems.length === 0}
                             sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: 'grey.100' } }}
                           >
                             Add All Items ({invoiceItems.length})
                           </Button>
                         </Box>
-                        <Grid container spacing={1}>
-                          {invoiceItems.map((item, index) => (
-                            <Grid item xs={12} sm={6} md={4} key={index}>
-                              <Card
-                                sx={{ cursor: 'pointer', bgcolor: 'white', '&:hover': { bgcolor: 'grey.100' }, transition: 'background-color 0.2s' }}
-                                onClick={() => addInvoiceItem(item)}
-                              >
-                                <CardContent sx={{ p: 1.5 }}>
-                                  <Typography variant="body2" fontWeight="bold" noWrap>{item.itemName || item.name}</Typography>
-                                  <Typography variant="caption" color="text.secondary">SKU: {item.sku}</Typography>
-                                  <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                    Qty: {item.quantity} × {(parseFloat(item.unitPrice) || 0).toFixed(2).replace(/\.00$/, '')} = ${(parseFloat(item.total) || 0).toFixed(2).replace(/\.00$/, '')}
-                                  </Typography>
-                                  <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
-                                    Click to add to return
-                                  </Typography>
-                                </CardContent>
-                              </Card>
-                            </Grid>
-                          ))}
-                        </Grid>
+                        {invoiceItems.length === 0 ? (
+                          <Typography variant="body2" sx={{ color: 'white', opacity: 0.9 }}>
+                            This invoice has no line items to return (or items could not be loaded).
+                          </Typography>
+                        ) : (
+                          <Grid container spacing={1}>
+                            {invoiceItems.map((item, index) => (
+                              <Grid item xs={12} sm={6} md={4} key={index}>
+                                <Card
+                                  sx={{ cursor: 'pointer', bgcolor: 'white', '&:hover': { bgcolor: 'grey.100' }, transition: 'background-color 0.2s' }}
+                                  onClick={() => addInvoiceItem(item)}
+                                >
+                                  <CardContent sx={{ p: 1.5 }}>
+                                    <Typography variant="body2" fontWeight="bold" noWrap>{item.itemName || item.name}</Typography>
+                                    <Typography variant="caption" color="text.secondary">SKU: {item.sku}</Typography>
+                                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                      Qty: {item.quantity} × {(parseFloat(item.unitPrice) || 0).toFixed(2).replace(/\.00$/, '')} = ${(parseFloat(item.total) || 0).toFixed(2).replace(/\.00$/, '')}
+                                    </Typography>
+                                    <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
+                                      Click to add to return
+                                    </Typography>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            ))}
+                          </Grid>
+                        )}
                       </Box>
                     </Grid>
                   )}
