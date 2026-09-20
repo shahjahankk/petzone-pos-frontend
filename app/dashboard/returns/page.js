@@ -1,6 +1,6 @@
 'use client'
 import { formatDisplayDate } from '../../../utils/displayDates'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../components/auth/RouteGuard'
@@ -151,6 +151,7 @@ const ReturnsPage = () => {
   const handleToastClose = useCallback(() => {
     setToast((prev) => ({ ...prev, open: false }))
   }, [])
+  const invoiceSearchTimerRef = useRef(null)
 
   // Check if user can manage returns based on role and settings
   // isActualAdmin always has full access even during simulation
@@ -485,7 +486,6 @@ const ReturnsPage = () => {
     if (!invoiceNumber || invoiceNumber.trim().length < 3) {
       setInvoiceItems([])
       setSelectedInvoice(null)
-      showToast('Please enter at least 3 characters of the Sale ID or Invoice Number.', 'warning')
       return
     }
     setInvoiceSearchLoading(true)
@@ -1026,13 +1026,20 @@ const ReturnsPage = () => {
                       fullWidth label="Sale ID / Invoice Number" type="text"
                       value={returnForm.saleId}
                       onChange={(e) => {
-                        handleReturnFormChange('saleId', e.target.value)
-                        setInvoiceItems([])
-                        setSelectedInvoice(null)
+                        const value = e.target.value
+                        handleReturnFormChange('saleId', value)
+                        if (invoiceSearchTimerRef.current) clearTimeout(invoiceSearchTimerRef.current)
+                        if (value.trim().length >= 3) {
+                          invoiceSearchTimerRef.current = setTimeout(() => searchInvoice(value), 350)
+                        } else {
+                          setInvoiceItems([])
+                          setSelectedInvoice(null)
+                        }
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()
+                          if (invoiceSearchTimerRef.current) clearTimeout(invoiceSearchTimerRef.current)
                           searchInvoice(e.currentTarget.value)
                         }
                       }}
