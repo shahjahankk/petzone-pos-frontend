@@ -82,7 +82,7 @@ export default function InventoryReportsPage() {
     ]
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' }))
-    a.download = `inventory-report-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `inventory-report-${new Date().toLocaleDateString('en-CA')}.csv`
     a.click()
     setExportAnchor(null)
   }

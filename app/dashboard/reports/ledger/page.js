@@ -1,5 +1,6 @@
 'use client'
 import AppDatePicker from '../../../../components/date/AppDatePicker'
+import { formatDisplayDateTime, toIsoDateOnly } from '../../../../utils/displayDates'
 
 import { useEffect, useState, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -54,8 +55,8 @@ export default function LedgerReportsPage() {
 
   const queryArgs = useMemo(
     () => ({
-      dateFrom: dateFrom instanceof Date ? dateFrom.toISOString().split('T')[0] : dateFrom,
-      dateTo: dateTo instanceof Date ? dateTo.toISOString().split('T')[0] : dateTo,
+      dateFrom: toIsoDateOnly(dateFrom),
+      dateTo: toIsoDateOnly(dateTo),
     }),
     [dateFrom, dateTo]
   )
@@ -240,7 +241,7 @@ export default function LedgerReportsPage() {
                         <TableRow key={row.id ?? i} hover>
                           <TableCell>
                             {row.created_at
-                              ? new Date(row.created_at).toLocaleString()
+                              ? formatDisplayDateTime(row.created_at)
                               : '—'}
                           </TableCell>
                           <TableCell>{row.account_type || row.accountType || '—'}</TableCell>

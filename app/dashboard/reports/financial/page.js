@@ -76,15 +76,24 @@ export default function FinancialReportsPage() {
   // slice stores response.data.data directly — no unwrapping needed
   const { financialReports, isLoading, error } = useSelector((s) => s.reports)
 
+  // Start on "current year / monthly" with no explicit dates. An explicit
+  // date range always overrides year/period, so keeping a default 365-day
+  // range here made the Year and Period selectors look broken.
   const [filters, setFilters] = useState({
     period:   'monthly',
     year:     new Date().getFullYear(),
     quarter:  'Q1',
-    dateFrom: new Date(Date.now() - 365 * 86400000),
-    dateTo:   new Date(),
+    dateFrom: null,
+    dateTo:   null,
   })
 
   useEffect(() => { dispatch(fetchFinancialReports(filters)) }, [dispatch, filters])
+
+  // Choosing a year/period/quarter switches the report back to calendar
+  // selection; choosing a date switches it to a custom range.
+  const selectPeriod = (period) => setFilters((p) => ({ ...p, period, dateFrom: null, dateTo: null }))
+  const selectYear = (year) => setFilters((p) => ({ ...p, year, dateFrom: null, dateTo: null }))
+  const selectQuarter = (quarter) => setFilters((p) => ({ ...p, quarter, dateFrom: null, dateTo: null }))
 
   const fr = financialReports || {}
 
@@ -157,17 +166,25 @@ export default function FinancialReportsPage() {
               <FilterList sx={{ fontSize: 16, color: 'text.disabled' }} />
               <FormControl size="small" sx={{ minWidth: 130 }}>
                 <InputLabel>Period</InputLabel>
-                <Select value={filters.period} onChange={(e) => setFilters(p => ({ ...p, period: e.target.value }))} label="Period">
+                <Select value={filters.period} onChange={(e) => selectPeriod(e.target.value)} label="Period">
                   {['daily', 'weekly', 'monthly', 'quarterly', 'yearly'].map(v =>
                     <MenuItem key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</MenuItem>)}
                 </Select>
               </FormControl>
               <FormControl size="small" sx={{ minWidth: 100 }}>
                 <InputLabel>Year</InputLabel>
-                <Select value={filters.year} onChange={(e) => setFilters(p => ({ ...p, year: e.target.value }))} label="Year">
+                <Select value={filters.year} onChange={(e) => selectYear(e.target.value)} label="Year">
                   {[2026, 2025, 2024, 2023, 2022].map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
                 </Select>
               </FormControl>
+              {filters.period === 'quarterly' && (
+                <FormControl size="small" sx={{ minWidth: 90 }}>
+                  <InputLabel>Quarter</InputLabel>
+                  <Select value={filters.quarter} onChange={(e) => selectQuarter(e.target.value)} label="Quarter">
+                    {['Q1', 'Q2', 'Q3', 'Q4'].map(q => <MenuItem key={q} value={q}>{q}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              )}
               <AppDatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
                 onChange={(d) => setFilters(p => ({ ...p, dateFrom: d }))}
                 slots={{ textField: TextField }}
@@ -176,6 +193,12 @@ export default function FinancialReportsPage() {
                 onChange={(d) => setFilters(p => ({ ...p, dateTo: d }))}
                 slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }} />
+              {(filters.dateFrom || filters.dateTo) && (
+                <Button variant="text" size="small" sx={{ borderRadius: 2 }}
+                  onClick={() => setFilters(p => ({ ...p, dateFrom: null, dateTo: null }))}>
+                  Clear dates
+                </Button>
+              )}
               <Button variant="contained" size="small" sx={{ borderRadius: 2, px: 3 }}
                 onClick={() => dispatch(fetchFinancialReports(filters))}>
                 Apply

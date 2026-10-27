@@ -1,5 +1,6 @@
 'use client'
 import AppDatePicker from '../../../../components/date/AppDatePicker'
+import { toIsoDateOnly } from '../../../../utils/displayDates'
 
 import { useEffect, useState, useCallback } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -57,13 +58,13 @@ const DailyReportsPage = () => {
   })
   
   const loadDailyReports = useCallback(() => {
-    const selectedDate = filters.date
+    const selectedDate = toIsoDateOnly(filters.date)
     const params = {
       branch: filters.branch || undefined,
       cashier: filters.cashier || undefined,
       dateRange: {
-        start: selectedDate.toISOString().split('T')[0],
-        end: selectedDate.toISOString().split('T')[0]
+        start: selectedDate,
+        end: selectedDate
       }
     }
     
@@ -174,7 +175,7 @@ const DailyReportsPage = () => {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `daily-report-${new Date().toISOString().split('T')[0]}.csv`
+      link.download = `daily-report-${toIsoDateOnly(new Date())}.csv`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -206,7 +207,7 @@ const DailyReportsPage = () => {
           <div class="header">
             <h1>Daily Sales Report</h1>
             <p>Generated on: ${new Date().toLocaleString()}</p>
-            <p>Report Date: ${filters.date.toISOString().split('T')[0]}</p>
+            <p>Report Date: ${toIsoDateOnly(filters.date)}</p>
           </div>
           
           <div class="summary">
