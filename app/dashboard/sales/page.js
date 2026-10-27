@@ -36,7 +36,7 @@ import EditableInvoiceForm from '../../../components/sales/EditableInvoiceForm'
 import PrintDialog from '../../../components/print/PrintDialog'
 import buildPrintData from '../../../utils/buildPrintData'
 import { formatSaleBalanceForReport } from '../../../utils/ledgerFinance'
-
+import { saleDate, formatSaleTime, toYMD } from '../../../utils/saleTime'
 // ─────────────────────────────────────────────────────────────────────────────
 // ReadOnlyInvoiceView
 // Uses buildPrintData so the printed bill is IDENTICAL to warehouse billing
@@ -474,8 +474,8 @@ const SalesManagement = () => {
       salesParams.retailerId = filters.retailerId
     }
 
-    if (startDate) salesParams.startDate = startDate.toISOString().split('T')[0]
-    if (endDate) salesParams.endDate = endDate.toISOString().split('T')[0]
+    if (startDate) salesParams.startDate = toYMD(startDate)
+    if (endDate) salesParams.endDate = toYMD(endDate)
 
     const trimmedSearch = searchTerm.trim()
     if (trimmedSearch) salesParams.search = trimmedSearch
@@ -583,18 +583,11 @@ const SalesManagement = () => {
       }
 
       if (startDate || endDate) {
-        const saleDate = new Date(sale.created_at || sale.createdAt || 0)
-        if (isNaN(saleDate.getTime())) return false
-        if (startDate) {
-          const s = new Date(startDate); s.setHours(0, 0, 0, 0)
-          const d = new Date(saleDate);  d.setHours(0, 0, 0, 0)
-          if (d < s) return false
-        }
-        if (endDate) {
-          const e = new Date(endDate);  e.setHours(23, 59, 59, 999)
-          const d = new Date(saleDate); d.setHours(23, 59, 59, 999)
-          if (d > e) return false
-        }
+        const sd = saleDate(sale.created_at || sale.createdAt)
+        if (!sd) return false
+        const saleYMD = toYMD(sd)
+        if (startDate && saleYMD < toYMD(startDate)) return false
+        if (endDate && saleYMD > toYMD(endDate)) return false
       }
 
       return true
@@ -607,7 +600,7 @@ const SalesManagement = () => {
         case 'invoice_no':   aVal = a.invoice_no || '';           bVal = b.invoice_no || '';           break
         case 'customerName': aVal = resolveCustomerName(a);       bVal = resolveCustomerName(b);       break
         case 'created_at':
-        default:             aVal = new Date(a.created_at || 0);  bVal = new Date(b.created_at || 0);  break
+        default:             aVal = saleDate(a.created_at)?.getTime() || 0;  bVal = saleDate(b.created_at)?.getTime() || 0;  break
       }
       return sortOrder === 'asc' ? (aVal > bVal ? 1 : -1) : (aVal < bVal ? 1 : -1)
     })
@@ -749,11 +742,12 @@ const SalesManagement = () => {
         (r.original_sale_id ?? r.sale_id) === sale.id
       ) || []
       const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
-      const d = new Date(sale.created_at)
+      const d = saleDate(sale.created_at)
       return [
         sale.id,
-        formatDisplayDate(d),
-        d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        d ? formatDisplayDate(d) : 'N/A',
+        formatSaleTime(sale.created_at),
+      
         sale.invoice_no || 'N/A',
         resolveCustomerName(sale),
         ...getSalespersonCell(sale, hasWarehouse),
@@ -788,11 +782,11 @@ const SalesManagement = () => {
         (r.original_sale_id ?? r.sale_id) === sale.id
       ) || []
         const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
-        const d = new Date(sale.created_at)
+         const d = saleDate(sale.created_at)
         return {
           'ID':             sale.id,
-          'Date':           formatDisplayDate(d),
-          'Time':           d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+          'Date':           d ? formatDisplayDate(d) : 'N/A',
+          'Time':           formatSaleTime(sale.created_at),
           'Invoice #':      sale.invoice_no || 'N/A',
           'Customer':       resolveCustomerName(sale),
           ...(hasWarehouse ? { 'Salesperson': resolveSalesperson(sale) || 'N/A' } : {}),
@@ -896,11 +890,11 @@ const SalesManagement = () => {
         (r.original_sale_id ?? r.sale_id) === sale.id
       ) || []
                 const totalReturnedQty = returns.reduce((s, r) => s + (r.items?.reduce((is, i) => is + (i.quantity || 0), 0) || 0), 0)
-                const d = new Date(sale.created_at)
+                const d = saleDate(sale.created_at)
                 return `
                   <tr>
-                    <td>${formatDisplayDate(d)}</td>
-                    <td>${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
+                    <td>${d ? formatDisplayDate(d) : 'N/A'}</td>
+                    <td>${formatSaleTime(sale.created_at)}</td>
                     <td>${sale.invoice_no || 'N/A'}</td>
                     <td>${resolveCustomerName(sale)}</td>
                     ${hasWarehouse ? `<td>${resolveSalesperson(sale) || 'N/A'}</td>` : ''}
@@ -1208,12 +1202,10 @@ const SalesManagement = () => {
                             return (
                               <TableRow key={sale.id}>
                                 <TableCell>{sale.id}</TableCell>
-                                <TableCell>
-                                  {(() => {
-                                    try { const d = new Date(sale.created_at); return isNaN(d) ? 'N/A' : formatDisplayDate(d) }
-                                    catch { return 'N/A' }
-                                  })()}
+                                   <TableCell>
+                                  {saleDate(sale.created_at) ? formatDisplayDate(saleDate(sale.created_at)) : 'N/A'}
                                 </TableCell>
+                                <TableCell>{formatSaleTime(sale.created_at)}</TableCell>
                                 <TableCell>
                                   {(() => {
                                     try { return new Date(sale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) }
