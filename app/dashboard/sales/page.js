@@ -1202,16 +1202,10 @@ const SalesManagement = () => {
                             return (
                               <TableRow key={sale.id}>
                                 <TableCell>{sale.id}</TableCell>
-                                   <TableCell>
+                                <TableCell>
                                   {saleDate(sale.created_at) ? formatDisplayDate(saleDate(sale.created_at)) : 'N/A'}
                                 </TableCell>
                                 <TableCell>{formatSaleTime(sale.created_at)}</TableCell>
-                                <TableCell>
-                                  {(() => {
-                                    try { return new Date(sale.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) }
-                                    catch { return 'N/A' }
-                                  })()}
-                                </TableCell>
                                 <TableCell>{sale.invoice_no || 'N/A'}</TableCell>
                                 <TableCell>
                                   {scopeType === 'WAREHOUSE'
