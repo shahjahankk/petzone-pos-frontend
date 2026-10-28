@@ -13,7 +13,7 @@ import { useEffect, useState, useCallback } from 'react'
     Refresh, FilterList, Download, TrendingUp, TrendingDown,
     AttachMoney, Receipt, Assessment, CalendarToday,
     BarChart as BarIcon, PieChart as PieIcon, Person, ShoppingCart,
-    AccountBalance, CreditCard, Warning, CheckCircle, SwapHoriz,
+    AccountBalance, CreditCard, Warning, CheckCircle, SwapHoriz, Cashier,
   } from '@mui/icons-material'
   import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
   import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
@@ -260,13 +260,16 @@ import { useEffect, useState, useCallback } from 'react'
     const { salesReports, financialReports, isLoading } = useSelector(s => s.reports)
     const [exportAnchor, setExportAnchor] = useState(null)
     const [activePreset, setActivePreset] = useState('this_month')
-    const [filters, setFilters] = useState({ dateFrom: som(), dateTo: today(), branch: 'all', cashier: 'all' })
+    const [filters, setFilters] = useState({ dateFrom: som(), dateTo: today(), branch: 'all', cashier: 'all', includeClinic: false, shiftStart: null, shiftEnd: null })
     const [activeTab, setActiveTab] = useState(0)
 
     const buildSP = useCallback(() => ({
       dateRange: { start: toStr(filters.dateFrom), end: toStr(filters.dateTo) },
       ...(filters.branch  !== 'all' && { branch:  filters.branch }),
       ...(filters.cashier !== 'all' && { cashier: filters.cashier }),
+      ...(filters.includeClinic && { include_clinic: 'true' }),
+      ...(filters.shiftStart && { shift_start: toStr(filters.shiftStart) }),
+      ...(filters.shiftEnd   && { shift_end:   toStr(filters.shiftEnd) }),
     }), [filters])
     const buildFP = useCallback(() => ({
       dateFrom: toStr(filters.dateFrom),
@@ -286,6 +289,7 @@ import { useEffect, useState, useCallback } from 'react'
     const fr = financialReports || {}
 
     const totalRevenue           = Number(sr.totalRevenue           || 0)
+    const clinicRevenue          = Number(sr.clinicRevenue          || 0)
     const totalTransactions      = Number(sr.totalTransactions      || 0)
     const avgTicket              = Number(sr.averageTicket          || 0)
     const cashSalesAmt           = Number(sr.cashSalesAmount        || sr.cashSales || 0)
@@ -424,15 +428,50 @@ import { useEffect, useState, useCallback } from 'react'
               onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,dateTo:d})) }}
               slots={{ textField: TextField }}
               slotProps={{ textField:{ size:'small', sx:{ minWidth:150 } } }} />
+            
+            {/* Shift session date range */}
+            <Box sx={{ display:'flex', alignItems:'center', gap:1, border: '1px solid #e0e0e0', borderRadius:1, p:0.5, bgcolor:'#fff', ml:1 }}>
+              <Typography variant="caption" sx={{ color:'text.secondary', mr:0.5, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5 }}>Shift</Typography>
+              <AppDatePicker enableAccessibleFieldDOMStructure={false} label="Start" value={filters.shiftStart}
+                onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,shiftStart:d})) }}
+                slots={{ textField: TextField }}
+                slotProps={{ textField:{ size:'small', sx:{ minWidth:120, fontSize:'0.75rem' } } }} />
+              <AppDatePicker enableAccessibleFieldDOMStructure={false} label="End" value={filters.shiftEnd}
+                onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,shiftEnd:d})) }}
+                slots={{ textField: TextField }}
+                slotProps={{ textField:{ size:'small', sx:{ minWidth:120, fontSize:'0.75rem' } } }} />
+            </Box>
           </LocalizationProvider>
           {user?.role==='ADMIN' && (
-            <FormControl size="small" sx={{ minWidth:160 }}>
-              <InputLabel>Branch</InputLabel>
-              <Select value={filters.branch} onChange={e=>setFilters(p=>({...p,branch:e.target.value}))} label="Branch">
-                <MenuItem value="all">All Branches</MenuItem>
-                {branchList.map(b=><MenuItem key={b.branch} value={b.branch}>{b.branch}</MenuItem>)}
-              </Select>
-            </FormControl>
+            <>
+              <FormControl size="small" sx={{ minWidth:160 }}>
+                <InputLabel>Branch</InputLabel>
+                <Select value={filters.branch} onChange={e=>setFilters(p=>({...p,branch:e.target.value}))} label="Branch">
+                  <MenuItem value="all">All Branches</MenuItem>
+                  {branchList.map(b=><MenuItem key={b.branch} value={b.branch}>{b.branch}</MenuItem>)}
+                </Select>
+              </FormControl>
+              {/* Cashier sub-filter — shows cashiers from the report data (filtered by selected branch after Apply) */}
+              <FormControl size="small" sx={{ minWidth:160 }}>
+                <InputLabel>Cashier</InputLabel>
+                <Select value={filters.cashier} onChange={e=>setFilters(p=>({...p,cashier:e.target.value}))} label="Cashier">
+                  <MenuItem value="all">All Cashiers</MenuItem>
+                  {cashierList.map(c=><MenuItem key={c.cashier} value={c.cashier}>{c.cashier}</MenuItem>)}
+                </Select>
+              </FormControl>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1, bgcolor:'#f0fdf4', borderRadius:1, p:1, border:'1px solid #bbf7d0', ml:1 }}>
+                <Checkbox
+                  checked={filters.includeClinic}
+                  onChange={()=>setFilters(p=>({...p,includeClinic:!p.includeClinic}))}
+                  size="small"
+                  sx={{ color:'primary.main' }}
+                />
+                <Typography sx={{ fontSize:'0.75rem', fontWeight:600, whiteSpace:'nowrap' }}>
+                  Include Clinic Revenue
+                </Typography>
+                {clinicRevenue>0 && <Chip size="small" label={`+PKR ${fmt(clinicRevenue)}`} color="success" variant="outlined" sx={{ fontSize:'0.65rem', height:20, ml:0.5 }} />}
+              </Box>
+            </>
           )}
           <Button variant="contained" onClick={loadAll} disabled={isLoading} sx={{ borderRadius:2, px:3 }}>Apply</Button>
         </Box>
@@ -472,7 +511,8 @@ import { useEffect, useState, useCallback } from 'react'
               {/* ── Row 1: Core KPIs ───────────────────────────────────────── */}
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
                 <Grid item xs={12} sm={6} md={3}>
-                  <KpiCard label="Product Sales (Invoiced)" value={fmtPKR(totalRevenue)} sub={`${fmt(totalTransactions)} product sales in period`} accent="#1976d2" icon={<AttachMoney/>}/>
+                  <KpiCard label={filters.includeClinic ? "Sales + Clinic (Invoiced)" : "Product Sales (Invoiced)"} value={fmtPKR(totalRevenue)} sub={`${fmt(totalTransactions)} sales in period${filters.includeClinic ? ` · +PKR ${fmt(clinicRevenue)} clinic` : ''}`} accent="#1976d2" icon={<AttachMoney/>}
+                    chip={clinicRevenue>0 && filters.includeClinic ? { label:`Clinic: PKR ${fmt(clinicRevenue)}`, bg:'#f0fdf4', color:'#166534' } : undefined}/>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <KpiCard
