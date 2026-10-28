@@ -95,7 +95,7 @@ import {
   endShift,
   fetchActiveShift,
   validatePOSAccess
-} from '../../store/slices/shiftsSlice'
+} from '../store/slices/shiftsSlice'
 import { fetchRetailers } from '../store/slices/retailersSlice'
 import buildPrintData from '../../utils/buildPrintData'
 import { getPrintLogoSizes } from '../../utils/brandAssets'
