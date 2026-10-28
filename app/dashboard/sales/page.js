@@ -43,35 +43,76 @@ import { saleDate, formatSaleTime, toYMD } from '../../../utils/saleTime'
 // ─────────────────────────────────────────────────────────────────────────────
 const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehouses = [] }) => {
   const [showPrintDialog, setShowPrintDialog] = useState(false)
+  const [companyInfo, setCompanyInfo] = useState({})
 
-  const companyInfo = useMemo(() => {
-    if (!sale) return {}
+  useEffect(() => {
+    if (!sale) { setCompanyInfo({}); return }
+
     const scopeType = sale.scope_type || sale.scopeType || ''
     const scopeId   = sale.scope_id   || sale.scopeId
 
+    // 1. Sale may carry its own logoUrl
+    if (sale.logoUrl) {
+      setCompanyInfo({
+        name: sale.scope_name || '',
+        address: '',
+        phone: '',
+        email: '',
+        logoUrl: sale.logoUrl,
+      })
+      return
+    }
+
+    // 2. Look up in Redux arrays (branches/warehouses already loaded)
     if (scopeType === 'WAREHOUSE') {
       const wh = warehouses.find(w =>
         w.name === scopeId || w.id === scopeId || w.id === Number(scopeId)
       )
-      if (wh) return {
-        name:    wh.name,
-        address: wh.location || wh.address || '',
-        phone:   wh.phone    || wh.managerPhone || '',
-        email:   wh.email    || '',
-        logoUrl: wh.logoUrl  || '/petzonelogo.png',
+      if (wh) {
+        setCompanyInfo({
+          name: wh.name,
+          address: wh.location || wh.address || '',
+          phone: wh.phone || wh.managerPhone || '',
+          email: wh.email || '',
+          logoUrl: wh.logoUrl || '/petzonelogo.png',
+        })
+        return
       }
     } else {
       const br = branches.find(b => b.id === scopeId || b.id === Number(scopeId))
-      if (br) return {
-        name:    br.name,
-        address: br.location || br.address || '',
-        phone:   br.phone    || br.managerPhone || '',
-        email:   br.email    || '',
-        logoUrl: br.logoUrl  || '/petzonelogo.png',
+      if (br) {
+        setCompanyInfo({
+          name: br.name,
+          address: br.location || br.address || '',
+          phone: br.phone || br.managerPhone || '',
+          email: br.email || '',
+          logoUrl: br.logoUrl || '/petzonelogo.png',
+        })
+        return
       }
     }
-    return {}
-  }, [sale, branches, warehouses])
+
+    // 3. Fallback: fetch branch/warehouse details from API directly
+    if (scopeId) {
+      const url = scopeType === 'WAREHOUSE'
+        ? `/warehouses/${scopeId}`
+        : `/branches/${scopeId}`
+      api.get(url)
+        .then((res) => {
+          const entity = res.data.data || res.data || {}
+          setCompanyInfo({
+            name: entity.name || '',
+            address: entity.location || entity.address || '',
+            phone: entity.phone || entity.managerPhone || '',
+            email: entity.email || '',
+            logoUrl: entity.logoUrl || '/petzonelogo.png',
+          })
+        })
+        .catch(() => setCompanyInfo({}))
+    } else {
+      setCompanyInfo({})
+    }
+  }, [sale, branches, warehouses, api])
 
   const printData = useMemo(() => {
     if (!sale) return null
