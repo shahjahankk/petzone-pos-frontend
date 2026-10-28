@@ -80,13 +80,22 @@ import {
   Person as PersonIcon,
   Phone as PhoneIcon,
   AttachMoney as MoneyIcon,
-  OpenInNew as OpenInNewIcon
+  OpenInNew as OpenInNewIcon,
+  PowerOff as PowerOffIcon,
+  Timer as TimerIcon,
+  AccessTime as AccessTimeIcon
 } from '@mui/icons-material'
 import PrintDialog from '../../components/print/PrintDialog'
 import RouteGuard from '../../components/auth/RouteGuard'
 import PhysicalScanner from '../../components/pos/PhysicalScanner'
 import { fetchInventory } from '../store/slices/inventorySlice'
 import { createWarehouseSale, fetchSales } from '../store/slices/salesSlice'
+import {
+  startShift,
+  endShift,
+  fetchActiveShift,
+  validatePOSAccess
+} from '../../store/slices/shiftsSlice'
 import { fetchRetailers } from '../store/slices/retailersSlice'
 import buildPrintData from '../../utils/buildPrintData'
 import { getPrintLogoSizes } from '../../utils/brandAssets'
@@ -954,6 +963,15 @@ function WarehouseBillingPage() {
   const [showSettlementOptions, setShowSettlementOptions] = useState(false)
   const [companyInfo, setCompanyInfo] = useState(() => ({ ...DEFAULT_COMPANY_INFO }))
 
+  // ── Shift management state ─────────────────────────────────────────────
+  const { activeShift: shiftFromStore } = useSelector((state) => state.shifts)
+  const [showStartShiftDialog, setShowStartShiftDialog] = useState(false)
+  const [showEndShiftDialog, setShowEndShiftDialog] = useState(false)
+  const [initialCashAmount, setInitialCashAmount] = useState('')
+  const [finalCashAmount, setFinalCashAmount] = useState('')
+  const [shiftClosingSummary, setShiftClosingSummary] = useState(null)
+  const [shiftEnding, setShiftEnding] = useState(false)
+
   const [newRowIndex, setNewRowIndex] = useState(null)
 
   const orderTableScrollRef = useRef(null)
@@ -1417,6 +1435,22 @@ function WarehouseBillingPage() {
     dispatch(fetchSales())
     loadAvailablePrinters()
   }, [dispatch, user, loadAvailablePrinters, isAdminMode])
+
+  // ── Check for active shift on mount / user change ─────────────────────
+  useEffect(() => {
+    if (!user) return
+    const checkShift = async () => {
+      try {
+        await dispatch(validatePOSAccess()).unwrap()
+        await dispatch(fetchActiveShift({ cashierId: user.id })).unwrap()
+      } catch (err) {
+        if (!shiftFromStore) {
+          setShowStartShiftDialog(true)
+        }
+      }
+    }
+    checkShift()
+  }, [dispatch, user, shiftFromStore])
 
   const searchOutstandingPayments = useCallback(async (phoneNumber, customerName, retailerId = null) => {
     if ((!phoneNumber || phoneNumber.trim().length < 3) && (!customerName || customerName.trim().length < 3)) {
@@ -1984,6 +2018,57 @@ function WarehouseBillingPage() {
     }
   }
 
+  // ── Shift start / end handlers ─────────────────────────────────────────
+  const handleStartShift = async () => {
+    if (!user) { alert('❌ User not authenticated.'); return }
+    if (!initialCashAmount || parseFloat(initialCashAmount) < 0) {
+      alert('❌ Please enter a valid initial cash amount.')
+      return
+    }
+    try {
+      const res = await dispatch(startShift({ shiftId: user.role === 'CASHIER' ? 'shift-branch' : 'shift-warehouse', initialCash: parseFloat(initialCashAmount) })).unwrap()
+      setShowStartShiftDialog(false)
+      setInitialCashAmount('')
+      if (res.resumed) {
+        showToast('✅ Resumed existing shift session', 'success')
+      } else {
+        showToast('✅ Shift started successfully', 'success')
+      }
+    } catch (error) {
+      const msg = error?.message || 'Failed to start shift'
+      showToast(`❌ ${msg}`, 'error')
+      alert(`❌ Shift start failed: ${msg}`)
+    }
+  }
+
+  const handleEndShift = async () => {
+    if (!user) { alert('❌ User not authenticated.'); return }
+    if (!finalCashAmount || parseFloat(finalCashAmount) < 0) {
+      alert('❌ Please enter a valid final cash amount.')
+      return
+    }
+    try {
+      const active = shiftFromStore
+      if (!active || !active.id) {
+        alert('❌ No active shift session found.')
+        return
+      }
+      setShiftEnding(true)
+      const res = await dispatch(endShift({ sessionId: active.id, finalCash: parseFloat(finalCashAmount) })).unwrap()
+      setShiftEnding(false)
+      setShowEndShiftDialog(false)
+      setFinalCashAmount('')
+      const summary = res.data?.closing_summary || {}
+      setShiftClosingSummary(summary)
+      showToast(`✅ Shift ended. Total sales: ${summary.total_sales || 0}`, 'success')
+    } catch (error) {
+      setShiftEnding(false)
+      const msg = error?.message || 'Failed to end shift'
+      showToast(`❌ ${msg}`, 'error')
+      alert(`❌ Shift end failed: ${msg}`)
+    }
+  }
+
   const checkPrinterStatus = async () => {
     try {
       if (navigator.serial) {
@@ -2353,6 +2438,34 @@ function WarehouseBillingPage() {
                         <InventoryIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                    {/* Shift Control */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
+                      {shiftFromStore ? (
+                        <Button
+                          variant="contained"
+                          color="error"
+                          size="small"
+                          startIcon={<PowerOffIcon sx={{ fontSize: 16 }} />}
+                          onClick={() => { setFinalCashAmount(''); setShowEndShiftDialog(true) }}
+                          disabled={shiftEnding}
+                          sx={{ fontFamily: 'monospace', fontWeight: 700, minWidth: 110, height: 40, whiteSpace: 'nowrap' }}
+                          title={shiftEnding ? 'Closing shift...' : 'End Shift — print closing summary'}
+                        >
+                          {shiftEnding ? 'CLOSING...' : <><TimerIcon sx={{ mr: 1, fontSize: 16 }} />END SHIFT</>}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          startIcon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
+                          onClick={() => { setInitialCashAmount(''); setShowStartShiftDialog(true) }}
+                          sx={{ fontFamily: 'monospace', fontWeight: 700, minWidth: 110, height: 40, whiteSpace: 'nowrap' }}
+                        >
+                          <><AccessTimeIcon sx={{ mr: 1, fontSize: 16 }} />START SHIFT</>
+                        </Button>
+                      )}
+                    </Box>
                     <Button
                       variant="contained"
                       color="success"
@@ -2733,6 +2846,110 @@ function WarehouseBillingPage() {
         <Snackbar open={toast.open} autoHideDuration={4000} onClose={handleToastClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
           <Alert onClose={handleToastClose} severity={toast.severity || 'info'} variant="filled" sx={{ width: '100%' }}>{toast.message}</Alert>
         </Snackbar>
+
+        {/* Start Shift Dialog */}
+        <Dialog open={showStartShiftDialog} onClose={() => setShowStartShiftDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{ bgcolor: 'success.main', color: 'success.contrastText' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AccessTimeIcon />
+              <Typography variant="h6">Start Shift</Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Initial Cash Amount"
+              type="number"
+              value={initialCashAmount}
+              onChange={(e) => setInitialCashAmount(e.target.value)}
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ mb: 2 }}
+              placeholder="0.00"
+            />
+            <Alert severity="info">
+              Starting a shift session for <b>{user?.name || user?.username || 'Warehouse Keeper'}</b>. All sales during this shift will be tracked for the closing summary.
+            </Alert>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button variant="outlined" onClick={() => setShowStartShiftDialog(false)}>Cancel</Button>
+            <Button variant="contained" color="success" onClick={handleStartShift} disabled={!initialCashAmount || parseFloat(initialCashAmount) < 0}>
+              Start Shift
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* End Shift Dialog */}
+        <Dialog open={showEndShiftDialog} onClose={() => setShowEndShiftDialog(false)} maxWidth="md" fullWidth>
+          <DialogTitle sx={{ bgcolor: 'error.main', color: 'error.contrastText' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <PowerOffIcon />
+              <Typography variant="h6">End Shift — Closing Summary</Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Final Cash Amount (in drawer)"
+              type="number"
+              value={finalCashAmount}
+              onChange={(e) => setFinalCashAmount(e.target.value)}
+              inputProps={{ min: 0, step: 0.01 }}
+              sx={{ mb: 2 }}
+              placeholder="0.00"
+            />
+            {shiftClosingSummary && (
+              <Paper sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2, mb: 2 }}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, textTransform: 'uppercase', fontWeight: 700 }}>
+                  Shift Closing Summary
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Total Sales:</Typography>
+                    <Typography variant="body2" fontWeight="bold">{shiftClosingSummary.total_sales?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Product Sales:</Typography>
+                    <Typography variant="body2">{shiftClosingSummary.product_sales?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Clinic Sales:</Typography>
+                    <Typography variant="body2">{shiftClosingSummary.clinic_sales?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Cash:</Typography>
+                    <Typography variant="body2">{shiftClosingSummary.cash_sales?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Card:</Typography>
+                    <Typography variant="body2">{shiftClosingSummary.card_sales?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Mobile:</Typography>
+                    <Typography variant="body2">{shiftClosingSummary.mobile_sales?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Credit:</Typography>
+                    <Typography variant="body2">{shiftClosingSummary.credit_sales?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2">Discount:</Typography>
+                    <Typography variant="body2" color="error.main">-{shiftClosingSummary.total_discount?.toFixed(2) ?? '0.00'}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid', pt: 1 }}>
+                    <Typography variant="body2" fontWeight="bold">Bills:</Typography>
+                    <Typography variant="body2" fontWeight="bold">{shiftClosingSummary.bill_count ?? 0}</Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button variant="outlined" onClick={() => setShowEndShiftDialog(false)}>Cancel</Button>
+            <Button variant="contained" color="error" onClick={handleEndShift} disabled={shiftEnding || !finalCashAmount || parseFloat(finalCashAmount) < 0}>
+              {shiftEnding ? 'Closing Shift...' : 'End Shift & Close'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
     </RouteGuard>
   )
