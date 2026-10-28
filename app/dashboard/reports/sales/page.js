@@ -291,6 +291,7 @@ import { useEffect, useState, useCallback } from 'react'
 
     const totalRevenue           = Number(sr.totalRevenue           || 0)
     const clinicRevenue          = Number(sr.clinicRevenue          || 0)
+    const totalRevenueWithClinic = filters.includeClinic ? totalRevenue + clinicRevenue : totalRevenue
     const totalTransactions      = Number(sr.totalTransactions      || 0)
     const avgTicket              = Number(sr.averageTicket          || 0)
     const cashSalesAmt           = Number(sr.cashSalesAmount        || sr.cashSales || 0)
@@ -318,13 +319,13 @@ import { useEffect, useState, useCallback } from 'react'
         ? sr.grossProfit
         : (fr.grossProfit || 0)
     )
-    const grossProfitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : Number(sr.grossProfitMargin || fr.grossProfitMargin || 0)
+    const grossProfitMargin = totalRevenueWithClinic > 0 ? (grossProfit / totalRevenueWithClinic) * 100 : Number(sr.grossProfitMargin || fr.grossProfitMargin || 0)
     const totalExpenses     = Number(fr.totalExpenses     || 0)
-    const salesMinusExpenses = totalRevenue - totalExpenses
+    const salesMinusExpenses = totalRevenueWithClinic - totalExpenses
     const netProfit         = grossProfit - totalExpenses
-    const netProfitMargin   = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
+    const netProfitMargin   = totalRevenueWithClinic > 0 ? (netProfit / totalRevenueWithClinic) * 100 : 0
     const zakatDue          = netProfit > 0 ? netProfit * 0.025 : 0
-    const collectionRate    = totalRevenue > 0 ? (totalCashReceived / totalRevenue) * 100 : 0
+    const collectionRate    = totalRevenueWithClinic > 0 ? (totalCashReceived / totalRevenueWithClinic) * 100 : 0
 
     const salesByDate  = Array.isArray(sr.salesByDate)            ? sr.salesByDate            : []
     const recentSales  = Array.isArray(sr.recentSales)            ? sr.recentSales            : []
@@ -342,7 +343,7 @@ import { useEffect, useState, useCallback } from 'react'
     const handleExportCSV = () => {
       const rows = [
         ['Sales Report', periodStr],[],
-        ['Total Revenue',totalRevenue],['COGS',totalCostOfGoods],['Gross Profit',grossProfit],['Expenses',totalExpenses],['Net Profit',netProfit],['Zakat Due',zakatDue],[],
+        ['Total Revenue',totalRevenueWithClinic],['COGS',totalCostOfGoods],['Gross Profit',grossProfit],['Expenses',totalExpenses],['Net Profit',netProfit],['Zakat Due',zakatDue],[],
         ['Money Collected',totalCashReceived],['Outstanding',totalOutstanding],['Credit Recovered',outstandingSettled],['Refunds',refundTotal],
         ['Expenses',totalExpenses],['Sales − Expenses',salesMinusExpenses],['Net Profit',netProfit],[],
         ['Date','Total','Collected','Credit','Txns'],
@@ -359,7 +360,7 @@ import { useEffect, useState, useCallback } from 'react'
       w.document.write(`<html><head><title>Sales Report</title><style>body{font-family:Arial;padding:32px;color:#333;font-size:13px}h1{color:#1976d2;border-bottom:2px solid #1976d2;pb:8px}h2{color:#1565c0;margin-top:20px;font-size:14px}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}th,td{border:1px solid #e0e0e0;padding:7px 10px}th{background:#e3f2fd;font-weight:700}tr:nth-child(even){background:#fafafa}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}.card{border:1px solid #e0e0e0;border-radius:8px;padding:14px;text-align:center;background:#f8f9ff}.val{font-size:1.1rem;font-weight:800;color:#1976d2}.lbl{font-size:.7rem;color:#888;text-transform:uppercase}</style></head><body>
       <h1>Sales Report — ${periodStr}</h1>
       <div class="grid">
-        <div class="card"><div class="val">PKR ${fmt(totalRevenue)}</div><div class="lbl">Revenue</div></div>
+        <div class="card"><div class="val">PKR ${fmt(totalRevenueWithClinic)}</div><div class="lbl">Revenue</div></div>
         <div class="card"><div class="val" style="color:#2e7d32">PKR ${fmt(totalCashReceived)}</div><div class="lbl">Collected</div></div>
         <div class="card"><div class="val" style="color:#c62828">PKR ${fmt(totalOutstanding)}</div><div class="lbl">Outstanding</div></div>
         <div class="card"><div class="val" style="color:${netProfit>=0?'#2e7d32':'#c62828'}">PKR ${fmt(Math.abs(netProfit))}</div><div class="lbl">Net ${netProfit>=0?'Profit':'Loss'}</div></div>
@@ -512,7 +513,7 @@ import { useEffect, useState, useCallback } from 'react'
               {/* ── Row 1: Core KPIs ───────────────────────────────────────── */}
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
                 <Grid item xs={12} sm={6} md={3}>
-                  <KpiCard label={filters.includeClinic ? "Sales + Clinic (Invoiced)" : "Product Sales (Invoiced)"} value={fmtPKR(totalRevenue)} sub={`${fmt(totalTransactions)} sales in period${filters.includeClinic ? ` · +PKR ${fmt(clinicRevenue)} clinic` : ''}`} accent="#1976d2" icon={<AttachMoney/>}
+                  <KpiCard label={filters.includeClinic ? "Sales + Clinic (Invoiced)" : "Product Sales (Invoiced)"} value={fmtPKR(totalRevenueWithClinic)} sub={`${fmt(totalTransactions)} sales in period${filters.includeClinic ? ` · +PKR ${fmt(clinicRevenue)} clinic` : ''}`} accent="#1976d2" icon={<AttachMoney/>}
                     chip={clinicRevenue>0 && filters.includeClinic ? { label:`Clinic: PKR ${fmt(clinicRevenue)}`, bg:'#f0fdf4', color:'#166534' } : undefined}/>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
@@ -644,7 +645,7 @@ import { useEffect, useState, useCallback } from 'react'
                   <Grid item xs={12} md={8}>
                     <Grid container spacing={2}>
                       {pmBreakdown.map((m,i)=>{
-                        const pct = totalRevenue>0?((m.total/totalRevenue)*100).toFixed(1):'0.0'
+                        const pct = totalRevenueWithClinic>0?((m.total/totalRevenueWithClinic)*100).toFixed(1):'0.0'
                         const c   = MC[m.method]||'#9e9e9e'
                         return (
                           <Grid item xs={12} sm={6} key={i}>
@@ -894,7 +895,7 @@ import { useEffect, useState, useCallback } from 'react'
                   <Grid item xs={12} md={8}>
                     <Grid container spacing={2}>
                       {[
-                        { label:'Revenue',       value:fmtPKR(totalRevenue) },
+                        { label:'Revenue',       value:fmtPKR(totalRevenueWithClinic) },
                         { label:'COGS',          value:`− ${fmtPKR(totalCostOfGoods)}` },
                         { label:'Gross Profit',  value:fmtPKR(grossProfit) },
                         { label:'Money Collected',value:fmtPKR(totalCashReceived) },
@@ -1007,7 +1008,7 @@ import { useEffect, useState, useCallback } from 'react'
 
           {/* ── TAB 2: Zakat ─────────────────────────────────────────────── */}
           {activeTab===2 && (
-            <ZakatTab netProfit={netProfit} grossProfit={grossProfit} totalRevenue={totalRevenue}
+            <ZakatTab netProfit={netProfit} grossProfit={grossProfit} totalRevenue={totalRevenueWithClinic}
               totalCostOfGoods={totalCostOfGoods} totalExpenses={totalExpenses}
               costPriceWarning={costPriceWarning} period={periodStr}/>
           )}
