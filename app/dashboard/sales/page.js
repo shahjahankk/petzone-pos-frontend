@@ -450,6 +450,7 @@ const SalesManagement = () => {
   const [filters, setFilters] = useState({
     scopeType: 'all', scopeId: 'all', companyId: 'all', retailerId: 'all', startDate: '', endDate: ''
   })
+  const [selectedScopeName, setSelectedScopeName] = useState('')
   const [searchTerm,          setSearchTerm]          = useState('')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all')
   const [statusFilter,        setStatusFilter]        = useState('all')
@@ -495,11 +496,20 @@ const SalesManagement = () => {
     const salesParams = { ...baseScopeParams, page, limit: rowsPerPage, _t: Date.now() }
 
     if (isActualAdmin && !isAdminMode) {
-      if (filters.scopeType !== 'all') {
-        salesParams.scopeType = filters.scopeType
-        if (filters.scopeId !== 'all') {
-          const parsed = Number(filters.scopeId)
-          salesParams.scopeId = Number.isNaN(parsed) ? filters.scopeId : parsed
+      // Determine scope type and ID from filters or selected scope name
+      let scopeType = filters.scopeType
+      let scopeId = filters.scopeId
+
+      // If a specific branch/warehouse name is selected, use that
+      if (selectedScopeName && selectedScopeName !== 'all') {
+        scopeType = scopeTypeFilter // keep the scope type selected
+        scopeId = selectedScopeName // use the selected name as the ID
+      }
+
+      if (scopeType !== 'all') {
+        salesParams.scopeType = scopeType
+        if (scopeId && scopeId !== 'all') {
+          salesParams.scopeId = scopeId
         } else {
           delete salesParams.scopeId
         }
@@ -575,20 +585,23 @@ const SalesManagement = () => {
   const handleFilterChange = (field, value) => {
     setFilters(prev => {
       const next = { ...prev, [field]: value }
-      if (field === 'scopeType') next.scopeId = 'all'
+      if (field === 'scopeType') {
+        next.scopeId = 'all'
+        next.scopeName = ''
+      }
       return next
     })
   }
 
-  const clearFilters = () => {
+const clearFilters = () => {
     setSearchTerm('')
     setPaymentMethodFilter('all')
     setStatusFilter('all')
     setScopeTypeFilter('all')
     setScopeSearch('')
     setSortBy('created_at')
-    setSortOrder('desc')
     setPage(1)
+    setSelectedScopeName('')
   }
 
   const getFilterSummary = () => {
@@ -1129,17 +1142,54 @@ const SalesManagement = () => {
                           </Select>
                         </FormControl>
                       </Grid>
-                      <Grid item xs={12} md={2}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>Scope</InputLabel>
-                          <Select value={scopeTypeFilter} label="Scope" onChange={(e) => setScopeTypeFilter(e.target.value)}>
-                            <MenuItem value="all">All Scopes</MenuItem>
-                            <MenuItem value="BRANCH">Branch</MenuItem>
-                            <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      {/* FIX 6: Only show scope search for unscoped admin (not in simulation) */}
+<Grid item xs={12} md={2}>
+                          <FormControl fullWidth size="small">
+                            <InputLabel>Scope</InputLabel>
+                            <Select value={scopeTypeFilter} label="Scope" onChange={(e) => setScopeTypeFilter(e.target.value)}>
+                              <MenuItem value="all">All Scopes</MenuItem>
+                              <MenuItem value="BRANCH">Branch</MenuItem>
+                              <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                        {/* Scope Name selector - shows when BRANCH or WAREHOUSE is selected */}
+                        {scopeTypeFilter === 'BRANCH' && branches?.length > 0 && (
+                          <Grid item xs={12} md={3}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>Branch</InputLabel>
+                              <Select
+                                value={selectedScopeName}
+                                onChange={(e) => setSelectedScopeName(e.target.value)}
+                              >
+                                <MenuItem value="all">All Branches</MenuItem>
+                                {branches.map((branch) => (
+                                  <MenuItem key={branch.id} value={branch.name || branch.branchName || `Branch ${branch.id}`}>
+                                    {branch.name || branch.branchName || `Branch ${branch.id}`}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                        )}
+                        {scopeTypeFilter === 'WAREHOUSE' && warehouses?.length > 0 && (
+                          <Grid item xs={12} md={3}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>Warehouse</InputLabel>
+                              <Select
+                                value={selectedScopeName}
+                                onChange={(e) => setSelectedScopeName(e.target.value)}
+                              >
+                                <MenuItem value="all">All Warehouses</MenuItem>
+                                {warehouses.map((wh) => (
+                                  <MenuItem key={wh.id} value={wh.name || wh.warehouseName || `Warehouse ${wh.id}`}>
+                                    {wh.name || wh.warehouseName || `Warehouse ${wh.id}`}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                        )}
+                        {/* FIX 6: Only show scope search for unscoped admin (not in simulation) */}
                       {isActualAdmin && !isAdminMode && (
                         <Grid item xs={12} md={3}>
                           <TextField
