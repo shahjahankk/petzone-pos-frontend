@@ -601,7 +601,7 @@ const clearFilters = () => {
     setScopeSearch('')
     setSortBy('created_at')
     setPage(1)
-    setSelectedScopeName('')
+    setFilters(prev => ({ ...prev, scopeId: 'all', scopeName: '' }))
   }
 
   const getFilterSummary = () => {
