@@ -24,6 +24,7 @@ import { useEffect, useState, useCallback } from 'react'
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line,
   } from 'recharts'
   import { fetchSalesReports, fetchFinancialReports } from '../../../store/slices/reportsSlice'
+import { fetchActiveShift } from '../../store/slices/shiftsSlice'
   import RouteGuard from '../../../../components/auth/RouteGuard'
 
   // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -278,7 +279,14 @@ import { useEffect, useState, useCallback } from 'react'
       ...(filters.branch !== 'all' && { branch: filters.branch }),
     }), [filters])
     const loadAll   = useCallback(() => { dispatch(fetchSalesReports(buildSP())); dispatch(fetchFinancialReports(buildFP())) }, [dispatch, buildSP, buildFP])
-    useEffect(() => { loadAll() }, [loadAll])
+    useEffect(() => {
+    loadAll()
+    // Fetch active shift opening amount for the selected cashier
+    const cashierId = filters.cashier !== 'all' ? filters.cashier : user?.id
+    if (cashierId) {
+      dispatch(fetchActiveShift({ cashierId }))
+    }
+  }, [dispatch, loadAll, filters, user?.id])
 
     const applyPreset = (key) => {
       if (key === 'custom') { setActivePreset('custom'); return }
@@ -289,6 +297,8 @@ import { useEffect, useState, useCallback } from 'react'
     const sr = salesReports     || {}
     const fr = financialReports || {}
 
+    const activeShift    = sr.activeShift || {}
+    const openingBalance = Number(activeShift.initial_cash) || 0
     const totalRevenue           = Number(sr.totalRevenue           || 0)
     const clinicRevenue          = Number(sr.clinicRevenue          || 0)
     const totalRevenueWithClinic = filters.includeClinic ? totalRevenue + clinicRevenue : totalRevenue
@@ -512,6 +522,13 @@ import { useEffect, useState, useCallback } from 'react'
 
               {/* ── Row 1: Core KPIs ───────────────────────────────────────── */}
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <KpiCard
+                    label="Opening Balance"
+                    value={fmtPKR(openingBalance)}
+                    sub={`${fmt(totalTransactions)} sales in period`}
+                    accent="#1976d2"
+                    icon={<AttachMoney/>}/></Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <KpiCard label={filters.includeClinic ? "Sales + Clinic (Invoiced)" : "Product Sales (Invoiced)"} value={fmtPKR(totalRevenueWithClinic)} sub={`${fmt(totalTransactions)} sales in period${filters.includeClinic ? ` · +PKR ${fmt(clinicRevenue)} clinic` : ''}`} accent="#1976d2" icon={<AttachMoney/>}
                     chip={clinicRevenue>0 && filters.includeClinic ? { label:`Clinic: PKR ${fmt(clinicRevenue)}`, bg:'#f0fdf4', color:'#166534' } : undefined}/>
