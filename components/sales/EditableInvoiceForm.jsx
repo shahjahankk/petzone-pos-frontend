@@ -64,11 +64,13 @@ import { formatDisplayDate, toIsoDateOnly } from '../../utils/displayDates'
         customerName: '',
         customerPhone: '',
         paymentMethod: 'CASH',
+        paymentAmount: 0,
         paymentStatus: 'COMPLETED',
         notes: '',
         saleDate: '',
         items: [],
         tax: 0,
+        discount: 0,
         hasTax: false
     })
     
@@ -101,8 +103,8 @@ import { formatDisplayDate, toIsoDateOnly } from '../../utils/displayDates'
       const hasTax = originalTax > 0
       
       // Handle payment method with case sensitivity and fallback logic
-      let paymentMethod = sale.paymentMethod;
-      if (!paymentMethod && sale.creditAmount > 0) {
+            let paymentMethod = sale.paymentMethod || sale.payment_method;
+            if (!paymentMethod && (Number(sale.creditAmount ?? sale.credit_amount) || 0) > 0) {
         paymentMethod = 'FULLY_CREDIT';
       } else if (!paymentMethod) {
         paymentMethod = 'CASH';
@@ -112,6 +114,15 @@ import { formatDisplayDate, toIsoDateOnly } from '../../utils/displayDates'
       if (paymentMethod && typeof paymentMethod === 'string') {
         paymentMethod = paymentMethod.toUpperCase();
       }
+            const rawPaymentAmount = sale.paymentAmount ?? sale.payment_amount
+            const savedPaymentAmount = rawPaymentAmount == null || rawPaymentAmount === ''
+                ? null
+                : Number(rawPaymentAmount)
+            const saleTotal = Number(sale.total) || 0
+            const initialPaymentAmount = paymentMethod === 'FULLY_CREDIT'
+                ? 0
+                : (Number.isFinite(savedPaymentAmount) ? Math.max(0, savedPaymentAmount) : saleTotal)
+            const initialCreditAmount = Math.max(0, saleTotal - initialPaymentAmount)
       
       // Normalize items to ensure itemName is set properly
       const normalizedItems = (sale.items || []).map(item => ({
@@ -131,11 +142,15 @@ import { formatDisplayDate, toIsoDateOnly } from '../../utils/displayDates'
         customerName: sale.customerInfo?.name || sale.customerName || 'Walk-in Customer',
         customerPhone: sale.customerInfo?.phone || sale.customerPhone || '',
         paymentMethod: paymentMethod,
-        paymentStatus: sale.paymentStatus || (sale.creditAmount > 0 ? 'PARTIAL' : 'COMPLETED'),
+        paymentAmount: initialPaymentAmount,
+                paymentStatus: sale.paymentStatus || (initialCreditAmount > 0
+                    ? (initialPaymentAmount > 0 ? 'PARTIAL' : 'PENDING')
+                    : 'COMPLETED'),
         notes: sale.notes || '',
         saleDate: toIsoDateOnly(sale.sale_date || sale.saleDate || sale.created_at || sale.createdAt) || '',
         items: normalizedItems,
         tax: originalTax,
+                discount: Number(sale.discount) || 0,
         hasTax: hasTax
       };
       
@@ -316,15 +331,17 @@ useEffect(() => {
         return sum + (parseFloat(item.quantity) * parseFloat(item.unitPrice))
         }, 0)
         
-        const totalDiscount = formData.items.reduce((sum, item) => {
+        const lineDiscount = formData.items.reduce((sum, item) => {
         return sum + (parseFloat(item.discount) || 0)
         }, 0)
+        const invoiceDiscount = parseFloat(formData.discount) || 0
         
         // Include tax if the original invoice had tax
         const tax = formData.hasTax ? parseFloat(formData.tax) : 0
+        const totalDiscount = lineDiscount + invoiceDiscount
         const total = subtotal + tax - totalDiscount
         
-        return { subtotal, tax, totalDiscount, total }
+        return { subtotal, tax, lineDiscount, invoiceDiscount, totalDiscount, total }
     }, [formData.items, formData.tax, formData.hasTax])
 
     const totals = calculateTotals()
@@ -335,6 +352,18 @@ useEffect(() => {
         ...prev,
         [field]: value
         }))
+    }
+
+    const handlePaymentMethodChange = (paymentMethod) => {
+        setFormData(prev => {
+            if (paymentMethod === 'FULLY_CREDIT') {
+                return { ...prev, paymentMethod, paymentAmount: 0, paymentStatus: 'PENDING' }
+            }
+            if (prev.paymentMethod === 'FULLY_CREDIT') {
+                return { ...prev, paymentMethod, paymentAmount: totals.total, paymentStatus: 'COMPLETED' }
+            }
+            return { ...prev, paymentMethod }
+        })
     }
 
     // Handle item quantity change
@@ -524,17 +553,34 @@ const handleRemoveItem = (itemId) => {
 
     // Save changes
     const handleSave = async () => {
+        if (formData.items.length === 0) {
+            setError('An invoice must contain at least one item')
+            return
+        }
         setSaving(true)
         setError(null)
         
         try {
         // Prepare update data
+        const effectiveTotal = Math.max(0, totals.total)
+        const paymentAmount = formData.paymentMethod === 'FULLY_CREDIT'
+            ? 0
+            : Math.min(Math.max(0, Number(formData.paymentAmount) || 0), effectiveTotal)
+        const creditAmount = Math.max(0, effectiveTotal - paymentAmount)
+        const paymentStatus = ['FAILED', 'REFUNDED'].includes(formData.paymentStatus)
+            ? formData.paymentStatus
+            : creditAmount > 0
+                ? (paymentAmount > 0 ? 'PARTIAL' : 'PENDING')
+                : 'COMPLETED'
         const updateData = {
             ...formData,
             saleDate: formData.saleDate || null,
+            paymentAmount,
+            creditAmount,
+            paymentStatus,
             subtotal: totals.subtotal,
             tax: totals.tax,
-            discount: totals.totalDiscount,
+            discount: totals.invoiceDiscount,
             total: totals.total,
             inventoryChanges
         }
@@ -685,9 +731,7 @@ const handleRemoveItem = (itemId) => {
                     <InputLabel>Payment Method</InputLabel>
                     <Select
                         value={formData.paymentMethod}
-                        onChange={(e) => {
-                          handleFieldChange('paymentMethod', e.target.value);
-                        }}
+                                                onChange={(e) => handlePaymentMethodChange(e.target.value)}
                     >
                         <MenuItem value="CASH">Cash</MenuItem>
                         <MenuItem value="CARD">Card</MenuItem>
@@ -744,6 +788,17 @@ const handleRemoveItem = (itemId) => {
                     </Grid>
                 )}
                 <Grid item xs={12} sm={3}>
+                    <TextField
+                    fullWidth
+                    size="small"
+                    label="Invoice Discount"
+                    type="number"
+                    value={parseFloat(formData.discount || 0)}
+                    onChange={(e) => handleFieldChange('discount', parseFloat(e.target.value) || 0)}
+                    inputProps={{ min: 0, step: 0.01 }}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={3}>
                     <AppDateField
                     label="Invoice Date"
                     value={formData.saleDate}
@@ -755,6 +810,30 @@ const handleRemoveItem = (itemId) => {
                             : "Using invoice's saved date",
                         },
                     }}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                    <TextField
+                    fullWidth
+                    size="small"
+                    label="Paid Amount"
+                    type="number"
+                    value={formData.paymentMethod === 'FULLY_CREDIT' ? 0 : formData.paymentAmount}
+                    disabled={formData.paymentMethod === 'FULLY_CREDIT'}
+                    onChange={(e) => handleFieldChange('paymentAmount', e.target.value)}
+                    inputProps={{ min: 0, max: Math.max(0, totals.total), step: 0.01 }}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                    <TextField
+                    fullWidth
+                    size="small"
+                    label="Credit Remaining"
+                    type="number"
+                    value={formData.paymentMethod === 'FULLY_CREDIT'
+                        ? Math.max(0, totals.total)
+                        : Math.max(0, totals.total - (Number(formData.paymentAmount) || 0))}
+                    InputProps={{ readOnly: true }}
                     />
                 </Grid>
                 </Grid>
