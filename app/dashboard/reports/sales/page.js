@@ -377,6 +377,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
     const totalRevenue           = Number(sr.totalRevenue           || 0)
     const clinicRevenue          = Number(sr.clinicRevenue          || 0)
     const totalRevenueWithClinic = filters.includeClinic ? totalRevenue + clinicRevenue : totalRevenue
+    const salesBeforeDiscount   = totalRevenueWithClinic + Number(sr.discounts || 0)
     const totalTransactions      = Number(sr.totalTransactions      || 0)
     const avgTicket              = Number(sr.averageTicket          || 0)
     const cashSalesAmt           = Number(sr.cashSalesAmount        || sr.cashSales || 0)
@@ -608,6 +609,15 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                 <Grid item xs={12} sm={6} md={3}>
                   <KpiCard label={filters.includeClinic ? "Sales + Clinic (Invoiced)" : "Product Sales (Invoiced)"} value={fmtPKR(totalRevenueWithClinic)} sub={`${fmt(totalTransactions)} sales in period${filters.includeClinic ? ` · +PKR ${fmt(clinicRevenue)} clinic` : ''}`} accent="#1976d2" icon={<AttachMoney/>}
                     chip={clinicRevenue>0 && filters.includeClinic ? { label:`Clinic: PKR ${fmt(clinicRevenue)}`, bg:'#f0fdf4', color:'#166534' } : undefined}/>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <KpiCard
+                    label="Sales Before Discount"
+                    value={fmtPKR(salesBeforeDiscount)}
+                    sub={`${fmtPKR(discounts)} discount · ${fmtPKR(totalRevenueWithClinic)} invoiced`}
+                    accent="#e65100"
+                    icon={<Receipt/>}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <KpiCard
