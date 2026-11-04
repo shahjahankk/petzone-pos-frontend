@@ -828,22 +828,20 @@ function POSTerminal() {
   // ── Check for active shift on mount / user change ─────────────────────
   useEffect(() => {
     if (!user) return
+
     const checkShift = async () => {
       try {
         await dispatch(validatePOSAccess()).unwrap()
-        const res = await dispatch(fetchActiveShift({ cashierId: user.id })).unwrap()
-        if (res?.data?.active) {
-          // Already has an active shift — resume it
-        }
+        await dispatch(fetchActiveShift({ cashierId: user.id })).unwrap()
       } catch (err) {
-        // No active shift or validation failed — show start shift dialog
-        if (!shiftFromStore) {
-          setShowStartShiftDialog(true)
-        }
+        // No active shift or validation failed — only show the start dialog when
+        // the current user changes, not on every Redux update.
+        setShowStartShiftDialog(true)
       }
     }
+
     checkShift()
-  }, [dispatch, user, shiftFromStore])
+  }, [dispatch, user?.id, user?.role, user?.branchId, user?.warehouseId])
 
   const buildPosScopeParams = useCallback(() => {
     if (scopeInfo?.scopeType && scopeInfo?.scopeId != null) {

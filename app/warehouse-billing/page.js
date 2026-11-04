@@ -1439,18 +1439,18 @@ function WarehouseBillingPage() {
   // ── Check for active shift on mount / user change ─────────────────────
   useEffect(() => {
     if (!user) return
+
     const checkShift = async () => {
       try {
         await dispatch(validatePOSAccess()).unwrap()
         await dispatch(fetchActiveShift({ cashierId: user.id })).unwrap()
       } catch (err) {
-        if (!shiftFromStore) {
-          setShowStartShiftDialog(true)
-        }
+        setShowStartShiftDialog(true)
       }
     }
+
     checkShift()
-  }, [dispatch, user, shiftFromStore])
+  }, [dispatch, user?.id, user?.role, user?.branchId, user?.warehouseId])
 
   const searchOutstandingPayments = useCallback(async (phoneNumber, customerName, retailerId = null) => {
     if ((!phoneNumber || phoneNumber.trim().length < 3) && (!customerName || customerName.trim().length < 3)) {
