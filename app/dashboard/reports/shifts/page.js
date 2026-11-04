@@ -141,14 +141,12 @@ export default function ShiftCashReportPage() {
                 label="From Date"
                 value={filters.dateFrom}
                 onChange={(d) => setFilters((p) => ({ ...p, dateFrom: d }))}
-                slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }}
               />
               <AppDatePicker
                 label="To Date"
                 value={filters.dateTo}
                 onChange={(d) => setFilters((p) => ({ ...p, dateTo: d }))}
-                slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }}
               />
 

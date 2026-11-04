@@ -324,7 +324,6 @@ export default function ClinicSalesReportPage() {
                 label="From Date"
                 value={filters.dateFrom}
                 onChange={(d) => { setActivePreset('custom'); setFilters((p) => ({ ...p, dateFrom: d })) }}
-                slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }}
               />
               <AppDatePicker
@@ -332,7 +331,6 @@ export default function ClinicSalesReportPage() {
                 label="To Date"
                 value={filters.dateTo}
                 onChange={(d) => { setActivePreset('custom'); setFilters((p) => ({ ...p, dateTo: d })) }}
-                slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }}
               />
             </LocalizationProvider>

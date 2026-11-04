@@ -238,16 +238,61 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                 { label:'Gross Profit', value:fmtPKR(grossProfit),      sub:`${totalRevenue>0?((grossProfit/totalRevenue)*100).toFixed(1):0}% margin`, accent:'#2e7d32' },
                 { label:'Expenses',     value:fmtPKR(totalExpenses),    sub:'Operating expenses',      accent:'#e65100' },
                 { label:'Net Profit',   value:fmtPKR(netProfit),        sub:'Gross − expenses',        accent:'#0288d1' },
-                { label:'Zakat Due',    value:fmtPKR(zakatDue),        sub:'Net profit × 2.5%',        accent:'#b8860b' },
-              ].map((c,i) => (
-                <Grid item xs={6} sm={4} md={2} key={i}>
-                  <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderTop:`3px solid ${c.accent}`, borderRadius:2, p:2, textAlign:'center' }}>
-                    <Typography sx={{ color:'text.disabled', textTransform:'uppercase', letterSpacing:.8, fontSize:'.62rem', display:'block', mb:.5 }}>{c.label}</Typography>
-                    <Typography sx={{ fontWeight:800, color:c.accent, fontSize:'.95rem' }}>{c.value}</Typography>
-                    <Typography sx={{ color:'text.disabled', fontSize:'.65rem', mt:.3 }}>{c.sub}</Typography>
-                  </Paper>
+                { label:'Zakat Due',    value:fmtPKR(zakatDue),        sub:'Net profit × 2.5%',      accent:'#b8860b' },
+              ].map((card, idx) => (
+                <Grid item xs={12} sm={6} md={3} key={idx}>
+                  <KpiCard
+                    label={card.label}
+                    value={card.value}
+                    sub={card.sub}
+                    accent={card.accent}
+                  />
                 </Grid>
               ))}
+            </Grid>
+          </Grid>
+          <Grid item xs={12}>
+            <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
+              <Grid item xs={12} sm={6} md={3}>
+                <KpiCard
+                  label="Opening Cash"
+                  value={fmtPKR(openingBalance)}
+                  sub={periodSessions > 0 ? `${fmt(periodSessions)} shift session(s)` : `${fmt(totalTransactions)} sales in period`}
+                  accent="#1976d2"
+                  icon={<AttachMoney/>}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <KpiCard label={filters.includeClinic ? 'Sales + Clinic' : 'Sales Revenue'} value={fmtPKR(totalRevenueWithClinic)} sub={`${fmt(totalTransactions)} sales in period${filters.includeClinic ? ` · +PKR ${fmt(clinicRevenue)} clinic` : ''}`} accent="#1976d2" icon={<AttachMoney/>}
+                  chip={clinicRevenue>0 && filters.includeClinic ? { label:`Clinic: PKR ${fmt(clinicRevenue)}`, bg:'#f0fdf4', color:'#166534' } : undefined}/>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <KpiCard
+                  label="Collected"
+                  value={fmtPKR(totalCashReceived)}
+                  sub={`Cash + card + recoveries · ${collectionRate.toFixed(1)}% of sales`}
+                  accent="#2e7d32"
+                  icon={<CheckCircle/>}
+                  chip={{ label:`${fullyPaidCount} fully paid`, bg:'#e8f5e9', color:'#2e7d32' }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <KpiCard label="Outstanding" value={fmtPKR(totalOutstanding)} sub={`${fullyCreditCount} credit · ${partialCount} partial unpaid`} accent="#c62828" icon={<Warning/>}
+                  chip={{ label:`${fullyCreditCount+partialCount} unpaid`, bg:'#ffebee', color:'#c62828' }}/>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <KpiCard
+                  label="Gross Profit"
+                  value={fmtPKR(grossProfit)}
+                  sub={costPriceWarning
+                    ? `⚠ margin ${grossProfitMargin.toFixed(1)}% · cost missing`
+                    : totalCostOfGoods>0
+                      ? `${grossProfitMargin.toFixed(1)}% margin · COGS PKR ${fmt(totalCostOfGoods)}`
+                      : 'No cost prices set'}
+                  accent={grossProfit>=0?'#2e7d32':'#c62828'}
+                  icon={grossProfit>=0?<TrendingUp/>:<TrendingDown/>}
+                />
+              </Grid>
             </Grid>
           </Grid>
         </Grid>
@@ -255,30 +300,39 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
     )
   }
 
-  // ─── Main Page ────────────────────────────────────────────────────────────────
   export default function SalesReportPage() {
     const dispatch = useDispatch()
-    const { user } = useSelector(s => s.auth)
-    const { salesReports, financialReports, isLoading } = useSelector(s => s.reports)
-    const {
-      activeShift: liveActiveShift,
-      shiftSessionsReportTotals: shiftTotals,
-      shiftSessionsReport,
-    } = useSelector(s => s.shifts)
+    const user = useSelector((state) => state.auth?.user || null)
+    const reportsState = useSelector((state) => state.reports || {})
+    const shiftsState = useSelector((state) => state.shifts || {})
+
+    const salesReports = reportsState.salesReports || {}
+    const financialReports = reportsState.financialReports || {}
+    const isLoading = Boolean(reportsState.isLoading)
+    const liveActiveShift = shiftsState.activeShift || null
+    const shiftTotals = shiftsState.shiftSessionsReportTotals || {}
+    const shiftSessionsReport = Array.isArray(shiftsState.shiftSessionsReport) ? shiftsState.shiftSessionsReport : []
+
+    const [activeTab, setActiveTab] = useState(0)
     const [exportAnchor, setExportAnchor] = useState(null)
     const [activePreset, setActivePreset] = useState('this_month')
-    const [filters, setFilters] = useState({ dateFrom: som(), dateTo: today(), branch: 'all', cashier: 'all', includeClinic: false, shiftStart: null, shiftEnd: null })
-    const [activeTab, setActiveTab] = useState(0)
+    const [filters, setFilters] = useState({
+      dateFrom: PRESETS.this_month.from(),
+      dateTo: PRESETS.this_month.to(),
+      shiftStart: null,
+      shiftEnd: null,
+      branch: 'all',
+      cashier: 'all',
+      includeClinic: true,
+    })
 
     const buildSP = useCallback(() => ({
-      dateRange: { start: toStr(filters.dateFrom), end: toStr(filters.dateTo) },
-      ...(filters.branch  !== 'all' && { branch:  filters.branch }),
-      ...(filters.cashier !== 'all' && { cashier: filters.cashier }),
-      ...(filters.includeClinic && { include_clinic: 'true' }),
-      ...(filters.shiftStart && { shift_start: toStr(filters.shiftStart) }),
-      ...(filters.shiftEnd   && { shift_end:   toStr(filters.shiftEnd) }),
+      dateFrom: toStr(filters.dateFrom),
+      dateTo: toStr(filters.dateTo),
+      ...(filters.branch !== 'all' && { branch: filters.branch }),
+      ...(filters.cashier !== 'all' && { cashierId: filters.cashier }),
     }), [filters])
-    const buildFP = useCallback(() => ({
+  const buildFP = useCallback(() => ({
       dateFrom: toStr(filters.dateFrom),
       dateTo: toStr(filters.dateTo),
       ...(filters.branch !== 'all' && { branch: filters.branch }),
@@ -460,11 +514,9 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <AppDatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
               onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,dateFrom:d})) }}
-              slots={{ textField: TextField }}
               slotProps={{ textField:{ size:'small', sx:{ minWidth:150 } } }} />
             <AppDatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
               onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,dateTo:d})) }}
-              slots={{ textField: TextField }}
               slotProps={{ textField:{ size:'small', sx:{ minWidth:150 } } }} />
             
             {/* Shift session date range */}
@@ -472,11 +524,9 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
               <Typography variant="caption" sx={{ color:'text.secondary', mr:0.5, fontWeight:600, textTransform:'uppercase', letterSpacing:0.5 }}>Shift</Typography>
               <AppDatePicker enableAccessibleFieldDOMStructure={false} label="Start" value={filters.shiftStart}
                 onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,shiftStart:d})) }}
-                slots={{ textField: TextField }}
                 slotProps={{ textField:{ size:'small', sx:{ minWidth:120, fontSize:'0.75rem' } } }} />
               <AppDatePicker enableAccessibleFieldDOMStructure={false} label="End" value={filters.shiftEnd}
                 onChange={d=>{ setActivePreset('custom'); setFilters(p=>({...p,shiftEnd:d})) }}
-                slots={{ textField: TextField }}
                 slotProps={{ textField:{ size:'small', sx:{ minWidth:120, fontSize:'0.75rem' } } }} />
             </Box>
           </LocalizationProvider>
@@ -628,31 +678,31 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                 )}
               </Paper>
 
-              {/* ── Row 1b: Sales − Expenses (filter period) ───────────────── */}
+              {/* ── Row 1b: Operating Summary ─────────────────────────────── */}
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
                 <Grid item xs={12} sm={6} md={4}>
                   <KpiCard
-                    label="Expenses (Vouchers)"
+                    label="Expenses"
                     value={fmtPKR(totalExpenses)}
-                    sub="Expense vouchers in this date filter (auto-approved on create)"
+                    sub="Expense vouchers in this period"
                     accent="#e65100"
                     icon={<Receipt/>}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <KpiCard
-                    label="Sales − Expenses"
+                    label="Operating Result"
                     value={fmtPKR(salesMinusExpenses)}
-                    sub="Product sales invoiced minus expense vouchers"
+                    sub="Sales minus expenses"
                     accent={salesMinusExpenses>=0?'#0288d1':'#c62828'}
                     icon={<Assessment/>}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <KpiCard
-                    label="Net Profit (Gross − Expenses)"
+                    label="Net Profit"
                     value={fmtPKR(netProfit)}
-                    sub={`${netProfitMargin.toFixed(1)}% of sales · after product cost & expenses`}
+                    sub={`${netProfitMargin.toFixed(1)}% margin · after all costs`}
                     accent={netProfit>=0?'#2e7d32':'#c62828'}
                     icon={netProfit>=0?<TrendingUp/>:<TrendingDown/>}
                   />
@@ -661,20 +711,20 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
 
               {/* ── Row 2: How customers paid (splits Money Collected) ─────── */}
               <Typography sx={{ fontWeight:700, fontSize:'.8rem', color:'text.secondary', mb:1.2, textTransform:'uppercase', letterSpacing:1 }}>
-                How customers paid (these add up toward Money Collected)
+                Payment Breakdown
               </Typography>
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
                 <Grid item xs={6} sm={6} md={3}>
-                  <KpiCard label="Paid by Cash" value={fmtPKR(cashSalesAmt)} sub="Invoices paid with cash only" accent="#388e3c" icon={<AttachMoney/>}/>
+                  <KpiCard label="Cash Sales" value={fmtPKR(cashSalesAmt)} sub="Paid in cash" accent="#388e3c" icon={<AttachMoney/>}/>
                 </Grid>
                 <Grid item xs={6} sm={6} md={3}>
-                  <KpiCard label="Paid by Card" value={fmtPKR(cardSalesAmt)} sub="Invoices paid with card only" accent="#1565c0" icon={<CreditCard/>}/>
+                  <KpiCard label="Card Sales" value={fmtPKR(cardSalesAmt)} sub="Paid by card" accent="#1565c0" icon={<CreditCard/>}/>
                 </Grid>
                 <Grid item xs={6} sm={6} md={3}>
-                  <KpiCard label="Full Credit" value={fmtPKR(fullyCreditTotal)} sub={`${fullyCreditCount} invoices · nothing collected yet`} accent="#c62828" icon={<AccountBalance/>}/>
+                  <KpiCard label="Credit Sales" value={fmtPKR(fullyCreditTotal)} sub={`${fullyCreditCount} unpaid invoices`} accent="#c62828" icon={<AccountBalance/>}/>
                 </Grid>
                 <Grid item xs={6} sm={6} md={3}>
-                  <KpiCard label="Partial Sales" value={fmtPKR(partialTotal)} sub={partialCount>0?`Collected ${fmtPKR(partialCollected)} · Due ${fmtPKR(partialCredit)}`:`${partialCount} partial`} accent="#e65100" icon={<Receipt/>}/>
+                  <KpiCard label="Partial Sales" value={fmtPKR(partialTotal)} sub={partialCount>0?`Collected ${fmtPKR(partialCollected)} · due ${fmtPKR(partialCredit)}`:`${partialCount} partial`} accent="#e65100" icon={<Receipt/>}/>
                 </Grid>
               </Grid>
 
@@ -688,7 +738,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
 
               {/* ── Chart 1: Daily Collected vs Credit — FULL WIDTH ─────────── */}
               <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, mb:3, bgcolor:'#fff' }}>
-                <SectionTitle title="Daily: Money Collected vs Credit Given" icon={<BarIcon/>}/>
+                <SectionTitle title="Cash Collected vs Credit Issued" icon={<BarIcon/>}/>
                 {cfChart.length===0
                   ? <Box sx={{ display:'flex', alignItems:'center', justifyContent:'center', height:320, color:'text.disabled' }}><Typography>No data in selected period</Typography></Box>
                   : <ResponsiveContainer width="100%" height={360}>
@@ -709,7 +759,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
 
               {/* ── Chart 2: Payment Methods — FULL WIDTH ───────────────────── */}
               <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, mb:3, bgcolor:'#fff' }}>
-                <SectionTitle title="Payment Methods Breakdown" icon={<PieIcon/>}/>
+                <SectionTitle title="Sales by Payment Method" icon={<PieIcon/>}/>
                 <Grid container spacing={4} alignItems="center">
                   {/* Donut left */}
                   <Grid item xs={12} md={4}>
@@ -756,7 +806,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
 
               {/* ── Chart 3: Daily Sales Trend — FULL WIDTH ─────────────────── */}
               <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:3.5, mb:3, bgcolor:'#fff' }}>
-                <SectionTitle title="Daily Sales Trend" icon={<TrendingUp/>}/>
+                <SectionTitle title="Revenue Trend" icon={<TrendingUp/>}/>
                 {salesByDate.length===0
                   ? <Box sx={{ display:'flex', alignItems:'center', justifyContent:'center', height:300, color:'text.disabled' }}><Typography>No data</Typography></Box>
                   : <ResponsiveContainer width="100%" height={340}>

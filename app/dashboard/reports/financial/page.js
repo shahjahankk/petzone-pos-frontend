@@ -187,11 +187,9 @@ export default function FinancialReportsPage() {
               )}
               <AppDatePicker enableAccessibleFieldDOMStructure={false} label="From Date" value={filters.dateFrom}
                 onChange={(d) => setFilters(p => ({ ...p, dateFrom: d }))}
-                slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }} />
               <AppDatePicker enableAccessibleFieldDOMStructure={false} label="To Date" value={filters.dateTo}
                 onChange={(d) => setFilters(p => ({ ...p, dateTo: d }))}
-                slots={{ textField: TextField }}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 150 } } }} />
               {(filters.dateFrom || filters.dateTo) && (
                 <Button variant="text" size="small" sx={{ borderRadius: 2 }}
