@@ -48,6 +48,7 @@ import {
 } from '@mui/material'
 import {
   Add,
+  ArrowBack,
   Refresh,
   Receipt,
   TrendingDown,
@@ -488,30 +489,35 @@ const ReturnsPage = () => {
   }
 
   // Search invoice by invoice number
-  const searchInvoice = async (invoiceNumber) => {
+  const searchInvoice = async (invoiceNumber, excludeReturnId = editingEntity?.id) => {
     if (!invoiceNumber || invoiceNumber.trim().length < 3) {
       setInvoiceItems([])
       setSelectedInvoice(null)
-      return
+      return null
     }
     setInvoiceSearchLoading(true)
     try {
-      const response = await api.get(`/sales/search?invoiceNumber=${encodeURIComponent(invoiceNumber.trim())}`)
+      const params = new URLSearchParams({ invoiceNumber: invoiceNumber.trim() })
+      if (excludeReturnId) params.set('excludeReturnId', String(excludeReturnId))
+      const response = await api.get(`/sales/search?${params.toString()}`)
       const data = response.data
       if (data.success && data.data && data.data.length > 0) {
         const sale = data.data[0]
         setSelectedInvoice(sale)
         setInvoiceItems(sale.items || [])
         setReturnForm(prev => ({ ...prev, saleId: sale.id }))
+        return sale
       } else {
         setInvoiceItems([])
         setSelectedInvoice(null)
         showToast('Invoice not found. Please check the invoice number.', 'warning')
+        return null
       }
     } catch (error) {
       setInvoiceItems([])
       setSelectedInvoice(null)
       showToast('Error searching for invoice. Please try again.', 'error')
+      return null
     } finally {
       setInvoiceSearchLoading(false)
     }
@@ -519,7 +525,19 @@ const ReturnsPage = () => {
 
   // Add item from invoice to return form
   const addInvoiceItem = (invoiceItem) => {
-    const quantity    = editingEntity ? 1 : (parseFloat(invoiceItem.quantity) || 1)
+    const availableQuantity = Number(invoiceItem.remainingReturnableQuantity ?? invoiceItem.quantity) || 0
+    const itemKeyMatches = (item) => (invoiceItem.inventoryItemId &&
+      Number(item.inventoryItemId) === Number(invoiceItem.inventoryItemId)) ||
+      (invoiceItem.sku && item.sku === invoiceItem.sku) ||
+      item.productName === (invoiceItem.itemName || invoiceItem.name)
+    const selectedQuantity = returnForm.items
+      .filter(itemKeyMatches)
+      .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+    if (availableQuantity <= 0 || (editingEntity && selectedQuantity + 1 > availableQuantity + 0.001)) {
+      showToast(`Only ${availableQuantity} unit(s) are available to return`, 'warning')
+      return
+    }
+    const quantity    = editingEntity ? 1 : availableQuantity
     const unitPrice   = parseFloat(invoiceItem.unitPrice) || parseFloat(invoiceItem.price) || 0
     const refundAmount = quantity * unitPrice
     const newItem = {
@@ -527,6 +545,7 @@ const ReturnsPage = () => {
       inventoryItemId: invoiceItem.inventoryItemId || invoiceItem.inventory_item_id || null,
       sku: invoiceItem.sku || null,
       quantity,
+      remainingReturnableQuantity: availableQuantity,
       refundAmount: refundAmount.toFixed(2)
     }
     setReturnForm(prev => {
@@ -550,8 +569,8 @@ const ReturnsPage = () => {
 
   // Add all items from invoice to return form
   const addAllInvoiceItems = (invoiceItems) => {
-    const allItems = invoiceItems.map(invoiceItem => {
-      const quantity    = parseFloat(invoiceItem.quantity) || 1
+    const allItems = invoiceItems.filter(item => Number(item.remainingReturnableQuantity ?? item.quantity) > 0).map(invoiceItem => {
+      const quantity    = Number(invoiceItem.remainingReturnableQuantity ?? invoiceItem.quantity) || 0
       const unitPrice   = parseFloat(invoiceItem.unitPrice) || parseFloat(invoiceItem.price) || 0
       const refundAmount = quantity * unitPrice
       return {
@@ -562,6 +581,10 @@ const ReturnsPage = () => {
         refundAmount: refundAmount.toFixed(2)
       }
     })
+    if (allItems.length === 0) {
+      showToast('All items on this invoice have already been returned', 'warning')
+      return
+    }
     setReturnForm(prev => ({ ...prev, items: allItems }))
   }
 
@@ -640,7 +663,22 @@ const ReturnsPage = () => {
         })),
       })
       setOpenDialog(true)
-      await searchInvoice(detail.invoice_no || String(saleId))
+      const sale = await searchInvoice(detail.invoice_no || String(saleId), detail.id)
+      if (sale) {
+        setReturnForm(prev => ({
+          ...prev,
+          items: prev.items.map((returnLine) => {
+            const invoiceLine = sale.items.find((line) =>
+              (returnLine.inventoryItemId && Number(returnLine.inventoryItemId) === Number(line.inventoryItemId)) ||
+              (returnLine.sku && returnLine.sku === line.sku) ||
+              returnLine.productName === (line.itemName || line.name)
+            )
+            return invoiceLine
+              ? { ...returnLine, remainingReturnableQuantity: invoiceLine.remainingReturnableQuantity }
+              : returnLine
+          }),
+        }))
+      }
     } catch (error) {
       showToast(error.response?.data?.message || error.message || 'Failed to load return details', 'error')
       setEditingEntity(null)
@@ -1188,21 +1226,34 @@ const ReturnsPage = () => {
                           <Grid container spacing={1}>
                             {invoiceItems.map((item, index) => (
                               <Grid item xs={12} sm={6} md={4} key={index}>
+                                {(() => {
+                                  const availableQuantity = Number(item.remainingReturnableQuantity ?? item.quantity) || 0
+                                  const alreadyReturnedQuantity = Number(item.alreadyReturnedQuantity) || 0
+                                  return (
                                 <Card
-                                  sx={{ cursor: 'pointer', bgcolor: 'white', '&:hover': { bgcolor: 'grey.100' }, transition: 'background-color 0.2s' }}
-                                  onClick={() => addInvoiceItem(item)}
+                                  sx={{
+                                    cursor: availableQuantity > 0 ? 'pointer' : 'not-allowed',
+                                    bgcolor: 'white', opacity: availableQuantity > 0 ? 1 : 0.55,
+                                    '&:hover': availableQuantity > 0 ? { bgcolor: 'grey.100' } : undefined,
+                                    transition: 'background-color 0.2s'
+                                  }}
+                                  onClick={() => availableQuantity > 0 && addInvoiceItem(item)}
                                 >
                                   <CardContent sx={{ p: 1.5 }}>
                                     <Typography variant="body2" fontWeight="bold" noWrap>{item.itemName || item.name}</Typography>
                                     <Typography variant="caption" color="text.secondary">SKU: {item.sku}</Typography>
                                     <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                      Qty: {item.quantity} × {(parseFloat(item.unitPrice) || 0).toFixed(2).replace(/\.00$/, '')} = ${(parseFloat(item.total) || 0).toFixed(2).replace(/\.00$/, '')}
+                                      Sold {item.quantity} · {editingEntity ? 'Other returns' : 'Already returned'} {alreadyReturnedQuantity} · Available {availableQuantity}
                                     </Typography>
                                     <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
-                                      {editingEntity ? 'Click to add this invoice item' : 'Click to add to return'}
+                                      {availableQuantity > 0
+                                        ? (editingEntity ? 'Click to add one available unit' : 'Click to return available quantity')
+                                        : 'Fully returned'}
                                     </Typography>
                                   </CardContent>
                                 </Card>
+                                  )
+                                })()}
                               </Grid>
                             ))}
                           </Grid>
@@ -1282,9 +1333,16 @@ const ReturnsPage = () => {
                           />
                         </Grid>
                         <Grid item xs={12} sm={1}>
-                          <IconButton onClick={() => removeItem(index)} disabled={returnForm.items.length === 1} color="error" size="small">
-                            <Delete />
-                          </IconButton>
+                          <Tooltip title="Remove from this return">
+                            <IconButton
+                              onClick={() => removeItem(index)}
+                              size="small"
+                              aria-label="Remove item from this return"
+                              sx={{ color: '#f9a825', '&:hover': { bgcolor: '#fff8e1' } }}
+                            >
+                              <ArrowBack fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Grid>
                       </Grid>
                     </CardContent>
