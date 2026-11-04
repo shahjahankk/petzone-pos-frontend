@@ -380,12 +380,18 @@ const ReturnsPage = () => {
             const quantity = field === 'quantity' ? parseFloat(value) || 0 : parseFloat(item.quantity) || 0
             let unitPrice = 0
 
-            if (field === 'productName' && typeof value === 'object' && value.sellingPrice) {
-              unitPrice = parseFloat(value.sellingPrice) || 0
-              updatedItem.productName = value.name
+            if (field === 'productName' && typeof value === 'object') {
+              unitPrice = parseFloat(value.unitPrice || value.price || value.sellingPrice) || 0
+              updatedItem.productName = value.itemName || value.name
+              updatedItem.inventoryItemId = value.inventoryItemId || value.inventory_item_id || null
+              updatedItem.sku = value.sku || null
             } else if (field === 'productName' && productSearchResults[index]) {
               const product = productSearchResults[index].find(p => p.name === value)
-              if (product) unitPrice = parseFloat(product.sellingPrice) || 0
+              if (product) {
+                unitPrice = parseFloat(product.sellingPrice) || 0
+                updatedItem.inventoryItemId = product.id
+                updatedItem.sku = product.sku || null
+              }
             } else {
               const invoiceItem = invoiceItems.find(inv => inv.itemName === updatedItem.productName || inv.name === updatedItem.productName)
               if (invoiceItem) {
@@ -513,7 +519,7 @@ const ReturnsPage = () => {
 
   // Add item from invoice to return form
   const addInvoiceItem = (invoiceItem) => {
-    const quantity    = parseFloat(invoiceItem.quantity) || 1
+    const quantity    = editingEntity ? 1 : (parseFloat(invoiceItem.quantity) || 1)
     const unitPrice   = parseFloat(invoiceItem.unitPrice) || parseFloat(invoiceItem.price) || 0
     const refundAmount = quantity * unitPrice
     const newItem = {
@@ -523,7 +529,23 @@ const ReturnsPage = () => {
       quantity,
       refundAmount: refundAmount.toFixed(2)
     }
-    setReturnForm(prev => ({ ...prev, items: [...prev.items, newItem] }))
+    setReturnForm(prev => {
+      if (!editingEntity) return { ...prev, items: [...prev.items, newItem] }
+
+      const itemIndex = prev.items.findIndex((item) =>
+        (newItem.inventoryItemId && Number(item.inventoryItemId) === Number(newItem.inventoryItemId)) ||
+        (newItem.sku && item.sku === newItem.sku) ||
+        item.productName === newItem.productName
+      )
+      if (itemIndex < 0) return { ...prev, items: [...prev.items, newItem] }
+
+      const items = prev.items.map((item, index) => {
+        if (index !== itemIndex) return item
+        const nextQuantity = (parseFloat(item.quantity) || 0) + 1
+        return { ...item, quantity: nextQuantity, refundAmount: (nextQuantity * unitPrice).toFixed(2) }
+      })
+      return { ...prev, items }
+    })
   }
 
   // Add all items from invoice to return form
@@ -551,12 +573,10 @@ const ReturnsPage = () => {
   }
 
   const removeItem = (index) => {
-    if (returnForm.items.length > 1) {
-      setReturnForm(prev => ({
-        ...prev,
-        items: prev.items.filter((_, i) => i !== index)
-      }))
-    }
+    setReturnForm(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }))
   }
 
   const handleCreateReturn = async () => {
@@ -597,10 +617,58 @@ const ReturnsPage = () => {
     }
   }
 
+  const handleEditReturn = async (returnItem) => {
+    try {
+      const response = await api.get(`/sales/returns/${returnItem.id}`)
+      if (!response.data.success) throw new Error('Failed to load return details')
+      const detail = response.data.data
+      const saleId = detail.original_sale_id || returnItem.original_sale_id || ''
+
+      setEditingEntity(detail)
+      setSelectedInvoice(null)
+      setInvoiceItems([])
+      setReturnForm({
+        saleId,
+        reason: detail.reason || '',
+        notes: detail.notes || '',
+        items: (detail.items || []).map((item) => ({
+          productName: item.productName || item.itemName || item.name || '',
+          inventoryItemId: item.inventoryItemId || item.inventory_item_id || null,
+          sku: item.sku || null,
+          quantity: Number(item.quantity) || 0,
+          refundAmount: Number(item.refundAmount ?? item.refund_amount) || 0,
+        })),
+      })
+      setOpenDialog(true)
+      await searchInvoice(detail.invoice_no || String(saleId))
+    } catch (error) {
+      showToast(error.response?.data?.message || error.message || 'Failed to load return details', 'error')
+      setEditingEntity(null)
+      setOpenDialog(false)
+    }
+  }
+
   const handleUpdate = async () => {
+    const validItems = returnForm.items.filter(item =>
+      item.productName && item.productName.trim() !== '' &&
+      Number(item.quantity) > 0
+    )
+    if (validItems.length === 0) {
+      showToast('Add at least one product with a quantity greater than zero', 'warning')
+      return
+    }
+
     const updateData = {
+      reason: returnForm.reason,
       notes: returnForm.notes || '',
       status: editingEntity?.status || 'COMPLETED',
+      items: validItems.map(item => ({
+        productName: item.productName.trim(),
+        inventoryItemId: item.inventoryItemId || null,
+        sku: item.sku || null,
+        quantity: Number(item.quantity),
+        refundAmount: Number(item.refundAmount) || 0,
+      })),
     }
 
     const result = await dispatch(updateReturn({ id: editingEntity.id, data: updateData }))
@@ -964,20 +1032,7 @@ const ReturnsPage = () => {
                                   </IconButton>
                                 </Tooltip>
                                 <Tooltip title="Edit">
-                                  <IconButton
-                                    size="small"
-                                    color="primary"
-                                    onClick={() => {
-                                      setEditingEntity(returnItem)
-                                      setReturnForm({
-                                        saleId: returnItem.original_sale_id || returnItem.sale_id || '',
-                                        reason: returnItem.reason || '',
-                                        notes:  returnItem.notes  || '',
-                                        items:  returnItem.items  || [{ productName: '', quantity: 1, refundAmount: 0 }]
-                                      })
-                                      setOpenDialog(true)
-                                    }}
-                                  >
+                                  <IconButton size="small" color="primary" onClick={() => handleEditReturn(returnItem)}>
                                     <Edit />
                                   </IconButton>
                                 </Tooltip>
@@ -1025,6 +1080,7 @@ const ReturnsPage = () => {
                     <TextField
                       fullWidth label="Sale ID / Invoice Number" type="text"
                       value={returnForm.saleId}
+                      disabled={Boolean(editingEntity)}
                       onChange={(e) => {
                         const value = e.target.value
                         handleReturnFormChange('saleId', value)
@@ -1115,14 +1171,14 @@ const ReturnsPage = () => {
                           <Typography variant="body2" sx={{ color: 'white' }}>
                             Select items to return (click to add to return form):
                           </Typography>
-                          <Button
+                          {!editingEntity && <Button
                             variant="contained" color="secondary" size="small" startIcon={<Add />}
                             onClick={() => addAllInvoiceItems(invoiceItems)}
                             disabled={invoiceItems.length === 0}
                             sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: 'grey.100' } }}
                           >
                             Add All Items ({invoiceItems.length})
-                          </Button>
+                          </Button>}
                         </Box>
                         {invoiceItems.length === 0 ? (
                           <Typography variant="body2" sx={{ color: 'white', opacity: 0.9 }}>
@@ -1143,7 +1199,7 @@ const ReturnsPage = () => {
                                       Qty: {item.quantity} × {(parseFloat(item.unitPrice) || 0).toFixed(2).replace(/\.00$/, '')} = ${(parseFloat(item.total) || 0).toFixed(2).replace(/\.00$/, '')}
                                     </Typography>
                                     <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: 'block' }}>
-                                      Click to add to return
+                                      {editingEntity ? 'Click to add this invoice item' : 'Click to add to return'}
                                     </Typography>
                                   </CardContent>
                                 </Card>
@@ -1170,16 +1226,18 @@ const ReturnsPage = () => {
                         <Grid item xs={12} sm={9} md={9}>
                           <Autocomplete
                             sx={{ '& .MuiInputBase-root': { minWidth: 240 } }}
-                            freeSolo
-                            options={productSearchResults[index] || []}
+                            freeSolo={!editingEntity}
+                            options={editingEntity ? invoiceItems : (productSearchResults[index] || [])}
                             getOptionLabel={(option) => {
                               if (typeof option === 'string') return option
-                              return `${option.name} (${option.sku}) - ${option.sellingPrice}`
+                              const name = option.itemName || option.name || option.productName || ''
+                              const price = option.unitPrice ?? option.sellingPrice ?? option.price ?? 0
+                              return `${name} (${option.sku || ''}) - ${price}`
                             }}
                             value={item.productName}
                             onInputChange={(event, newValue) => {
                               handleItemChange(index, 'productName', newValue)
-                              if (newValue && newValue.length >= 2) searchProducts(newValue, index)
+                              if (!editingEntity && newValue && newValue.length >= 2) searchProducts(newValue, index)
                             }}
                             onChange={(event, newValue) => {
                               if (newValue && typeof newValue === 'object') handleItemChange(index, 'productName', newValue)
