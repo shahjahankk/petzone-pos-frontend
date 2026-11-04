@@ -228,6 +228,7 @@ const initialState = {
   financialReports: null,
   reportsSummary: null,
   isLoading: false,
+  salesReportsRequestId: null,
   error: null,
   lastUpdated: null,
 }
@@ -246,18 +247,23 @@ const reportsSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // Sales reports
-      .addCase(fetchSalesReports.pending, (state) => {
+      .addCase(fetchSalesReports.pending, (state, action) => {
         state.isLoading = true
+        state.salesReportsRequestId = action.meta.requestId
         state.error = null
       })
       .addCase(fetchSalesReports.fulfilled, (state, action) => {
+        if (state.salesReportsRequestId !== action.meta.requestId) return
         state.isLoading = false
         state.salesReports = action.payload
+        state.salesReportsRequestId = null
         state.lastUpdated = new Date().toISOString()
         state.error = null
       })
       .addCase(fetchSalesReports.rejected, (state, action) => {
+        if (state.salesReportsRequestId !== action.meta.requestId) return
         state.isLoading = false
+        state.salesReportsRequestId = null
         state.error = action.payload
       })
 

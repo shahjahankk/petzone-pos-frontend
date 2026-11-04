@@ -378,13 +378,18 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
     const totalRevenue           = Number(sr.totalRevenue           || 0)
     const clinicRevenue          = Number(sr.clinicRevenue          || 0)
     const totalRevenueWithClinic = filters.includeClinic ? totalRevenue + clinicRevenue : totalRevenue
+    const pmBreakdown  = Array.isArray(sr.paymentMethodBreakdown) ? sr.paymentMethodBreakdown : []
+    const clinicForMethods = (methods) => filters.includeClinic
+      ? pmBreakdown.reduce((sum, method) => methods.includes(method.method) ? sum + Number(method.clinicTotal || 0) : sum, 0)
+      : 0
+    const displayedPmTotal = (method) => Number(method.total || 0) + (filters.includeClinic ? Number(method.clinicTotal || 0) : 0)
     const salesBeforeDiscount   = totalRevenueWithClinic + Number(sr.discounts || 0)
     const totalTransactions      = Number(sr.totalTransactions      || 0)
     const avgTicket              = Number(sr.averageTicket          || 0)
-    const cashSalesAmt           = Number(sr.cashSalesAmount        || sr.cashSales || 0)
-    const cardSalesAmt           = Number(sr.cardSalesAmount        || sr.cardSales || 0)
-    const fullyCreditTotal       = Number(sr.fullyCreditTotal       || 0)
-    const partialTotal           = Number(sr.partialTotal           || 0)
+    const cashSalesAmt           = Number(sr.cashSalesAmount        || sr.cashSales || 0) + clinicForMethods(['CASH'])
+    const cardSalesAmt           = Number(sr.cardSalesAmount        || sr.cardSales || 0) + clinicForMethods(['CARD', 'CREDIT_CARD'])
+    const fullyCreditTotal       = Number(sr.fullyCreditTotal       || 0) + clinicForMethods(['FULLY_CREDIT'])
+    const partialTotal           = Number(sr.partialTotal           || 0) + clinicForMethods(['PARTIAL'])
     const partialCollected       = Number(sr.partialCollected       || 0)
     const partialCredit          = Number(sr.partialCredit          || 0)
     const totalCashReceived      = Number(sr.totalCashReceived      || 0)
@@ -423,12 +428,11 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
       cashierOpeningMap[key] = (cashierOpeningMap[key] || 0) + (Number(session.initial_cash) || 0)
     })
     const branchList   = Array.isArray(sr.salesByBranchList)      ? sr.salesByBranchList      : Object.values(sr.salesByBranch   || {})
-    const pmBreakdown  = Array.isArray(sr.paymentMethodBreakdown) ? sr.paymentMethodBreakdown : []
     const expBreakdown = Array.isArray(fr.expenseBreakdown)       ? fr.expenseBreakdown       : []
     const revByPeriod  = Array.isArray(fr.revenueByPeriod)        ? fr.revenueByPeriod        : []
     const topProducts  = Array.isArray(sr.topProducts)            ? sr.topProducts            : []
 
-    const piePM   = pmBreakdown.filter(m => m.total > 0).map(m => ({ name: ML[m.method]||m.method, value: m.total, color: MC[m.method]||'#9e9e9e' }))
+    const piePM   = pmBreakdown.filter(m => displayedPmTotal(m) > 0).map(m => ({ name: ML[m.method]||m.method, value: displayedPmTotal(m), color: MC[m.method]||'#9e9e9e' }))
     const cfChart = salesByDate.map(d => ({ date: d.date?.slice(5)||'', collected: Number(d.collected||0), credit: Number(d.credit||0), total: Number(d.total||0) }))
     const periodStr = `${toStr(filters.dateFrom)||'—'} to ${toStr(filters.dateTo)||'—'}`
 
@@ -460,7 +464,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
       <p style="background:#f0fdf4;border:2px solid #4ade80;border-radius:8px;padding:14px;font-weight:700;color:#166534">☪ Zakat Due = PKR ${fmt(zakatDue)}</p>
       <h2>Payment Breakdown</h2>
       <table><tr><th>Method</th><th>Invoiced</th><th>Collected</th><th>Outstanding</th><th>Count</th></tr>
-      ${pmBreakdown.map(m=>`<tr><td>${ML[m.method]||m.method}</td><td>PKR ${fmt(m.total)}</td><td>PKR ${fmt(m.collected)}</td><td>PKR ${fmt(m.credit)}</td><td>${m.count}</td></tr>`).join('')}
+      ${pmBreakdown.map(m=>`<tr><td>${ML[m.method]||m.method}</td><td>PKR ${fmt(displayedPmTotal(m))}</td><td>PKR ${fmt(m.collected)}</td><td>PKR ${fmt(m.credit)}</td><td>${m.count}</td></tr>`).join('')}
       </table>
       <h2>Recent Transactions</h2>
       <table><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Total</th><th>Collected</th><th>Credit</th><th>Method</th></tr>
@@ -790,7 +794,8 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                   <Grid item xs={12} md={8}>
                     <Grid container spacing={2}>
                       {pmBreakdown.map((m,i)=>{
-                        const pct = totalRevenueWithClinic>0?((m.total/totalRevenueWithClinic)*100).toFixed(1):'0.0'
+                        const paymentTotal = displayedPmTotal(m)
+                        const pct = totalRevenueWithClinic>0?((paymentTotal/totalRevenueWithClinic)*100).toFixed(1):'0.0'
                         const c   = MC[m.method]||'#9e9e9e'
                         return (
                           <Grid item xs={12} sm={6} key={i}>
@@ -799,7 +804,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                                 <Typography sx={{ fontWeight:700, color:c, fontSize:'.88rem' }}>{ML[m.method]||m.method}</Typography>
                                 <Chip label={`${m.count} txn`} size="small" sx={{ fontSize:'.62rem', height:20, bgcolor:`${c}18`, color:c, fontWeight:700, borderRadius:1 }}/>
                               </Box>
-                              <Typography sx={{ fontWeight:800, fontSize:'1.1rem' }}>PKR {fmt(m.total)}</Typography>
+                              <Typography sx={{ fontWeight:800, fontSize:'1.1rem' }}>PKR {fmt(paymentTotal)}</Typography>
                               <Box sx={{ display:'flex', justifyContent:'space-between', mt:.8, mb:.6 }}>
                                 <Typography variant="caption" color="text.disabled">{pct}% of total revenue</Typography>
                                 {m.credit>0&&<Typography variant="caption" sx={{ color:'error.main', fontWeight:600 }}>Due: PKR {fmt(m.credit)}</Typography>}
