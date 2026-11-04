@@ -217,6 +217,7 @@ const initialState = {
   shiftSessionsReport: [],
   shiftSessionsReportTotals: null,
   shiftSessionsReportLoading: false,
+  shiftSessionsReportRequestId: null,
   selectedShift: null,
   
   // Branch shifts
@@ -504,19 +505,24 @@ const shiftsSlice = createSlice({
       })
 
       // Fetch shift cash report (admin overview)
-      .addCase(fetchShiftSessionsReport.pending, (state) => {
+      .addCase(fetchShiftSessionsReport.pending, (state, action) => {
         state.shiftSessionsReportLoading = true
+        state.shiftSessionsReportRequestId = action.meta.requestId
         state.error = null
       })
       .addCase(fetchShiftSessionsReport.fulfilled, (state, action) => {
+        if (state.shiftSessionsReportRequestId !== action.meta.requestId) return
         state.shiftSessionsReportLoading = false
         state.shiftSessionsReport = action.payload?.data || []
         state.shiftSessionsReportTotals = action.payload?.totals || null
+        state.shiftSessionsReportRequestId = null
         state.lastUpdated = new Date().toISOString()
         state.error = null
       })
       .addCase(fetchShiftSessionsReport.rejected, (state, action) => {
+        if (state.shiftSessionsReportRequestId !== action.meta.requestId) return
         state.shiftSessionsReportLoading = false
+        state.shiftSessionsReportRequestId = null
         state.error = action.payload
       })
   },
