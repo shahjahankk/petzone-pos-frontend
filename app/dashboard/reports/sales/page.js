@@ -383,7 +383,8 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
       ? pmBreakdown.reduce((sum, method) => methods.includes(method.method) ? sum + Number(method.clinicTotal || 0) : sum, 0)
       : 0
     const displayedPmTotal = (method) => Number(method.total || 0) + (filters.includeClinic ? Number(method.clinicTotal || 0) : 0)
-    const salesBeforeDiscount   = totalRevenueWithClinic + Number(sr.discounts || 0)
+    const discounts = Number(sr.discounts || 0) + (filters.includeClinic ? Number(sr.clinicDiscount || 0) : 0)
+    const salesBeforeDiscount   = totalRevenueWithClinic + discounts
     const totalTransactions      = Number(sr.totalTransactions      || 0)
     const avgTicket              = Number(sr.averageTicket          || 0)
     const cashSalesAmt           = Number(sr.cashSalesAmount        || sr.cashSales || 0) + clinicForMethods(['CASH'])
@@ -397,7 +398,6 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
     const fullyPaidCount         = Number(sr.fullyPaidCount         || 0)
     const fullyCreditCount       = Number(sr.fullyCreditCount       || 0)
     const partialCount           = Number(sr.partialCount           || 0)
-    const discounts              = Number(sr.discounts              || 0)
     const outstandingSettled     = Number(sr.outstandingSettled     || 0)
     const outstandingSettlementCount = Number(sr.outstandingSettlementCount || 0)
     const refundTotal            = Number(sr.refundTotal            || sr.refunds || 0)
