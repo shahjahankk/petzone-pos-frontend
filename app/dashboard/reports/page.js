@@ -22,6 +22,7 @@ import {
   ArrowForward,
   ShowChart,
   MedicalServices,
+  Schedule,
 } from '@mui/icons-material'
 import { useRouter } from 'next/navigation'
 import { fetchReportsSummary } from '../../store/slices/reportsSlice'
@@ -84,6 +85,14 @@ const ReportsPage = () => {
             color: 'info.main',
             stats: { total: '500,000', margin: '18%' }
           },
+          {
+            id: 'shifts',
+            title: 'Shift Cash Report',
+            description: 'Opening and closing cash per shift session, expected cash and differences',
+            icon: <Schedule sx={{ fontSize: 40 }} />,
+            color: 'secondary.main',
+            stats: { total: 'Live', growth: 'Shift sessions' }
+          },
         ]
       case 'WAREHOUSE_KEEPER':
         return [
@@ -127,6 +136,14 @@ const ReportsPage = () => {
               total: `${(reportsSummary?.totalLedgerEntries || 0).toLocaleString()}`, 
               transactions: `${reportsSummary?.totalTransactions || 0}` 
             }
+          },
+          {
+            id: 'shifts',
+            title: 'Shift Cash Report',
+            description: 'Opening and closing cash per shift session, expected cash and differences',
+            icon: <Schedule sx={{ fontSize: 40 }} />,
+            color: 'secondary.main',
+            stats: { total: 'Live', growth: 'Shift sessions' }
           },
         ]
       case 'CASHIER':

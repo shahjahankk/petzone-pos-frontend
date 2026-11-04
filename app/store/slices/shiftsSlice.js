@@ -189,12 +189,34 @@ export const fetchRecentShiftSessions = createAsyncThunk(
   }
 )
 
+export const fetchShiftSessionsReport = createAsyncThunk(
+  'shifts/fetchShiftSessionsReport',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams()
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+          queryParams.append(key, value)
+        }
+      })
+
+      const response = await api.get(`/shifts/sessions?${queryParams.toString()}`)
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch shift cash report')
+    }
+  }
+)
+
 const initialState = {
   // Shift data
   shifts: [],
   currentShift: null,
   activeShift: null,
   recentShiftSessions: [],
+  shiftSessionsReport: [],
+  shiftSessionsReportTotals: null,
+  shiftSessionsReportLoading: false,
   selectedShift: null,
   
   // Branch shifts
@@ -478,6 +500,23 @@ const shiftsSlice = createSlice({
       })
       .addCase(fetchRecentShiftSessions.rejected, (state, action) => {
         state.loading = false
+        state.error = action.payload
+      })
+
+      // Fetch shift cash report (admin overview)
+      .addCase(fetchShiftSessionsReport.pending, (state) => {
+        state.shiftSessionsReportLoading = true
+        state.error = null
+      })
+      .addCase(fetchShiftSessionsReport.fulfilled, (state, action) => {
+        state.shiftSessionsReportLoading = false
+        state.shiftSessionsReport = action.payload?.data || []
+        state.shiftSessionsReportTotals = action.payload?.totals || null
+        state.lastUpdated = new Date().toISOString()
+        state.error = null
+      })
+      .addCase(fetchShiftSessionsReport.rejected, (state, action) => {
+        state.shiftSessionsReportLoading = false
         state.error = action.payload
       })
   },

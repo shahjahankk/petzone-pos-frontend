@@ -24,7 +24,7 @@ import { useEffect, useState, useCallback } from 'react'
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line,
   } from 'recharts'
   import { fetchSalesReports, fetchFinancialReports } from '../../../store/slices/reportsSlice'
-import { fetchActiveShift } from '../../store/slices/shiftsSlice'
+import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slices/shiftsSlice'
   import RouteGuard from '../../../../components/auth/RouteGuard'
 
   // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -260,6 +260,11 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
     const dispatch = useDispatch()
     const { user } = useSelector(s => s.auth)
     const { salesReports, financialReports, isLoading } = useSelector(s => s.reports)
+    const {
+      activeShift: liveActiveShift,
+      shiftSessionsReportTotals: shiftTotals,
+      shiftSessionsReport,
+    } = useSelector(s => s.shifts)
     const [exportAnchor, setExportAnchor] = useState(null)
     const [activePreset, setActivePreset] = useState('this_month')
     const [filters, setFilters] = useState({ dateFrom: som(), dateTo: today(), branch: 'all', cashier: 'all', includeClinic: false, shiftStart: null, shiftEnd: null })
@@ -286,6 +291,12 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
     if (cashierId) {
       dispatch(fetchActiveShift({ cashierId }))
     }
+    // Shift opening/closing cash for the selected period (daily/monthly progress)
+    dispatch(fetchShiftSessionsReport({
+      dateFrom: toStr(filters.dateFrom),
+      dateTo: toStr(filters.dateTo),
+      userId: filters.cashier !== 'all' ? filters.cashier : undefined,
+    }))
   }, [dispatch, loadAll, filters, user?.id])
 
     const applyPreset = (key) => {
@@ -297,8 +308,18 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
     const sr = salesReports     || {}
     const fr = financialReports || {}
 
-    const activeShift    = sr.activeShift || {}
-    const openingBalance = Number(activeShift.initial_cash) || 0
+    const activeShift    = liveActiveShift || sr.activeShift || {}
+
+    // Cash drawer / shift reconciliation for the selected period
+    const periodSessions  = Number(shiftTotals?.sessions) || 0
+    const periodOpening   = Number(shiftTotals?.initial_cash) || 0
+    const periodCashSales = Number(shiftTotals?.cash_sales) || 0
+    const periodExpected  = Number(shiftTotals?.expected_cash) || 0
+    const periodClosing   = Number(shiftTotals?.final_cash) || 0
+    const periodDiff      = Number(shiftTotals?.cash_difference) || 0
+    const openingBalance  = periodSessions > 0
+      ? periodOpening
+      : (Number(activeShift.initial_cash) || 0)
     const totalRevenue           = Number(sr.totalRevenue           || 0)
     const clinicRevenue          = Number(sr.clinicRevenue          || 0)
     const totalRevenueWithClinic = filters.includeClinic ? totalRevenue + clinicRevenue : totalRevenue
@@ -340,6 +361,11 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
     const salesByDate  = Array.isArray(sr.salesByDate)            ? sr.salesByDate            : []
     const recentSales  = Array.isArray(sr.recentSales)            ? sr.recentSales            : []
     const cashierList  = Array.isArray(sr.salesByCashierList)     ? sr.salesByCashierList     : Object.values(sr.salesByCashier  || {})
+    const cashierOpeningMap = {}
+    ;(Array.isArray(shiftSessionsReport) ? shiftSessionsReport : []).forEach((session) => {
+      const key = session.cashier_name || '?'
+      cashierOpeningMap[key] = (cashierOpeningMap[key] || 0) + (Number(session.initial_cash) || 0)
+    })
     const branchList   = Array.isArray(sr.salesByBranchList)      ? sr.salesByBranchList      : Object.values(sr.salesByBranch   || {})
     const pmBreakdown  = Array.isArray(sr.paymentMethodBreakdown) ? sr.paymentMethodBreakdown : []
     const expBreakdown = Array.isArray(fr.expenseBreakdown)       ? fr.expenseBreakdown       : []
@@ -468,7 +494,7 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
                 <InputLabel>Cashier</InputLabel>
                 <Select value={filters.cashier} onChange={e=>setFilters(p=>({...p,cashier:e.target.value}))} label="Cashier">
                   <MenuItem value="all">All Cashiers</MenuItem>
-                  {cashierList.map(c=><MenuItem key={c.cashier} value={c.cashier}>{c.cashier}</MenuItem>)}
+                  {cashierList.map(c=><MenuItem key={c.cashier} value={c.userId ?? c.cashier}>{c.cashier}</MenuItem>)}
                 </Select>
               </FormControl>
               <Box sx={{ display:'flex', alignItems:'center', gap:1, bgcolor:'#f0fdf4', borderRadius:1, p:1, border:'1px solid #bbf7d0', ml:1 }}>
@@ -526,7 +552,7 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
                   <KpiCard
                     label="Opening Balance"
                     value={fmtPKR(openingBalance)}
-                    sub={`${fmt(totalTransactions)} sales in period`}
+                    sub={periodSessions > 0 ? `${fmt(periodSessions)} shift session(s) in period` : `${fmt(totalTransactions)} sales in period`}
                     accent="#1976d2"
                     icon={<AttachMoney/>}/></Grid>
                 <Grid item xs={12} sm={6} md={3}>
@@ -560,6 +586,47 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
                     icon={grossProfit>=0?<TrendingUp/>:<TrendingDown/>}/>
                 </Grid>
               </Grid>
+
+              {/* ── Cash Drawer: shift reconciliation for the selected period ── */}
+              <Paper elevation={0} sx={{ border:'1px solid #f0f0f0', borderRadius:2.5, p:2.5, mb:2.5, bgcolor:'#fff' }}>
+                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:1, mb:2 }}>
+                  <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+                    <AccountBalance sx={{ color:'#6a1b9a', fontSize:20 }}/>
+                    <Typography sx={{ fontWeight:700, fontSize:'.85rem', textTransform:'uppercase', letterSpacing:.6 }}>
+                      Cash Drawer — Selected Period
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize:'.72rem', color:'text.secondary' }}>
+                    Live from shift sessions · {fmt(periodSessions)} session(s)
+                  </Typography>
+                </Box>
+                <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'repeat(2,1fr)', sm:'repeat(5,1fr)' }, gap:2 }}>
+                  {[
+                    { label:'Opening Cash',     value:periodOpening,   accent:'#6a1b9a', sub:'Entered at shift start' },
+                    { label:'Cash Sales',       value:periodCashSales, accent:'#2e7d32', sub:'Collected in cash' },
+                    { label:'Expected in Drawer', value:periodExpected, accent:'#0288d1', sub:'Opening + cash sales' },
+                    { label:'Closing Cash',     value:periodClosing,   accent:'#455a64', sub:'Entered at shift end' },
+                    { label:'Difference',       value:periodDiff,      accent:periodDiff < 0 ? '#c62828' : '#2e7d32', sub:periodDiff < 0 ? 'Short' : 'Over / balanced' },
+                  ].map((item) => (
+                    <Box key={item.label} sx={{ borderLeft:`3px solid ${item.accent}`, pl:1.5, py:.5 }}>
+                      <Typography sx={{ fontSize:'.62rem', fontWeight:700, letterSpacing:.8, textTransform:'uppercase', color:'text.secondary' }}>
+                        {item.label}
+                      </Typography>
+                      <Typography sx={{ fontWeight:800, fontSize:'1.05rem', color:item.accent, lineHeight:1.3 }}>
+                        {fmtPKR(item.value)}
+                      </Typography>
+                      <Typography sx={{ fontSize:'.68rem', color:'text.secondary' }}>
+                        {item.sub}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+                {periodSessions === 0 && (
+                  <Typography sx={{ mt:2, fontSize:'.72rem', color:'text.secondary' }}>
+                    No shift sessions recorded for this cashier/period. Opening balance falls back to the current active shift.
+                  </Typography>
+                )}
+              </Paper>
 
               {/* ── Row 1b: Sales − Expenses (filter period) ───────────────── */}
               <Grid container spacing={2.5} sx={{ mb:2.5 }} columns={12}>
@@ -719,7 +786,7 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
                   <Table>
                     <TableHead>
                       <TableRow sx={{ bgcolor:'#fafafa' }}>
-                        {['Cashier','Invoiced','Collected','Outstanding','Txns','Collection %'].map(h=>(
+                        {['Cashier','Opening','Invoiced','Collected','Outstanding','Txns','Collection %'].map(h=>(
                           <TableCell key={h} align={h==='Cashier'?'left':'right'}
                             sx={{ color:'text.secondary', fontWeight:700, fontSize:'.7rem', textTransform:'uppercase', letterSpacing:.6, py:1.8, borderBottom:'2px solid #f0f0f0' }}>
                             {h}
@@ -729,7 +796,7 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
                     </TableHead>
                     <TableBody>
                       {cashierList.length===0
-                        ? <TableRow><TableCell colSpan={6} align="center" sx={{ py:6, color:'text.disabled' }}>No cashier data</TableCell></TableRow>
+                        ? <TableRow><TableCell colSpan={7} align="center" sx={{ py:6, color:'text.disabled' }}>No cashier data</TableCell></TableRow>
                         : cashierList.map((row,i)=>{
                             const cr = row.total>0?(row.collected/row.total)*100:0
                             return (
@@ -741,6 +808,9 @@ import { fetchActiveShift } from '../../store/slices/shiftsSlice'
                                     </Box>
                                     <Typography sx={{ fontWeight:600, fontSize:'.9rem' }}>{row.cashier}</Typography>
                                   </Box>
+                                </TableCell>
+                                <TableCell align="right" sx={{ fontWeight:600, color:'text.secondary' }}>
+                                  {cashierOpeningMap[row.cashier] ? `PKR ${fmt(cashierOpeningMap[row.cashier])}` : '—'}
                                 </TableCell>
                                 <TableCell align="right" sx={{ fontWeight:700, color:'primary.main' }}>PKR {fmt(row.total)}</TableCell>
                                 <TableCell align="right" sx={{ fontWeight:600, color:'success.dark' }}>PKR {fmt(row.collected)}</TableCell>

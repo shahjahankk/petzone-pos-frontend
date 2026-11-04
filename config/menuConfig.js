@@ -528,6 +528,15 @@ export const menuConfig = [
         order: 7,
         newWindow: true,
       },
+      {
+        id: 'reports-shifts',
+        label: 'Shift Cash',
+        icon: <Schedule />,
+        path: '/dashboard/reports/shifts',
+        roles: ['ADMIN', 'WAREHOUSE_KEEPER'],
+        order: 8,
+        newWindow: true,
+      },
     ],
   },
 
