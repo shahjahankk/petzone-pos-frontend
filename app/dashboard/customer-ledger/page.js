@@ -27,10 +27,14 @@ import {
   fetchAllCustomersWithSummaries, fetchCustomerLedger, exportCustomerLedger,
   clearError, clearCurrentLedger, setCustomersPagination, setLedgerPagination
 } from '../../store/slices/customerLedgerSlice'
+import { fetchAllBranches } from '../../store/slices/branchesSlice'
+import { fetchWarehouses } from '../../store/slices/warehousesSlice'
 
 function CustomerLedgerPage() {
   const dispatch = useDispatch()
   const { user: originalUser } = useSelector((state) => state.auth)
+  const branches = useSelector((state) => state.branches?.data || state.branches?.branches || [])
+  const warehouses = useSelector((state) => state.warehouses?.data || [])
 
   // ── Admin simulation via URL params ──────────────────────────────────────
   // When admin navigates from AdminDashboard with ?role=...&scope=...&id=...
@@ -93,6 +97,8 @@ function CustomerLedgerPage() {
 
   const [searchTerm,        setSearchTerm]        = useState('')
   const [hasBalanceFilter,  setHasBalanceFilter]  = useState('all')
+  const [adminScopeType,    setAdminScopeType]    = useState('all')
+  const [adminScopeId,      setAdminScopeId]      = useState('all')
   const [customersPage,     setCustomersPage]     = useState(1)
   const [selectedCustomer,  setSelectedCustomer]  = useState(null)
   const [ledgerDialogOpen,  setLedgerDialogOpen]  = useState(false)
@@ -159,6 +165,31 @@ function CustomerLedgerPage() {
     return 'default'
   }
 
+  useEffect(() => {
+    if (originalUser?.role !== 'ADMIN' || isAdminMode) return
+    dispatch(fetchAllBranches())
+    dispatch(fetchWarehouses())
+  }, [dispatch, originalUser?.role, isAdminMode])
+
+  const getLedgerScopeParams = useCallback(() => {
+    if (isAdminMode && urlParams.scope && urlParams.id) {
+      return {
+        scopeType: urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE',
+        scopeId: String(urlParams.id),
+      }
+    }
+    if (user?.role === 'CASHIER' && user?.branchId) {
+      return { scopeType: 'BRANCH', scopeId: String(user.branchId) }
+    }
+    if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
+      return { scopeType: 'WAREHOUSE', scopeId: String(user.warehouseId) }
+    }
+    if (originalUser?.role === 'ADMIN' && !isAdminMode && adminScopeType !== 'all' && adminScopeId !== 'all') {
+      return { scopeType: adminScopeType, scopeId: String(adminScopeId) }
+    }
+    return {}
+  }, [isAdminMode, urlParams, user, originalUser?.role, adminScopeType, adminScopeId])
+
   // ── Load customers — includes scope params for simulation ─────────────────
   const loadCustomers = useCallback(() => {
     const params = {
@@ -168,25 +199,13 @@ function CustomerLedgerPage() {
       offset:     (customersPage - 1) * 20,
       _t:         Date.now(),
     }
-    // Scope params: admin simulation takes priority, then regular role.
-    // These params are forwarded to the backend so it filters by location.
-    if (isAdminMode && urlParams.scope && urlParams.id) {
-      // Admin simulating a branch/warehouse — scope to that specific location ONLY
-      params.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
-      params.scopeId   = urlParams.id
-    } else if (user?.role === 'CASHIER' && user?.branchId) {
-      params.scopeType = 'BRANCH'
-      params.scopeId   = String(user.branchId)
-    } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
-      params.scopeType = 'WAREHOUSE'
-      params.scopeId   = String(user.warehouseId)
-    }
+    Object.assign(params, getLedgerScopeParams())
     // Pass all params including scopeType/scopeId to the Redux thunk.
     // IMPORTANT: The customerLedgerSlice thunk MUST forward scopeType/scopeId as
     // query params to the backend (e.g. GET /customer-ledger/customers?scopeType=BRANCH&scopeId=1).
     // If your slice strips these params, add them to the API call in the slice itself.
     dispatch(fetchAllCustomersWithSummaries(params))
-  }, [dispatch, customersPage, searchTerm, hasBalanceFilter, user, isAdminMode, urlParams])
+  }, [dispatch, customersPage, searchTerm, hasBalanceFilter, getLedgerScopeParams])
 
   // ── FIX: guard with initialized so we don't fetch before URL params are read
   useEffect(() => {
@@ -225,17 +244,7 @@ function CustomerLedgerPage() {
   }, [user, originalUser?.role])
 
 const loadCustomerLedger = useCallback((customerId) => {
-  const scopeParams = {}
-  if (isAdminMode && urlParams.scope && urlParams.id) {
-    scopeParams.scopeType = urlParams.scope === 'branch' ? 'BRANCH' : 'WAREHOUSE'
-    scopeParams.scopeId   = urlParams.id
-  } else if (user?.role === 'CASHIER' && user?.branchId) {
-    scopeParams.scopeType = 'BRANCH'
-    scopeParams.scopeId   = String(user.branchId)
-  } else if (user?.role === 'WAREHOUSE_KEEPER' && user?.warehouseId) {
-    scopeParams.scopeType = 'WAREHOUSE'
-    scopeParams.scopeId   = String(user.warehouseId)
-  }
+  const scopeParams = getLedgerScopeParams()
 
   // Load up to 2000 rows for the customer in one request; the dialog
   // paginates client-side.  Never send a non-zero offset here — that would
@@ -250,7 +259,7 @@ const loadCustomerLedger = useCallback((customerId) => {
       offset: 0,
     },
   }))
-}, [dispatch, ledgerFilters, ledgerPage, isAdminMode, urlParams, user])
+}, [dispatch, ledgerFilters, ledgerPage, getLedgerScopeParams])
 
   const handleSearch = () => { setCustomersPage(1); loadCustomers() }
 
@@ -262,15 +271,19 @@ const loadCustomerLedger = useCallback((customerId) => {
     loadCustomerLedger(identifier)
   }
 
-  const handleViewAllLedger = () =>
-    window.open('/dashboard/customer-ledger/all-ledger', '_blank', 'width=1400,height=900')
+  const handleViewAllLedger = () => {
+    const query = new URLSearchParams(getLedgerScopeParams())
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    window.open(`/dashboard/customer-ledger/all-ledger${suffix}`, '_blank', 'width=1400,height=900')
+  }
 
   const handleViewDetailedLedger = (customer) => {
     const identifier = getCustomerIdentifier(customer)
     if (!identifier) { alert('Detailed view is only available for individual customers.'); return }
     const displayName = encodeURIComponent(customer.customer_name || identifier)
+    const query = new URLSearchParams({ name: displayName, ...getLedgerScopeParams() })
     window.open(
-      `/dashboard/customer-ledger/detailed/${encodeURIComponent(identifier)}?name=${displayName}`,
+      `/dashboard/customer-ledger/detailed/${encodeURIComponent(identifier)}?${query.toString()}`,
       '_blank'
     )
   }
@@ -279,7 +292,7 @@ const loadCustomerLedger = useCallback((customerId) => {
     if (!customerId) return
     dispatch(exportCustomerLedger({
       customerId,
-      params: { ...ledgerFilters, format, detailed: detailed.toString() }
+      params: { ...ledgerFilters, ...getLedgerScopeParams(), format, detailed: detailed.toString() }
     }))
   }
 
@@ -291,7 +304,7 @@ const loadCustomerLedger = useCallback((customerId) => {
     if (!customerId) { handleExportClose(); return }
     dispatch(exportCustomerLedger({
       customerId,
-      params: { ...ledgerFilters, format, detailed: detailed.toString() }
+      params: { ...ledgerFilters, ...getLedgerScopeParams(), format, detailed: detailed.toString() }
     }))
     handleExportClose()
   }
@@ -340,6 +353,7 @@ const loadCustomerLedger = useCallback((customerId) => {
       const activeFilters = filtersOverride || ledgerFilters
 
       const exportParams = new URLSearchParams({ format: 'pdf', detailed: 'true', limit: '1000' })
+      Object.entries(getLedgerScopeParams()).forEach(([key, value]) => exportParams.append(key, value))
       if (activeFilters.startDate) exportParams.append('startDate', activeFilters.startDate)
       if (activeFilters.endDate)   exportParams.append('endDate',   activeFilters.endDate)
       if (activeFilters.transactionType && activeFilters.transactionType !== 'all')
@@ -786,7 +800,7 @@ const sorted = [...transactions].sort((a, b) => {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={3}>
                   <TextField
                     fullWidth label="Search Customer" value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -794,7 +808,7 @@ const sorted = [...transactions].sort((a, b) => {
                     InputProps={{ endAdornment: (<IconButton onClick={handleSearch}><SearchIcon /></IconButton>) }}
                   />
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid item xs={12} md={2}>
                   <FormControl fullWidth>
                     <InputLabel>Balance Filter</InputLabel>
                     <Select
@@ -808,6 +822,48 @@ const sorted = [...transactions].sort((a, b) => {
                     </Select>
                   </FormControl>
                 </Grid>
+                {originalUser?.role === 'ADMIN' && !isAdminMode && (
+                  <>
+                    <Grid item xs={12} sm={6} md={2}>
+                      <FormControl fullWidth>
+                        <InputLabel>Location Type</InputLabel>
+                        <Select
+                          value={adminScopeType}
+                          label="Location Type"
+                          onChange={(event) => {
+                            setAdminScopeType(event.target.value)
+                            setAdminScopeId('all')
+                            setCustomersPage(1)
+                          }}
+                        >
+                          <MenuItem value="all">All Locations</MenuItem>
+                          <MenuItem value="BRANCH">Branch</MenuItem>
+                          <MenuItem value="WAREHOUSE">Warehouse</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <FormControl fullWidth disabled={adminScopeType === 'all'}>
+                        <InputLabel>{adminScopeType === 'WAREHOUSE' ? 'Warehouse' : 'Branch'}</InputLabel>
+                        <Select
+                          value={adminScopeId}
+                          label={adminScopeType === 'WAREHOUSE' ? 'Warehouse' : 'Branch'}
+                          onChange={(event) => {
+                            setAdminScopeId(event.target.value)
+                            setCustomersPage(1)
+                          }}
+                        >
+                          <MenuItem value="all">All {adminScopeType === 'WAREHOUSE' ? 'Warehouses' : 'Branches'}</MenuItem>
+                          {(adminScopeType === 'WAREHOUSE' ? warehouses : branches).map((location) => (
+                            <MenuItem key={location.id} value={String(location.id)}>
+                              {location.name || `${adminScopeType === 'WAREHOUSE' ? 'Warehouse' : 'Branch'} ${location.id}`}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </>
+                )}
                 <Grid item xs={12} md={2}>
                   <Button fullWidth variant="outlined" startIcon={<RefreshIcon />}
                     onClick={loadCustomers} disabled={loading}>

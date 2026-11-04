@@ -49,6 +49,9 @@ const DetailedCustomerLedgerPage = () => {
   const displayName = searchParams.get('name')
     ? decodeURIComponent(searchParams.get('name'))                // e.g. "hakeem bhai"
     : decodedIdentifier                                           // fallback to phone
+  const scopeType = searchParams.get('scopeType') || undefined
+  const scopeId = searchParams.get('scopeId') || undefined
+  const scopeParams = scopeType && scopeId ? { scopeType, scopeId } : {}
   // ─────────────────────────────────────────────────────────────────────────
 
   const [customerInfo, setCustomerInfo] = useState(null)
@@ -71,7 +74,7 @@ const DetailedCustomerLedgerPage = () => {
     try {
       const result = await dispatch(fetchCustomerLedger({ 
         customerId: decodedIdentifier,
-        params: { detailed: 'true', limit: 2000 }
+        params: { ...scopeParams, detailed: 'true', limit: 2000 }
       })).unwrap()
       
       
@@ -108,7 +111,7 @@ const DetailedCustomerLedgerPage = () => {
     } catch (error) {
       setLoadError(error?.message || 'Failed to load ledger. Please try again.')
     }
-  }, [dispatch, decodedIdentifier, displayName])
+  }, [dispatch, decodedIdentifier, displayName, scopeType, scopeId])
 
   useEffect(() => {
     if (customerId) {
@@ -276,7 +279,7 @@ const DetailedCustomerLedgerPage = () => {
   const handleDownload = () => {
     dispatch(exportCustomerLedger({ 
       customerId: decodedIdentifier,
-      params: { detailed: true, format: 'pdf' }
+      params: { ...scopeParams, detailed: true, format: 'pdf' }
     }))
   }
 

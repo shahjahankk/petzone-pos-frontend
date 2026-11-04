@@ -1,6 +1,7 @@
 'use client'
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useSearchParams } from 'next/navigation'
 import {
   Box, Typography, TextField, Button, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Paper, Chip, IconButton,
@@ -20,6 +21,10 @@ const ALL_LEDGER_SCROLL_KEY = 'all-ledger-scroll-y'
 
 function AllLedgerContent() {
   const dispatch = useDispatch()
+  const searchParams = useSearchParams()
+  const scopeType = searchParams.get('scopeType') || undefined
+  const scopeId = searchParams.get('scopeId') || undefined
+  const scopeParams = scopeType && scopeId ? { scopeType, scopeId } : {}
   const { currentCustomerLedger, loading, error } = useSelector((state) => state.customerLedger)
   const [filters, setFilters] = useState({ startDate: '', endDate: '', transactionType: 'all' })
   const scrollRestoreRef = useRef(null)
@@ -46,9 +51,9 @@ const loadAllLedger = useCallback((options = {}) => {
   if (options.preserveScroll) saveScrollPosition()
   dispatch(fetchCustomerLedger({
     customerId: '__all__',
-    params: { ...filters, detailed: 'true', limit: 5000, offset: 0 }
+    params: { ...filters, ...scopeParams, detailed: 'true', limit: 5000, offset: 0 }
   }))
-}, [dispatch, filters, saveScrollPosition])
+}, [dispatch, filters, saveScrollPosition, scopeType, scopeId])
 
 // Initial load once; filters are applied via the button.
 // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,7 +90,7 @@ const handleRefresh = () => {
 }
 
   const handleExport = (format = 'pdf', detailed = false) =>
-    dispatch(exportCustomerLedger({ customerId: '__all__', params: { ...filters, format, detailed: detailed.toString() } }))
+    dispatch(exportCustomerLedger({ customerId: '__all__', params: { ...filters, ...scopeParams, format, detailed: detailed.toString() } }))
 
   const formatCurrency = (amount) =>
     new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount || 0)

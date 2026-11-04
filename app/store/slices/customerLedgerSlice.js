@@ -59,6 +59,8 @@ export const exportCustomerLedger = createAsyncThunk(
       const queryParams = new URLSearchParams()
       if (params.startDate) queryParams.append('startDate', params.startDate)
       if (params.endDate) queryParams.append('endDate', params.endDate)
+      if (params.scopeType) queryParams.append('scopeType', params.scopeType)
+      if (params.scopeId) queryParams.append('scopeId', params.scopeId)
       if (params.format) queryParams.append('format', params.format)
       if (isDetailedExport(params)) queryParams.append('detailed', 'true')
       

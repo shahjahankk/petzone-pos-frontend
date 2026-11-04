@@ -330,7 +330,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
       dateFrom: toStr(filters.dateFrom),
       dateTo: toStr(filters.dateTo),
       ...(filters.branch !== 'all' && { branch: filters.branch }),
-      ...(filters.cashier !== 'all' && { cashierId: filters.cashier }),
+        ...(filters.cashier !== 'all' && { cashier: filters.cashier }),
     }), [filters])
   const buildFP = useCallback(() => ({
       dateFrom: toStr(filters.dateFrom),
@@ -350,6 +350,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
       dateFrom: toStr(filters.dateFrom),
       dateTo: toStr(filters.dateTo),
       userId: filters.cashier !== 'all' ? filters.cashier : undefined,
+      branchId: filters.branch !== 'all' ? filters.branch : undefined,
     }))
   }, [dispatch, loadAll, filters, user?.id])
 
@@ -535,9 +536,9 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
             <>
               <FormControl size="small" sx={{ minWidth:160 }}>
                 <InputLabel>Branch</InputLabel>
-                <Select value={filters.branch} onChange={e=>setFilters(p=>({...p,branch:e.target.value}))} label="Branch">
+                <Select value={filters.branch} onChange={e=>setFilters(p=>({...p,branch:e.target.value,cashier:'all'}))} label="Branch">
                   <MenuItem value="all">All Branches</MenuItem>
-                  {branchList.map(b=><MenuItem key={b.branch} value={b.branch}>{b.branch}</MenuItem>)}
+                  {branchList.map(b=><MenuItem key={b.scopeId ?? b.branch} value={b.scopeId ?? b.branch}>{b.branch}</MenuItem>)}
                 </Select>
               </FormControl>
               {/* Cashier sub-filter — shows cashiers from the report data (filtered by selected branch after Apply) */}
@@ -663,7 +664,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                 <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'repeat(2,1fr)', sm:'repeat(5,1fr)' }, gap:2 }}>
                   {[
                     { label:'Opening Cash',     value:periodOpening,   accent:'#6a1b9a', sub:'Entered at shift start' },
-                    { label:'Cash Sales',       value:periodCashSales, accent:'#2e7d32', sub:'Collected in cash' },
+                    { label:'Shift Cash Sales', value:periodCashSales, accent:'#2e7d32', sub:'Collected during recorded shifts' },
                     { label:'Expected in Drawer', value:periodExpected, accent:'#0288d1', sub:'Opening + cash sales' },
                     { label:'Closing Cash',     value:periodClosing,   accent:'#455a64', sub:'Entered at shift end' },
                     { label:'Difference',       value:periodDiff,      accent:periodDiff < 0 ? '#c62828' : '#2e7d32', sub:periodDiff < 0 ? 'Short' : 'Over / balanced' },
