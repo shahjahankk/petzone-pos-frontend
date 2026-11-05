@@ -369,6 +369,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
     const periodSessions  = Number(shiftTotals?.sessions) || 0
     const periodOpening   = Number(shiftTotals?.initial_cash) || 0
     const periodCashSales = Number(shiftTotals?.cash_sales) || 0
+    const periodCashExpenses = Number(shiftTotals?.cash_expenses) || 0
     const periodExpected  = Number(shiftTotals?.expected_cash) || 0
     const periodClosing   = Number(shiftTotals?.final_cash) || 0
     const periodDiff      = Number(shiftTotals?.cash_difference) || 0
@@ -665,11 +666,12 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                     Live from shift sessions · {fmt(periodSessions)} session(s)
                   </Typography>
                 </Box>
-                <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'repeat(2,1fr)', sm:'repeat(5,1fr)' }, gap:2 }}>
+                <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'repeat(2,1fr)', sm:'repeat(3,1fr)', lg:'repeat(6,1fr)' }, gap:2 }}>
                   {[
                     { label:'Opening Cash',     value:periodOpening,   accent:'#6a1b9a', sub:'Entered at shift start' },
                     { label:'Shift Cash Sales', value:periodCashSales, accent:'#2e7d32', sub:'Collected during recorded shifts' },
-                    { label:'Expected in Drawer', value:periodExpected, accent:'#0288d1', sub:'Opening + cash sales' },
+                    { label:'Cash Expenses', value:periodCashExpenses, accent:'#e65100', sub:'Approved cash vouchers in shift' },
+                    { label:'Expected in Drawer', value:periodExpected, accent:'#0288d1', sub:'Opening + sales − expenses' },
                     { label:'Closing Cash',     value:periodClosing,   accent:'#455a64', sub:'Entered at shift end' },
                     { label:'Difference',       value:periodDiff,      accent:periodDiff < 0 ? '#c62828' : '#2e7d32', sub:periodDiff < 0 ? 'Short' : 'Over / balanced' },
                   ].map((item) => (
