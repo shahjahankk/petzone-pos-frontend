@@ -520,8 +520,8 @@ const shiftsSlice = createSlice({
       .addCase(fetchShiftSessionsReport.fulfilled, (state, action) => {
         if (state.shiftSessionsReportRequestId !== action.meta.requestId) return
         state.shiftSessionsReportLoading = false
-        state.shiftSessionsReport = action.payload?.data || []
-        state.shiftSessionsReportTotals = action.payload?.totals || null
+        state.shiftSessionsReport = action.payload?.data?.data || []
+        state.shiftSessionsReportTotals = action.payload?.data?.totals || null
         state.shiftSessionsReportRequestId = null
         state.lastUpdated = new Date().toISOString()
         state.error = null
