@@ -194,13 +194,20 @@ export const fetchShiftSessionsReport = createAsyncThunk(
   async (params = {}, { rejectWithValue }) => {
     try {
       const queryParams = new URLSearchParams()
-      Object.entries(params).forEach(([key, value]) => {
+      const reportParams = {
+        ...params,
+        branch: params.branch ?? params.branchId,
+        cashier: params.cashier ?? params.userId,
+      }
+      delete reportParams.branchId
+      delete reportParams.userId
+      Object.entries(reportParams).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '' && value !== 'all') {
           queryParams.append(key, value)
         }
       })
 
-      const response = await api.get(`/shifts/sessions?${queryParams.toString()}`)
+      const response = await api.get(`/reports/shifts?${queryParams.toString()}`)
       return response.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch shift cash report')
