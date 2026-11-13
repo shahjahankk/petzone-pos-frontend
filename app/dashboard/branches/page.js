@@ -100,6 +100,40 @@ const branchSchema = yup.object({
     .nullable()
     .transform((value) => value === '' ? null : value),
   
+  qmsOrgSlug: yup.string()
+    .trim()
+    .max(100, 'Queue Management Org Slug must not exceed 100 characters')
+    .nullable()
+    .transform((value) => (value === '' || value === null || value === undefined) ? null : value)
+    .notRequired(),
+
+  qmsBranchSlug: yup.string()
+    .trim()
+    .max(100, 'Queue Management Branch Slug must not exceed 100 characters')
+    .nullable()
+    .transform((value) => (value === '' || value === null || value === undefined) ? null : value)
+    .notRequired(),
+
+  qmsKioskUrl: yup.string()
+    .trim()
+    .max(500, 'Kiosk URL must not exceed 500 characters')
+    .nullable()
+    .transform((value) => (value === '' || value === null || value === undefined) ? null : value)
+    .test('qms-kiosk-url', 'Kiosk URL must start with http:// or https://', (value) => !value || /^https?:\/\/[^\s]+$/i.test(value)),
+
+  qmsOpdUrl: yup.string()
+    .trim()
+    .max(500, 'OPD URL must not exceed 500 characters')
+    .nullable()
+    .transform((value) => (value === '' || value === null || value === undefined) ? null : value)
+    .test('qms-opd-url', 'OPD URL must start with http:// or https://', (value) => !value || /^https?:\/\/[^\s]+$/i.test(value)),
+
+  qmsOpdCounterCount: yup.number()
+    .nullable()
+    .transform((value) => (value === '' || value === null || value === undefined) ? null : Number(value))
+    .min(1, 'OPD counters must be at least 1')
+    .max(50, 'OPD counters cannot exceed 50'),
+
   // Transfer settings
   'settings.allowBranchTransfers': yup.boolean()
     .nullable()
@@ -164,6 +198,37 @@ const fields = [
     options: BRAND_OPTIONS,
   },
   
+  {
+    name: 'qmsOrgSlug',
+    label: 'Queue Management Org Slug',
+    type: 'text',
+    helperText: 'Queue Management organization slug for this branch (e.g. petzone). Leave blank to auto-resolve.',
+  },
+  {
+    name: 'qmsBranchSlug',
+    label: 'Queue Management Branch Slug',
+    type: 'text',
+    helperText: 'Queue Management branch slug for this branch (e.g. main, north). Leave blank to auto-resolve.',
+  },
+  {
+    name: 'qmsKioskUrl',
+    label: 'Kiosk URL',
+    type: 'text',
+    helperText: 'Full Take-a-Ticket kiosk URL for this branch (e.g. https://queue-management.petzone.pk/kiosk/petzone/north). Leave blank to build it from the slugs.',
+  },
+  {
+    name: 'qmsOpdUrl',
+    label: 'OPD URL',
+    type: 'text',
+    helperText: 'Full OPD / counter URL for this branch (e.g. https://queue-management.petzone.pk/opd/petzone/north). Leave blank to build it from the slugs.',
+  },
+  {
+    name: 'qmsOpdCounterCount',
+    label: 'OPD Counters',
+    type: 'number',
+    helperText: 'Number of OPD counters configured for this branch in Queue Management.',
+  },
+
   // Transfer Settings Section
   { 
     name: 'transfer-settings-section', 
@@ -217,6 +282,11 @@ function BranchesPage() {
         brand: normalizeBrand(
           crud.selectedEntity.brand || crud.selectedEntity.settings?.brand
         ),
+        qmsOrgSlug: crud.selectedEntity?.settings?.qms?.orgSlug ?? '',
+        qmsBranchSlug: crud.selectedEntity?.settings?.qms?.branchSlug ?? '',
+        qmsKioskUrl: crud.selectedEntity?.settings?.qms?.kioskUrl ?? '',
+        qmsOpdUrl: crud.selectedEntity?.settings?.qms?.opdUrl ?? '',
+        qmsOpdCounterCount: crud.selectedEntity?.settings?.qms?.opdCounterCount ?? '',
       }
     : null
 
@@ -228,6 +298,13 @@ function BranchesPage() {
   // Handle CRUD operations
   const handleUpdate = (data) => {
     const brand = normalizeBrand(data.brand || data.settings?.brand)
+    const qms = {
+      orgSlug: data.qmsOrgSlug || null,
+      branchSlug: data.qmsBranchSlug || null,
+      kioskUrl: data.qmsKioskUrl || null,
+      opdUrl: data.qmsOpdUrl || null,
+      opdCounterCount: data.qmsOpdCounterCount ? Number(data.qmsOpdCounterCount) : null,
+    }
     const payload = {
       name: data.name,
       code: data.code,
@@ -242,6 +319,7 @@ function BranchesPage() {
       brand,
       settings: {
         ...(data.settings && typeof data.settings === 'object' ? data.settings : {}),
+        qms,
         brand,
       },
     }
@@ -256,6 +334,13 @@ function BranchesPage() {
 
   const handleCreate = (data) => {
     const brand = normalizeBrand(data.brand || data.settings?.brand)
+    const qms = {
+      orgSlug: data.qmsOrgSlug || null,
+      branchSlug: data.qmsBranchSlug || null,
+      kioskUrl: data.qmsKioskUrl || null,
+      opdUrl: data.qmsOpdUrl || null,
+      opdCounterCount: data.qmsOpdCounterCount ? Number(data.qmsOpdCounterCount) : null,
+    }
     const payload = {
       name: data.name,
       code: data.code,
@@ -270,6 +355,7 @@ function BranchesPage() {
       brand,
       settings: {
         ...(data.settings && typeof data.settings === 'object' ? data.settings : {}),
+        qms,
         brand,
       },
     }

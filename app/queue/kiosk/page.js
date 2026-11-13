@@ -41,6 +41,7 @@ function QueueKioskRedirectPage() {
       try {
         const posBranchId = user?.branchId || user?.branch_id || null
         const ctx = await resolveQueueBranch(posBranchId)
+        const customKioskUrl = ctx?.kioskUrl || null
         if (ctx?.orgSlug && ctx?.branchSlug) {
           if (!cancelled) {
             setStatus(`Unlocking ${ctx.branchName || ctx.branchSlug} ticket kiosk…`)
@@ -48,12 +49,16 @@ function QueueKioskRedirectPage() {
           try {
             const res = await api.post('/qms/screen-sso', {
               screen: 'kiosk',
+              posBranchId,
               orgSlug: ctx.orgSlug,
               branchSlug: ctx.branchSlug,
             })
-            url = res.data?.unlockUrl || `${origin}/kiosk/${ctx.orgSlug}/${ctx.branchSlug}`
+            url =
+              res.data?.unlockUrl ||
+              customKioskUrl ||
+              `${origin}/kiosk/${ctx.orgSlug}/${ctx.branchSlug}`
           } catch (err) {
-            url = `${origin}/kiosk/${ctx.orgSlug}/${ctx.branchSlug}`
+            url = customKioskUrl || `${origin}/kiosk/${ctx.orgSlug}/${ctx.branchSlug}`
             if (!cancelled) {
               setError(
                 err?.response?.data?.message ||
@@ -62,6 +67,9 @@ function QueueKioskRedirectPage() {
               )
             }
           }
+        } else if (customKioskUrl) {
+          url = customKioskUrl
+          if (!cancelled) setStatus('Opening ticket kiosk…')
         } else if (!cancelled) {
           setStatus('Opening Queue Management home…')
         }

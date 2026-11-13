@@ -41,6 +41,7 @@ function QueueOpdRedirectPage() {
       try {
         const posBranchId = user?.branchId || user?.branch_id || null
         const ctx = await resolveQueueBranch(posBranchId)
+        const customOpdUrl = ctx?.opdUrl || null
         if (ctx?.orgSlug && ctx?.branchSlug) {
           if (!cancelled) {
             setStatus(`Unlocking ${ctx.branchName || ctx.branchSlug} OPD…`)
@@ -48,12 +49,16 @@ function QueueOpdRedirectPage() {
           try {
             const res = await api.post('/qms/screen-sso', {
               screen: 'counter',
+              posBranchId,
               orgSlug: ctx.orgSlug,
               branchSlug: ctx.branchSlug,
             })
-            url = res.data?.unlockUrl || `${origin}/opd/${ctx.orgSlug}/${ctx.branchSlug}`
+            url =
+              res.data?.unlockUrl ||
+              customOpdUrl ||
+              `${origin}/opd/${ctx.orgSlug}/${ctx.branchSlug}`
           } catch (err) {
-            url = `${origin}/opd/${ctx.orgSlug}/${ctx.branchSlug}`
+            url = customOpdUrl || `${origin}/opd/${ctx.orgSlug}/${ctx.branchSlug}`
             if (!cancelled) {
               setError(
                 err?.response?.data?.message ||
@@ -62,6 +67,9 @@ function QueueOpdRedirectPage() {
               )
             }
           }
+        } else if (customOpdUrl) {
+          url = customOpdUrl
+          if (!cancelled) setStatus('Opening OPD…')
         } else if (!cancelled) {
           setStatus('Opening Queue Management home…')
         }

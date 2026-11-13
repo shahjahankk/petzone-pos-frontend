@@ -3,6 +3,7 @@
  * Separate from main POS backend API.
  */
 import { config } from '../config/environment'
+import api from './axios'
 
 const QMS_BASE = (
   config.QMS_API_URL || 'https://queue-management.petzone.pk/api'
@@ -42,6 +43,20 @@ async function qmsRequest(path, options = {}) {
 }
 
 export async function resolveQueueBranch(posBranchId) {
+  // Prefer the POS backend so the branch's own QMS settings (slugs + custom
+  // kiosk/OPD URLs) are used. Fall back to the standalone QMS resolver.
+  try {
+    const res = await api.get('/qms/branch-config', {
+      params: posBranchId ? { posBranchId } : undefined,
+    })
+    const data = res?.data?.data
+    if (data && (data.orgSlug || data.branchSlug || data.kioskUrl || data.opdUrl)) {
+      return data
+    }
+  } catch {
+    // POS backend unavailable or older build — use the QMS resolver below.
+  }
+
   const params = posBranchId ? `?posBranchId=${posBranchId}` : ''
   const json = await qmsRequest(`/queue/resolve${params}`)
   return json.data
