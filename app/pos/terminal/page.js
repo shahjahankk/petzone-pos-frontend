@@ -85,6 +85,7 @@ import {
 import PrintDialog from '../../../components/print/PrintDialog'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import PhysicalScanner from '../../../components/pos/PhysicalScanner'
+import ShiftMidnightAlerts from '../../../components/shift/ShiftMidnightAlerts'
 import { fetchInventory } from '../../store/slices/inventorySlice'
 import { createSale, fetchSales } from '../../store/slices/salesSlice'
 import {
@@ -377,6 +378,11 @@ function POSTerminal() {
   const [finalCashAmount, setFinalCashAmount] = useState('')
   const [shiftClosingSummary, setShiftClosingSummary] = useState(null)
   const [shiftEnding, setShiftEnding] = useState(false)
+
+  const openAutoFinalCash = useCallback(() => {
+    setFinalCashAmount('')
+    setShowEndShiftDialog(true)
+  }, [])
 
   const barcodeInputRef = useRef(null)
   const manualInputRef = useRef(null)
@@ -4051,6 +4057,8 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
             </Button>
           </DialogActions>
         </Dialog>
+
+        <ShiftMidnightAlerts activeShift={shiftFromStore} onOpenFinalCash={openAutoFinalCash} />
 
         {/* End Shift Dialog */}
         <Dialog open={showEndShiftDialog} onClose={() => setShowEndShiftDialog(false)} maxWidth="md" fullWidth>
