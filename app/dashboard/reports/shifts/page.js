@@ -104,7 +104,7 @@ export default function ShiftCashReportPage() {
   }, [shiftSessionsReport, search])
 
   const totals = shiftSessionsReportTotals || {
-    sessions: 0, initial_cash: 0, cash_sales: 0, cash_in_movements: 0, cash_out_movements: 0,
+    sessions: 0, initial_cash: 0, cash_sales: 0, cash_refunds: 0, cash_in_movements: 0, cash_out_movements: 0,
     cash_expenses: 0, total_sales: 0, final_cash: 0, expected_cash: 0, cash_difference: 0,
   }
 
@@ -314,10 +314,10 @@ export default function ShiftCashReportPage() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening', 'Cash Sales', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status', 'Actions'].map((h) => (
+                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening', 'Cash Sales', 'Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status', 'Actions'].map((h) => (
                         <TableCell
                           key={h}
-                          align={['Opening', 'Cash Sales', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference'].includes(h) ? 'right' : 'left'}
+                          align={['Opening', 'Cash Sales', 'Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference'].includes(h) ? 'right' : 'left'}
                           sx={{ fontWeight: 800, fontSize: '.72rem', bgcolor: '#f5f7fa', whiteSpace: 'nowrap' }}
                         >
                           {h}
@@ -328,7 +328,7 @@ export default function ShiftCashReportPage() {
                   <TableBody>
                     {!shiftSessionsReportLoading && rows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={16} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                        <TableCell colSpan={17} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                           No shift sessions found for this period.
                         </TableCell>
                       </TableRow>
@@ -344,6 +344,7 @@ export default function ShiftCashReportPage() {
                             <TableCell sx={{ fontSize: '.75rem' }}>{r.branch_name || r.warehouse_name || '-'}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.initial_cash)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_sales)}</TableCell>
+                            <TableCell align="right" sx={{ fontSize: '.78rem', color: r.cash_refunds < 0 ? '#c62828' : 'text.secondary' }}>{fmtPKR(r.cash_refunds)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_in_movements)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_out_movements)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_expenses)}</TableCell>

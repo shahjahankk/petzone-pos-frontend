@@ -909,14 +909,14 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                   <Table size="small" stickyHeader>
                     <TableHead>
                       <TableRow>
-                        {['Date','Invoice','Customer','Cashier','Total','Collected','Outstanding','Method','Status'].map(h=>(
+                        {['Date','Invoice','Customer','Cashier','Total','Refund','Collected','Outstanding','Method','Status'].map(h=>(
                           <TableCell key={h} sx={{ bgcolor:'#fafafa', color:'text.secondary', fontWeight:700, fontSize:'.65rem', textTransform:'uppercase', letterSpacing:.6, whiteSpace:'nowrap', borderBottom:'2px solid #f0f0f0' }}>{h}</TableCell>
                         ))}
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {recentSales.length===0
-                        ? <TableRow><TableCell colSpan={9} align="center" sx={{ py:6, color:'text.disabled' }}>No transactions</TableCell></TableRow>
+                        ? <TableRow><TableCell colSpan={10} align="center" sx={{ py:6, color:'text.disabled' }}>No transactions</TableCell></TableRow>
                         : recentSales.map((row,i)=>{
                             const isRefund = isRefundTx(row);
                             return (
@@ -933,6 +933,7 @@ import { fetchActiveShift, fetchShiftSessionsReport } from '../../../store/slice
                               </TableCell>
                               <TableCell sx={{ fontSize:'.74rem', color:'text.secondary' }}>{row.cashier_name}</TableCell>
                               <TableCell sx={{ fontSize:'.8rem', fontWeight:700, whiteSpace:'nowrap' }}>{row.is_settlement||isRefund?'—':`PKR ${fmt(row.total)}`}</TableCell>
+                              <TableCell sx={{ fontSize:'.8rem', fontWeight:isRefund?700:400, color:isRefund?'error.main':'text.disabled', whiteSpace:'nowrap' }}>{isRefund?`PKR ${fmt(Math.abs(row.payment_amount||row.total||0))}`:'—'}</TableCell>
                               <TableCell sx={{ fontSize:'.8rem', fontWeight:600, color:row.payment_amount<0?'error.main':'success.dark', whiteSpace:'nowrap' }}>PKR {fmt(row.payment_amount)}</TableCell>
                               <TableCell sx={{ fontSize:'.8rem', fontWeight:row.credit_amount>0?700:400, color:row.credit_amount>0?'error.main':'text.disabled', whiteSpace:'nowrap' }}>
                                 {row.credit_amount>0?`PKR ${fmt(row.credit_amount)}`:'—'}
