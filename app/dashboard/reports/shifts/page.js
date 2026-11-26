@@ -104,20 +104,25 @@ export default function ShiftCashReportPage() {
   }, [shiftSessionsReport, search])
 
   const totals = shiftSessionsReportTotals || {
-    sessions: 0, initial_cash: 0, cash_sales: 0, cash_refunds: 0, cash_in_movements: 0, cash_out_movements: 0,
-    cash_expenses: 0, total_sales: 0, final_cash: 0, expected_cash: 0, cash_difference: 0,
+    sessions: 0, initial_cash: 0, cash_sales: 0, cash_settlements: 0, partial_cash: 0, discount: 0,
+    cash_refunds: 0, cash_in_movements: 0, cash_out_movements: 0, cash_expenses: 0, total_sales: 0,
+    final_cash: 0, expected_cash: 0, cash_difference: 0,
   }
 
   const handleExportCSV = () => {
-    const header = ['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening Cash', 'Cash Sales', 'Cash Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected Cash', 'Closing Cash', 'Difference', 'Status']
+    const header = ['Start', 'End', 'Cashier', 'Shift', 'Location', 'Bills', 'Opening Cash', 'Cash Sales', 'Partial Cash', 'Cash Settlements', 'Discount', 'Cash Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected Cash', 'Closing Cash', 'Difference', 'Status']
     const data = rows.map((r) => [
       fmtDate(r.actual_start_time),
       fmtDate(r.actual_end_time),
       r.cashier_name || '',
       r.shift_name || '',
       r.branch_name || r.warehouse_name || '',
+      r.bill_count || 0,
       r.initial_cash,
       r.cash_sales,
+      r.partial_cash,
+      r.cash_settlements,
+      r.discount,
       r.cash_refunds,
       r.cash_in_movements,
       r.cash_out_movements,
@@ -288,10 +293,16 @@ export default function ShiftCashReportPage() {
                 <KpiCard label="Opening Cash" value={fmtPKR(totals.initial_cash)} sub="Total initial cash" accent="#6a1b9a" icon={<AccountBalanceWallet />} />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
-                <KpiCard label="Cash Sales" value={fmtPKR(totals.cash_sales)} sub="Collected in cash" accent="#2e7d32" icon={<PointOfSale />} />
+                <KpiCard label="Cash Sales" value={fmtPKR(totals.cash_sales)} sub="Cash paid on sales, including partial" accent="#2e7d32" icon={<PointOfSale />} />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
-                <KpiCard label="Expected Cash" value={fmtPKR(totals.expected_cash)} sub="Opening + cash sales ± movements − expenses" accent="#0277bd" icon={<AttachMoney />} />
+                <KpiCard label="Cash Settlements" value={fmtPKR(totals.cash_settlements)} sub="Cash collected on credit" accent="#00897b" icon={<AttachMoney />} />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <KpiCard label="Discount" value={fmtPKR(totals.discount)} sub="Already included in sale totals" accent="#ef6c00" icon={<PointOfSale />} />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <KpiCard label="Expected Cash" value={fmtPKR(totals.expected_cash)} sub="Opening + cash received ± movements − expenses" accent="#0277bd" icon={<AttachMoney />} />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <KpiCard label="Closing Cash" value={fmtPKR(totals.final_cash)} sub="Entered at end" accent="#455a64" icon={<CheckCircle />} />
@@ -314,10 +325,10 @@ export default function ShiftCashReportPage() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening', 'Cash Sales', 'Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status', 'Actions'].map((h) => (
+                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Bills', 'Opening', 'Cash Sales', 'Partial Cash', 'Cash Settlements', 'Discount', 'Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status', 'Actions'].map((h) => (
                         <TableCell
                           key={h}
-                          align={['Opening', 'Cash Sales', 'Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference'].includes(h) ? 'right' : 'left'}
+                          align={['Bills', 'Opening', 'Cash Sales', 'Partial Cash', 'Cash Settlements', 'Discount', 'Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference'].includes(h) ? 'right' : 'left'}
                           sx={{ fontWeight: 800, fontSize: '.72rem', bgcolor: '#f5f7fa', whiteSpace: 'nowrap' }}
                         >
                           {h}
@@ -328,7 +339,7 @@ export default function ShiftCashReportPage() {
                   <TableBody>
                     {!shiftSessionsReportLoading && rows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={17} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                        <TableCell colSpan={21} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                           No shift sessions found for this period.
                         </TableCell>
                       </TableRow>
@@ -342,8 +353,12 @@ export default function ShiftCashReportPage() {
                             <TableCell sx={{ fontSize: '.78rem', fontWeight: 600 }}>{r.cashier_name || '-'}</TableCell>
                             <TableCell sx={{ fontSize: '.75rem' }}>{r.shift_name || '-'}</TableCell>
                             <TableCell sx={{ fontSize: '.75rem' }}>{r.branch_name || r.warehouse_name || '-'}</TableCell>
+                            <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmt(r.bill_count)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.initial_cash)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_sales)}</TableCell>
+                            <TableCell align="right" sx={{ fontSize: '.78rem', color: 'text.secondary' }}>{fmtPKR(r.partial_cash)}</TableCell>
+                            <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_settlements)}</TableCell>
+                            <TableCell align="right" sx={{ fontSize: '.78rem', color: 'text.secondary' }}>{r.discount > 0 ? `−${fmtPKR(r.discount)}` : fmtPKR(r.discount)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem', color: r.cash_refunds < 0 ? '#c62828' : 'text.secondary' }}>{fmtPKR(r.cash_refunds)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_in_movements)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_out_movements)}</TableCell>
