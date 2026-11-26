@@ -6,18 +6,18 @@ import {
   Box, Card, CardContent, Grid, Typography, Paper, Button,
   TextField, FormControl, InputLabel, Select, MenuItem,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Chip, LinearProgress, Alert,
+  Chip, LinearProgress, Alert, Dialog, DialogActions, DialogContent, DialogTitle,
 } from '@mui/material'
 import {
   Refresh, Download, Schedule, AttachMoney, AccountBalanceWallet,
-  PointOfSale, CheckCircle, Warning,
+  PointOfSale, CheckCircle, Warning, Edit,
 } from '@mui/icons-material'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import AppDatePicker from '../../../../components/date/AppDatePicker'
 import RouteGuard from '../../../../components/auth/RouteGuard'
 import { saleDate } from '../../../../utils/saleTime'
-import { fetchShiftSessionsReport } from '../../../store/slices/shiftsSlice'
+import { fetchShiftSessionsReport, updateShiftSessionCash } from '../../../store/slices/shiftsSlice'
 
 const fmt = (v, d = 0) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 const fmtPKR = (v) => `PKR ${fmt(v)}`
@@ -70,6 +70,9 @@ export default function ShiftCashReportPage() {
   const { shiftSessionsReport, shiftSessionsReportTotals, shiftSessionsReportLoading, error } = useSelector((s) => s.shifts)
   const [filters, setFilters] = useState({ dateFrom: som(), dateTo: today(), status: 'all' })
   const [search, setSearch] = useState('')
+  const [editingSession, setEditingSession] = useState(null)
+  const [savingCash, setSavingCash] = useState(false)
+  const [cashError, setCashError] = useState('')
 
   const load = () => {
     dispatch(fetchShiftSessionsReport({
@@ -123,6 +126,52 @@ export default function ShiftCashReportPage() {
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
     a.download = `shift-cash-${toStr(filters.dateFrom)}-${toStr(filters.dateTo)}.csv`
     a.click()
+  }
+
+  const openEdit = (row) => {
+    setCashError('')
+    setEditingSession({
+      id: row.id,
+      cashier: row.cashier_name || '-',
+      status: row.status,
+      initialCash: row.initial_cash == null ? '' : String(row.initial_cash),
+      finalCash: row.final_cash == null ? '' : String(row.final_cash),
+    })
+  }
+
+  const handleSaveCash = async () => {
+    if (!editingSession) return
+
+    const initialCash = Number(editingSession.initialCash)
+    if (editingSession.initialCash === '' || !Number.isFinite(initialCash) || initialCash < 0) {
+      setCashError('Opening cash must be zero or greater')
+      return
+    }
+
+    const payload = { sessionId: editingSession.id, initialCash }
+    if (editingSession.status === 'ENDED') {
+      if (editingSession.finalCash === '') {
+        setCashError('Closing cash is required for ended shifts')
+        return
+      }
+      const finalCash = Number(editingSession.finalCash)
+      if (!Number.isFinite(finalCash) || finalCash < 0) {
+        setCashError('Closing cash must be zero or greater')
+        return
+      }
+      payload.finalCash = finalCash
+    }
+
+    setSavingCash(true)
+    try {
+      await dispatch(updateShiftSessionCash(payload)).unwrap()
+      setEditingSession(null)
+      load()
+    } catch (e) {
+      setCashError(typeof e === 'string' ? e : 'Failed to update shift cash')
+    } finally {
+      setSavingCash(false)
+    }
   }
 
   return (
@@ -221,7 +270,7 @@ export default function ShiftCashReportPage() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening', 'Cash Sales', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status'].map((h) => (
+                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening', 'Cash Sales', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status', 'Actions'].map((h) => (
                         <TableCell
                           key={h}
                           align={['Opening', 'Cash Sales', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference'].includes(h) ? 'right' : 'left'}
@@ -235,7 +284,7 @@ export default function ShiftCashReportPage() {
                   <TableBody>
                     {!shiftSessionsReportLoading && rows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                        <TableCell colSpan={14} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                           No shift sessions found for this period.
                         </TableCell>
                       </TableRow>
@@ -266,6 +315,11 @@ export default function ShiftCashReportPage() {
                                 sx={{ fontSize: '.68rem', height: 22 }}
                               />
                             </TableCell>
+                            <TableCell align="right">
+                              <Button size="small" startIcon={<Edit />} onClick={() => openEdit(r)}>
+                                Edit
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         )
                       })
@@ -274,6 +328,46 @@ export default function ShiftCashReportPage() {
                 </Table>
               </TableContainer>
             </Paper>
+
+            <Dialog open={Boolean(editingSession)} onClose={() => !savingCash && setEditingSession(null)} fullWidth maxWidth="xs">
+              <DialogTitle>Edit shift cash</DialogTitle>
+              <DialogContent>
+                {cashError && <Alert severity="error" sx={{ mb: 2 }}>{cashError}</Alert>}
+                <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                  {editingSession?.cashier} · {editingSession?.status === 'ACTIVE' ? 'Active shift' : 'Ended shift'}
+                </Typography>
+                <TextField
+                  fullWidth
+                  margin="dense"
+                  label="Opening cash"
+                  type="number"
+                  value={editingSession?.initialCash ?? ''}
+                  onChange={(e) => setEditingSession((p) => ({ ...p, initialCash: e.target.value }))}
+                  slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+                />
+                {editingSession?.status === 'ENDED' ? (
+                  <TextField
+                    fullWidth
+                    margin="dense"
+                    label="Closing cash"
+                    type="number"
+                    value={editingSession?.finalCash ?? ''}
+                    onChange={(e) => setEditingSession((p) => ({ ...p, finalCash: e.target.value }))}
+                    slotProps={{ htmlInput: { min: 0, step: '0.01' } }}
+                  />
+                ) : (
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Closing cash can be edited after the shift is ended.
+                  </Typography>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setEditingSession(null)} disabled={savingCash}>Cancel</Button>
+                <Button variant="contained" onClick={handleSaveCash} disabled={savingCash}>
+                  {savingCash ? 'Saving...' : 'Save'}
+                </Button>
+              </DialogActions>
+            </Dialog>
           </Box>
         </Box>
       </LocalizationProvider>

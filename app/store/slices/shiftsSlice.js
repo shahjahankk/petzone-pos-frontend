@@ -215,6 +215,21 @@ export const fetchShiftSessionsReport = createAsyncThunk(
   }
 )
 
+export const updateShiftSessionCash = createAsyncThunk(
+  'shifts/updateShiftSessionCash',
+  async ({ sessionId, initialCash, finalCash }, { rejectWithValue }) => {
+    try {
+      const payload = {}
+      if (initialCash !== undefined) payload.initialCash = initialCash
+      if (finalCash !== undefined) payload.finalCash = finalCash
+      const response = await api.patch(`/shifts/sessions/${sessionId}/cash`, payload)
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update shift cash')
+    }
+  }
+)
+
 const initialState = {
   // Shift data
   shifts: [],
@@ -530,6 +545,9 @@ const shiftsSlice = createSlice({
         if (state.shiftSessionsReportRequestId !== action.meta.requestId) return
         state.shiftSessionsReportLoading = false
         state.shiftSessionsReportRequestId = null
+        state.error = action.payload
+      })
+      .addCase(updateShiftSessionCash.rejected, (state, action) => {
         state.error = action.payload
       })
   },
