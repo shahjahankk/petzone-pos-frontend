@@ -98,7 +98,8 @@ const handleRefresh = () => {
   const formatDate = (dateString) => formatDisplayDate(dateString)
 
   const getTxType = (t) => {
-    if (t.transaction_type === 'RETURN') return { label: 'Return', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }
+    if (t.transaction_type === 'RETURN') return { label: t.return_type === 'EXCHANGE' ? 'Exchange Return' : 'Return', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' }
+    if (t.transaction_type === 'EXCHANGE') return { label: 'Exchange', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' }
     if (t.transaction_type === 'SETTLEMENT' || t.payment_type === 'OUTSTANDING_SETTLEMENT') return { label: 'Outstanding Settlement', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' }
     if (t.payment_type === 'CREDIT_REFUND_SETTLEMENT' || t.payment_method === 'CASH_REFUND') return { label: 'Credit Refund Settlement', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' }
     if (t.payment_type === 'BALANCE_PAYMENT') return { label: 'Balance Payment', color: '#10b981', bg: 'rgba(16,185,129,0.1)' }

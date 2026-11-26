@@ -169,11 +169,18 @@ export const fetchSalesReturns = createAsyncThunk(
   }
 )
 
+function returnIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `ret-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export const createSalesReturn = createAsyncThunk(
   'sales/createSalesReturn',
   async (returnData, { rejectWithValue }) => {
     try {
-      const response = await api.post('/sales/returns', returnData)
+      const response = await api.post('/sales/returns', returnData, {
+        headers: { 'Idempotency-Key': returnIdempotencyKey() },
+      })
       return response.data
     } catch (error) {
       const status = error.response?.status

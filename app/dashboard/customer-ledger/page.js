@@ -110,6 +110,7 @@ function CustomerLedgerPage() {
   const [selectedSale,      setSelectedSale]      = useState(null)
   const [saleItems,         setSaleItems]         = useState([])
   const [loadingSaleItems,  setLoadingSaleItems]  = useState(false)
+  const [expandedExchange,  setExpandedExchange]  = useState(null)
   const [exportAnchorEl,    setExportAnchorEl]    = useState(null)
   const [editDialogOpen,    setEditDialogOpen]    = useState(false)
   const [editingCustomer,   setEditingCustomer]   = useState(null)
@@ -153,7 +154,9 @@ function CustomerLedgerPage() {
       case 'BILTY':
         return <Chip label="Bilty" color="warning" size="small" />
       case 'RETURN':
-        return <Chip label="Return" color="error" size="small" />
+        return <Chip label={transaction?.return_type === 'EXCHANGE' ? 'Exchange Return' : 'Return'} color="error" size="small" />
+      case 'EXCHANGE':
+        return <Chip label="Exchange" color="primary" size="small" />
       default:
         return <Chip label="Sale" color="default" size="small" />
     }
@@ -440,10 +443,11 @@ const loadCustomerLedger = useCallback((customerId) => {
       const amount = parseFloat(t.amount || 0)
       const total = parseFloat(t.total || 0)
       const subtotal = parseFloat(t.subtotal || 0)
-      if (type === 'RETURN' || (t.payment_method === 'REFUND' && pt === 'REFUND')) {
+      if (type === 'RETURN' || (pt === 'REFUND' && ['REFUND', 'STORE_CREDIT', 'CARD_REFUND', 'EXCHANGE'].includes(t.payment_method))) {
         const mag = Math.abs(amount) > 0.01 ? Math.abs(amount) : (Math.abs(total) > 0.01 ? Math.abs(total) : Math.abs(subtotal))
         return -mag
       }
+      if (type === 'EXCHANGE') return Math.abs(amount)
       if (Math.abs(amount) > 0.01) return amount
       if (type === 'SALE' || type === 'BILTY' || type === 'EXPENSE') {
         return Math.abs(total) > 0.01 ? total : subtotal
@@ -555,8 +559,10 @@ const sorted = [...transactions].sort((a, b) => {
     try {
       const isReturn =
         transaction?.transaction_type === 'RETURN' ||
-        transaction?.return_id ||
-        (transaction?.invoice_no && transaction.invoice_no.startsWith('RET-'))
+        (transaction?.transaction_type !== 'EXCHANGE' && (
+          transaction?.return_id ||
+          (transaction?.invoice_no && transaction.invoice_no.startsWith('RET-'))
+        ))
 
       const isBilty = transaction?.transaction_type === 'BILTY' || transaction?.payment_type === 'BILTY_CHARGE'
       const response = isReturn
@@ -686,7 +692,27 @@ const sorted = [...transactions].sort((a, b) => {
                       </Typography>
                     </TableCell>
                     <TableCell>{transaction.payment_method}</TableCell>
-                    <TableCell>{getTransactionTypeChip(transaction)}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
+                        {getTransactionTypeChip(transaction)}
+                        {transaction.exchange_group_key && (
+                          <>
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              color="primary"
+                              label={`Exchange · diff ${formatCurrency(transaction.priceDifference ?? transaction.price_difference ?? 0)}`}
+                              onClick={() => setExpandedExchange(expandedExchange === transaction.exchange_group_key ? null : transaction.exchange_group_key)}
+                            />
+                            {expandedExchange === transaction.exchange_group_key && (
+                              <Typography variant="caption" color="text.secondary">
+                                Return #{transaction.return_id} ↔ Replacement #{transaction.replacement_sale_id || '—'}
+                              </Typography>
+                            )}
+                          </>
+                        )}
+                      </Box>
+                    </TableCell>
                     <TableCell>
                       <Chip
                         label={transaction.payment_status_display}

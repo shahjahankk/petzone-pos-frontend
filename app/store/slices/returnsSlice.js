@@ -1,6 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
+export function returnIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `ret-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 function resolveErrorMessage(payload, fallback = 'Something went wrong') {
   if (!payload) return fallback
   if (typeof payload === 'string') return payload
@@ -23,9 +28,16 @@ export const fetchReturns = createAsyncThunk(
 
 export const createReturn = createAsyncThunk(
   'returns/createReturn',
-  async (returnData, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
-      const response = await api.post('/sales/returns', returnData)
+      const wrapped = payload && payload.__returnRequest === true;
+      const returnData = wrapped ? payload.data : payload;
+      const idempotencyKey = wrapped && payload.idempotencyKey
+        ? payload.idempotencyKey
+        : returnIdempotencyKey();
+      const response = await api.post('/sales/returns', returnData, {
+        headers: { 'Idempotency-Key': idempotencyKey },
+      })
       return response.data
     } catch (error) {
       const status = error.response?.status

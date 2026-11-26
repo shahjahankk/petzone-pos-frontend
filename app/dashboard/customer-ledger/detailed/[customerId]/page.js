@@ -126,10 +126,11 @@ const DetailedCustomerLedgerPage = () => {
     const amount = parseFloat(transaction.amount || 0)
     const total = parseFloat(transaction.total || 0)
     const subtotal = parseFloat(transaction.subtotal || 0)
-    if (type === 'RETURN' || (transaction.payment_method === 'REFUND' && pt === 'REFUND')) {
+    if (type === 'RETURN' || (pt === 'REFUND' && ['REFUND', 'STORE_CREDIT', 'CARD_REFUND', 'EXCHANGE'].includes(transaction.payment_method))) {
       const mag = Math.abs(amount) > 0.01 ? Math.abs(amount) : (Math.abs(total) > 0.01 ? Math.abs(total) : Math.abs(subtotal))
       return -mag
     }
+    if (type === 'EXCHANGE') return Math.abs(amount)
     if (Math.abs(amount) > 0.01) return amount
     if (type === 'SALE' || type === 'BILTY' || type === 'EXPENSE') {
       return Math.abs(total) > 0.01 ? total : subtotal

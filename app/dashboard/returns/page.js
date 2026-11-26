@@ -7,7 +7,7 @@ import RouteGuard from '../../../components/auth/RouteGuard'
 import EntityFormDialog from '../../../components/crud/EntityFormDialog'
 import ConfirmationDialog from '../../../components/crud/ConfirmationDialog'
 import { usePermissions } from '../../../hooks/usePermissions'
-import { fetchReturns, createReturn, updateReturn, deleteReturn } from '../../store/slices/returnsSlice'
+import { fetchReturns, createReturn, updateReturn, deleteReturn, returnIdempotencyKey } from '../../store/slices/returnsSlice'
 import { fetchInventory } from '../../store/slices/inventorySlice'
 import { fetchWarehouseSettings } from '../../store/slices/warehousesSlice'
 import { fetchBranchSettings } from '../../store/slices/branchesSlice'
@@ -153,6 +153,7 @@ const ReturnsPage = () => {
     setToast((prev) => ({ ...prev, open: false }))
   }, [])
   const invoiceSearchTimerRef = useRef(null)
+  const submitKeyRef = useRef(null)
 
   // Check if user can manage returns based on role and settings
   // isActualAdmin always has full access even during simulation
@@ -220,6 +221,8 @@ const ReturnsPage = () => {
 
   const validationSchema = yup.object({
     saleId: yup.number().required('Sale ID is required').min(1, 'Sale ID must be valid'),
+    type: yup.string().oneOf(['REFUND', 'EXCHANGE']),
+    refundMethod: yup.string().oneOf(['CASH', 'CARD_REFUND', 'STORE_CREDIT', 'EXCHANGE']),
     reason: yup.string().required('Reason is required').max(500, 'Reason cannot exceed 500 characters'),
     notes: yup.string().max(500, 'Notes cannot exceed 500 characters'),
     items: yup.array().min(1, 'At least one item is required').of(
@@ -279,6 +282,11 @@ const ReturnsPage = () => {
     items: [{ productName: '', quantity: 1, refundAmount: 0 }]
   })
 
+  // Exchange replacement items
+  const [exchangeItems, setExchangeItems] = useState([
+    { productName: '', inventoryItemId: null, sku: null, quantity: 1, unitPrice: 0, lineTotal: 0 },
+  ])
+
   // Product search state
   const [productSearchResults, setProductSearchResults] = useState({})
   const [productSearchLoading, setProductSearchLoading] = useState({})
@@ -337,9 +345,15 @@ const ReturnsPage = () => {
     }
   }, [dispatch, user, buildFetchParams, initialized])
 
-  const handleCreate = (data) => {
-    dispatch(createReturn(data))
-    setOpenDialog(false)
+  const handleCreate = async (data) => {
+    const idempotencyKey = submitKeyRef.current || returnIdempotencyKey()
+    submitKeyRef.current = idempotencyKey
+    try {
+      await dispatch(createReturn({ __returnRequest: true, data, idempotencyKey }))
+    } finally {
+      submitKeyRef.current = null
+      setOpenDialog(false)
+    }
   }
 
   // Handle view return details
@@ -602,6 +616,44 @@ const ReturnsPage = () => {
     }))
   }
 
+  const handleExchangeItemChange = (index, field, value) => {
+    setExchangeItems(prev => prev.map((item, i) => {
+      if (i !== index) return item
+      const updated = { ...item, [field]: value }
+      if (field === 'productName' && typeof value === 'object') {
+        updated.productName = value.itemName || value.name || value.productName || ''
+        updated.inventoryItemId = value.inventoryItemId || value.id || null
+        updated.sku = value.sku || null
+        updated.unitPrice = Number(value.unitPrice ?? value.sellingPrice ?? value.price ?? 0)
+      } else if (field === 'productName' && productSearchResults[`exchange-${index}`]) {
+        const product = productSearchResults[`exchange-${index}`].find(p =>
+          (p.name || p.itemName) === value || p.sku === value
+        )
+        if (product) {
+          updated.inventoryItemId = product.inventoryItemId || product.id || null
+          updated.sku = product.sku || null
+          updated.unitPrice = Number(product.unitPrice ?? product.sellingPrice ?? product.price ?? 0)
+        }
+      } else if (field === 'productName') {
+        updated.inventoryItemId = null
+        updated.sku = null
+      }
+      updated.lineTotal = (Number(updated.quantity) || 0) * (Number(updated.unitPrice) || 0)
+      return updated
+    }))
+  }
+
+  const addExchangeItem = () => {
+    setExchangeItems(prev => [
+      ...prev,
+      { productName: '', inventoryItemId: null, sku: null, quantity: 1, unitPrice: 0, lineTotal: 0 },
+    ])
+  }
+
+  const removeExchangeItem = (index) => {
+    setExchangeItems(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleCreateReturn = async () => {
     if (!returnForm.saleId) { showToast('Please select an invoice first', 'warning'); return }
     if (!returnForm.reason || returnForm.reason.trim() === '') { showToast('Please enter a return reason', 'warning'); return }
@@ -613,24 +665,47 @@ const ReturnsPage = () => {
     )
     if (validItems.length === 0) { showToast('Please add at least one item to return', 'warning'); return }
 
+    const isExchange = returnForm.type === 'EXCHANGE'
+    const validExchangeItems = exchangeItems.filter(item =>
+      item.inventoryItemId &&
+      item.productName && item.productName.trim() !== '' &&
+      Number(item.quantity) > 0
+    )
+    if (isExchange && validExchangeItems.length === 0) {
+      showToast('Please add at least one replacement product for an exchange', 'warning')
+      return
+    }
+
     const returnData = {
       saleId: parseInt(returnForm.saleId),
       reason: returnForm.reason.trim(),
       notes:  returnForm.notes || '',
+      type: isExchange ? 'EXCHANGE' : 'REFUND',
+      refundMethod: isExchange ? 'EXCHANGE' : (returnForm.refundMethod || 'CASH'),
       items: validItems.map(item => ({
         productName: item.productName.trim(),
         inventoryItemId: item.inventoryItemId || null,
         sku: item.sku || null,
         quantity: parseFloat(item.quantity),
         refundAmount: parseFloat(item.refundAmount)
-      }))
+      })),
+      ...(isExchange ? {
+        exchangeItems: validExchangeItems.map(item => ({
+          inventoryItemId: Number(item.inventoryItemId),
+          quantity: Number(item.quantity),
+        })),
+      } : {}),
     }
 
-    const result = await dispatch(createReturn(returnData))
+    const idempotencyKey = submitKeyRef.current || returnIdempotencyKey()
+    submitKeyRef.current = idempotencyKey
+    const result = await dispatch(createReturn({ __returnRequest: true, data: returnData, idempotencyKey }))
+    submitKeyRef.current = null
     if (createReturn.fulfilled.match(result)) {
       showToast('Return created successfully', 'success')
       setOpenDialog(false)
-      setReturnForm({ saleId: '', reason: '', notes: '', items: [{ productName: '', quantity: 1, refundAmount: 0 }] })
+      setReturnForm({ saleId: '', reason: '', notes: '', type: 'REFUND', refundMethod: 'CASH', items: [{ productName: '', quantity: 1, refundAmount: 0 }] })
+      setExchangeItems([{ productName: '', inventoryItemId: null, sku: null, quantity: 1, unitPrice: 0, lineTotal: 0 }])
       dispatch(fetchReturns(buildFetchParams()))
     } else if (createReturn.rejected.match(result)) {
       const err      = result.payload || result.error
@@ -654,6 +729,8 @@ const ReturnsPage = () => {
         saleId,
         reason: detail.reason || '',
         notes: detail.notes || '',
+        type: detail.type || 'REFUND',
+        refundMethod: detail.refundMethod || detail.refund_method || 'CASH',
         items: (detail.items || []).map((item) => ({
           productName: item.productName || item.itemName || item.name || '',
           inventoryItemId: item.inventoryItemId || item.inventory_item_id || null,
@@ -662,6 +739,14 @@ const ReturnsPage = () => {
           refundAmount: Number(item.refundAmount ?? item.refund_amount) || 0,
         })),
       })
+      setExchangeItems((detail.exchangeItems || []).length ? detail.exchangeItems.map((item) => ({
+        productName: item.itemName || item.name || item.productName || '',
+        inventoryItemId: item.inventoryItemId || item.inventory_item_id || null,
+        sku: item.sku || null,
+        quantity: Number(item.quantity) || 0,
+        unitPrice: Number(item.unitPrice ?? item.unit_price) || 0,
+        lineTotal: Number(item.lineTotal ?? item.line_total) || 0,
+      })) : [{ productName: '', inventoryItemId: null, sku: null, quantity: 1, unitPrice: 0, lineTotal: 0 }])
       setOpenDialog(true)
       const sale = await searchInvoice(detail.invoice_no || String(saleId), detail.id)
       if (sale) {
@@ -714,7 +799,8 @@ const ReturnsPage = () => {
       showToast('Return updated successfully', 'success')
       setOpenDialog(false)
       setEditingEntity(null)
-      setReturnForm({ saleId: '', reason: '', notes: '', items: [{ productName: '', quantity: 1, refundAmount: 0 }] })
+      setReturnForm({ saleId: '', reason: '', notes: '', type: 'REFUND', refundMethod: 'CASH', items: [{ productName: '', quantity: 1, refundAmount: 0 }] })
+      setExchangeItems([{ productName: '', inventoryItemId: null, sku: null, quantity: 1, unitPrice: 0, lineTotal: 0 }])
       dispatch(fetchReturns(buildFetchParams()))
     } else if (updateReturn.rejected.match(result)) {
       const err      = result.payload || result.error
@@ -1185,6 +1271,39 @@ const ReturnsPage = () => {
                       </Select>
                     </FormControl>
                   </Grid>
+                  {!editingEntity && (
+                    <>
+                      <Grid item xs={12} sm={4}>
+                        <FormControl fullWidth>
+                          <InputLabel>Return Type</InputLabel>
+                          <Select
+                            value={returnForm.type || 'REFUND'}
+                            onChange={(e) => handleReturnFormChange('type', e.target.value)}
+                            label="Return Type"
+                          >
+                            <MenuItem value="REFUND">Refund</MenuItem>
+                            <MenuItem value="EXCHANGE">Exchange</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      {returnForm.type === 'REFUND' && (
+                        <Grid item xs={12} sm={4}>
+                          <FormControl fullWidth>
+                            <InputLabel>Refund Method</InputLabel>
+                            <Select
+                              value={returnForm.refundMethod || 'CASH'}
+                              onChange={(e) => handleReturnFormChange('refundMethod', e.target.value)}
+                              label="Refund Method"
+                            >
+                              <MenuItem value="CASH">Cash</MenuItem>
+                              <MenuItem value="CARD_REFUND">Card Refund</MenuItem>
+                              <MenuItem value="STORE_CREDIT">Store Credit</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                      )}
+                    </>
+                  )}
                   <Grid item xs={12}>
                     <TextField
                       fullWidth label="Notes" multiline rows={3}
@@ -1350,6 +1469,84 @@ const ReturnsPage = () => {
                 ))}
               </Box>
 
+              {returnForm.type === 'EXCHANGE' && !editingEntity && (
+                <Box sx={{ mt: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6">Replacement Items</Typography>
+                    <Button startIcon={<Add />} onClick={addExchangeItem} variant="outlined">Add Product</Button>
+                  </Box>
+                  {exchangeItems.map((item, index) => (
+                    <Card key={`exchange-${index}`} sx={{ mb: 2 }}>
+                      <CardContent>
+                        <Grid container spacing={2} alignItems="center">
+                          <Grid item xs={12} sm={7}>
+                            <Autocomplete
+                              freeSolo
+                              options={productSearchResults[`exchange-${index}`] || []}
+                              getOptionLabel={(option) => {
+                                if (typeof option === 'string') return option
+                                const name = option.itemName || option.name || option.productName || ''
+                                const price = option.unitPrice ?? option.sellingPrice ?? option.price ?? 0
+                                return `${name} (${option.sku || ''}) - ${price}`
+                              }}
+                              value={item.productName}
+                              onInputChange={(event, newValue) => {
+                                handleExchangeItemChange(index, 'productName', newValue)
+                                if (newValue && newValue.length >= 2) searchProducts(newValue, `exchange-${index}`)
+                              }}
+                              onChange={(event, newValue) => {
+                                if (newValue && typeof newValue === 'object') handleExchangeItemChange(index, 'productName', newValue)
+                              }}
+                              loading={productSearchLoading[`exchange-${index}`]}
+                              renderInput={(params) => (
+                                <TextField
+                                  {...params} label="Replacement Product" placeholder="Search product name or SKU" fullWidth
+                                  InputProps={{
+                                    ...params.InputProps,
+                                    endAdornment: (
+                                      <>
+                                        {productSearchLoading[`exchange-${index}`] ? <CircularProgress color="inherit" size={20} /> : null}
+                                        {params.InputProps.endAdornment}
+                                      </>
+                                    ),
+                                  }}
+                                />
+                              )}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={2}>
+                            <TextField
+                              fullWidth label="Quantity" type="number"
+                              value={item.quantity}
+                              onChange={(e) => handleExchangeItemChange(index, 'quantity', e.target.value)}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={2}>
+                            <TextField
+                              fullWidth label="Current Price" type="number"
+                              value={item.unitPrice}
+                              onChange={(e) => handleExchangeItemChange(index, 'unitPrice', e.target.value)}
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={1}>
+                            <Tooltip title="Remove replacement product">
+                              <IconButton onClick={() => removeExchangeItem(index)} size="small" aria-label="Remove replacement product">
+                                <ArrowBack fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Typography variant="caption" color="text.secondary">
+                              Line total: ${(Number(item.lineTotal) || 0).toFixed(2)}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              )}
+
               {/* Total Refund Summary */}
               <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                 <Grid container spacing={2} alignItems="center">
@@ -1374,7 +1571,7 @@ const ReturnsPage = () => {
               <Button onClick={() => {
                 setOpenDialog(false)
                 setEditingEntity(null)
-                setReturnForm({ saleId: '', reason: '', notes: '', items: [{ productName: '', quantity: 1, refundAmount: 0 }] })
+                setReturnForm({ saleId: '', reason: '', notes: '', type: 'REFUND', refundMethod: 'CASH', items: [{ productName: '', quantity: 1, refundAmount: 0 }] })
               }}>
                 Cancel
               </Button>
@@ -1449,6 +1646,26 @@ const ReturnsPage = () => {
                             ${parseFloat(returnDetails.total_refund || 0).toFixed(2)}
                           </Typography>
                         </Grid>
+                        {(returnDetails.type === 'EXCHANGE' || returnDetails.exchangeItems?.length > 0) && (
+                          <>
+                            <Grid item xs={12} sm={6}>
+                              <Typography variant="body2" color="text.secondary">Type:</Typography>
+                              <Typography variant="body1" fontWeight="medium">Exchange</Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                              <Typography variant="body2" color="text.secondary">Replacement Total:</Typography>
+                              <Typography variant="body1" fontWeight="medium">
+                                ${parseFloat(returnDetails.replacementTotal ?? returnDetails.replacement_total ?? 0).toFixed(2)}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                              <Typography variant="body2" color="text.secondary">Price Difference:</Typography>
+                              <Typography variant="body1" fontWeight="medium" color={(returnDetails.priceDifference ?? 0) > 0 ? 'error.main' : 'success.main'}>
+                                ${parseFloat(returnDetails.priceDifference ?? returnDetails.price_difference ?? 0).toFixed(2)}
+                              </Typography>
+                            </Grid>
+                          </>
+                        )}
                         <Grid item xs={12} sm={6}>
                           <Typography variant="body2" color="text.secondary">Return Date:</Typography>
                           <Typography variant="body1" fontWeight="medium">
