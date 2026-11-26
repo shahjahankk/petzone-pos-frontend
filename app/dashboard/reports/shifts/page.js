@@ -17,7 +17,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
 import AppDatePicker from '../../../../components/date/AppDatePicker'
 import RouteGuard from '../../../../components/auth/RouteGuard'
 import { saleDate } from '../../../../utils/saleTime'
-import { fetchShiftSessionsReport, updateShiftSessionCash } from '../../../store/slices/shiftsSlice'
+import { fetchShiftSessionsReport, updateShiftSessionCash, createShiftCashMovement } from '../../../store/slices/shiftsSlice'
 
 const fmt = (v, d = 0) => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 const fmtPKR = (v) => `PKR ${fmt(v)}`
@@ -73,6 +73,10 @@ export default function ShiftCashReportPage() {
   const [editingSession, setEditingSession] = useState(null)
   const [savingCash, setSavingCash] = useState(false)
   const [cashError, setCashError] = useState('')
+  const [cashMovementSession, setCashMovementSession] = useState(null)
+  const [savingMovement, setSavingMovement] = useState(false)
+  const [movementError, setMovementError] = useState('')
+  const [movementForm, setMovementForm] = useState({ direction: 'OUT', amount: '', reason: '', reference: '' })
 
   const load = () => {
     dispatch(fetchShiftSessionsReport({
@@ -100,12 +104,12 @@ export default function ShiftCashReportPage() {
   }, [shiftSessionsReport, search])
 
   const totals = shiftSessionsReportTotals || {
-    sessions: 0, initial_cash: 0, cash_sales: 0, cash_expenses: 0, total_sales: 0,
-    final_cash: 0, expected_cash: 0, cash_difference: 0,
+    sessions: 0, initial_cash: 0, cash_sales: 0, cash_in_movements: 0, cash_out_movements: 0,
+    cash_expenses: 0, total_sales: 0, final_cash: 0, expected_cash: 0, cash_difference: 0,
   }
 
   const handleExportCSV = () => {
-    const header = ['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening Cash', 'Cash Sales', 'Cash Expenses', 'Total Sales', 'Expected Cash', 'Closing Cash', 'Difference', 'Status']
+    const header = ['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening Cash', 'Cash Sales', 'Cash Refunds', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected Cash', 'Closing Cash', 'Difference', 'Status']
     const data = rows.map((r) => [
       fmtDate(r.actual_start_time),
       fmtDate(r.actual_end_time),
@@ -114,6 +118,9 @@ export default function ShiftCashReportPage() {
       r.branch_name || r.warehouse_name || '',
       r.initial_cash,
       r.cash_sales,
+      r.cash_refunds,
+      r.cash_in_movements,
+      r.cash_out_movements,
       r.cash_expenses,
       r.total_sales,
       r.expected_cash,
@@ -171,6 +178,43 @@ export default function ShiftCashReportPage() {
       setCashError(typeof e === 'string' ? e : 'Failed to update shift cash')
     } finally {
       setSavingCash(false)
+    }
+  }
+
+  const openCashMovement = (row) => {
+    setMovementError('')
+    setCashMovementSession({ id: row.id, cashier: row.cashier_name || '-' })
+    setMovementForm({ direction: 'OUT', amount: '', reason: '', reference: '' })
+  }
+
+  const handleSaveCashMovement = async () => {
+    if (!cashMovementSession) return
+
+    const amount = Number(movementForm.amount)
+    if (movementForm.amount === '' || !Number.isFinite(amount) || amount <= 0) {
+      setMovementError('Amount must be greater than zero')
+      return
+    }
+    if (!movementForm.reason.trim()) {
+      setMovementError('Reason is required')
+      return
+    }
+
+    setSavingMovement(true)
+    try {
+      await dispatch(createShiftCashMovement({
+        shiftSessionId: cashMovementSession.id,
+        direction: movementForm.direction,
+        amount,
+        reason: movementForm.reason.trim(),
+        reference: movementForm.reference.trim() || undefined,
+      })).unwrap()
+      setCashMovementSession(null)
+      load()
+    } catch (e) {
+      setMovementError(typeof e === 'string' ? e : 'Failed to record cash movement')
+    } finally {
+      setSavingMovement(false)
     }
   }
 
@@ -247,7 +291,7 @@ export default function ShiftCashReportPage() {
                 <KpiCard label="Cash Sales" value={fmtPKR(totals.cash_sales)} sub="Collected in cash" accent="#2e7d32" icon={<PointOfSale />} />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
-                <KpiCard label="Expected Cash" value={fmtPKR(totals.expected_cash)} sub="Opening + cash sales − cash expenses" accent="#0277bd" icon={<AttachMoney />} />
+                <KpiCard label="Expected Cash" value={fmtPKR(totals.expected_cash)} sub="Opening + cash sales ± movements − expenses" accent="#0277bd" icon={<AttachMoney />} />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <KpiCard label="Closing Cash" value={fmtPKR(totals.final_cash)} sub="Entered at end" accent="#455a64" icon={<CheckCircle />} />
@@ -270,10 +314,10 @@ export default function ShiftCashReportPage() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening', 'Cash Sales', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status', 'Actions'].map((h) => (
+                      {['Start', 'End', 'Cashier', 'Shift', 'Location', 'Opening', 'Cash Sales', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference', 'Status', 'Actions'].map((h) => (
                         <TableCell
                           key={h}
-                          align={['Opening', 'Cash Sales', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference'].includes(h) ? 'right' : 'left'}
+                          align={['Opening', 'Cash Sales', 'Cash In', 'Cash Out', 'Cash Expenses', 'Total Sales', 'Expected', 'Closing', 'Difference'].includes(h) ? 'right' : 'left'}
                           sx={{ fontWeight: 800, fontSize: '.72rem', bgcolor: '#f5f7fa', whiteSpace: 'nowrap' }}
                         >
                           {h}
@@ -284,7 +328,7 @@ export default function ShiftCashReportPage() {
                   <TableBody>
                     {!shiftSessionsReportLoading && rows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={14} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                        <TableCell colSpan={16} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                           No shift sessions found for this period.
                         </TableCell>
                       </TableRow>
@@ -300,6 +344,8 @@ export default function ShiftCashReportPage() {
                             <TableCell sx={{ fontSize: '.75rem' }}>{r.branch_name || r.warehouse_name || '-'}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.initial_cash)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_sales)}</TableCell>
+                            <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_in_movements)}</TableCell>
+                            <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_out_movements)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.cash_expenses)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem' }}>{fmtPKR(r.total_sales)}</TableCell>
                             <TableCell align="right" sx={{ fontSize: '.78rem', fontWeight: 600 }}>{fmtPKR(r.expected_cash)}</TableCell>
@@ -318,6 +364,9 @@ export default function ShiftCashReportPage() {
                             <TableCell align="right">
                               <Button size="small" startIcon={<Edit />} onClick={() => openEdit(r)}>
                                 Edit
+                              </Button>
+                              <Button size="small" startIcon={<AttachMoney />} onClick={() => openCashMovement(r)}>
+                                Cash +/-
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -365,6 +414,56 @@ export default function ShiftCashReportPage() {
                 <Button onClick={() => setEditingSession(null)} disabled={savingCash}>Cancel</Button>
                 <Button variant="contained" onClick={handleSaveCash} disabled={savingCash}>
                   {savingCash ? 'Saving...' : 'Save'}
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+            <Dialog open={Boolean(cashMovementSession)} onClose={() => !savingMovement && setCashMovementSession(null)} fullWidth maxWidth="xs">
+              <DialogTitle>Record cash movement</DialogTitle>
+              <DialogContent>
+                {movementError && <Alert severity="error" sx={{ mb: 2 }}>{movementError}</Alert>}
+                <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                  {cashMovementSession?.cashier}
+                </Typography>
+                <FormControl fullWidth margin="dense" size="small">
+                  <InputLabel>Direction</InputLabel>
+                  <Select
+                    label="Direction"
+                    value={movementForm.direction}
+                    onChange={(e) => setMovementForm((p) => ({ ...p, direction: e.target.value }))}
+                  >
+                    <MenuItem value="IN">Cash in</MenuItem>
+                    <MenuItem value="OUT">Cash out / deposit</MenuItem>
+                  </Select>
+                </FormControl>
+                <TextField
+                  fullWidth
+                  margin="dense"
+                  label="Amount"
+                  type="number"
+                  value={movementForm.amount}
+                  onChange={(e) => setMovementForm((p) => ({ ...p, amount: e.target.value }))}
+                  slotProps={{ htmlInput: { min: '0.01', step: '0.01' } }}
+                />
+                <TextField
+                  fullWidth
+                  margin="dense"
+                  label="Reason"
+                  value={movementForm.reason}
+                  onChange={(e) => setMovementForm((p) => ({ ...p, reason: e.target.value }))}
+                />
+                <TextField
+                  fullWidth
+                  margin="dense"
+                  label="Reference (optional)"
+                  value={movementForm.reference}
+                  onChange={(e) => setMovementForm((p) => ({ ...p, reference: e.target.value }))}
+                />
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setCashMovementSession(null)} disabled={savingMovement}>Cancel</Button>
+                <Button variant="contained" onClick={handleSaveCashMovement} disabled={savingMovement}>
+                  {savingMovement ? 'Saving...' : 'Record'}
                 </Button>
               </DialogActions>
             </Dialog>

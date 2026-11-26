@@ -230,6 +230,23 @@ export const updateShiftSessionCash = createAsyncThunk(
   }
 )
 
+export const createShiftCashMovement = createAsyncThunk(
+  'shifts/createShiftCashMovement',
+  async ({ shiftSessionId, direction, amount, reason, reference, scopeType, scopeId, userId }, { rejectWithValue }) => {
+    try {
+      const payload = { shiftSessionId, direction, amount, reason }
+      if (reference !== undefined) payload.reference = reference
+      if (scopeType !== undefined) payload.scopeType = scopeType
+      if (scopeId !== undefined) payload.scopeId = scopeId
+      if (userId !== undefined) payload.userId = userId
+      const response = await api.post('/shifts/cash-movements', payload)
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to record cash movement')
+    }
+  }
+)
+
 const initialState = {
   // Shift data
   shifts: [],
@@ -548,6 +565,9 @@ const shiftsSlice = createSlice({
         state.error = action.payload
       })
       .addCase(updateShiftSessionCash.rejected, (state, action) => {
+        state.error = action.payload
+      })
+      .addCase(createShiftCashMovement.rejected, (state, action) => {
         state.error = action.payload
       })
   },
