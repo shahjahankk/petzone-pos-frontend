@@ -51,6 +51,7 @@ import {
   Visibility as ViewIcon,
   Send as SendIcon,
   CheckCircle as ApproveIcon,
+  TaskAlt as ReceiveIcon,
   Cancel as RejectIcon,
   Inventory as InventoryIcon,
   TrendingUp as TrendingIcon,
@@ -132,6 +133,14 @@ const TransferManagementPage = () => {
   const currentUserRole = effectiveUser?.role
   const currentBranchId = effectiveUser?.branchId
   const currentWarehouseId = effectiveUser?.warehouseId
+
+  const isReceiverLocation = useCallback((transfer) => {
+    if (!transfer) return false
+    if (currentUserRole === 'ADMIN') return true
+    if (currentUserRole === 'CASHIER') return Number(currentBranchId) === Number(transfer.to_branch_id)
+    if (currentUserRole === 'WAREHOUSE_KEEPER') return Number(currentWarehouseId) === Number(transfer.to_warehouse_id)
+    return false
+  }, [currentUserRole, currentBranchId, currentWarehouseId])
   
   // Local UI state
   const [selectedTransfer, setSelectedTransfer] = useState(null)
@@ -603,6 +612,30 @@ const TransferManagementPage = () => {
     }
   }
 
+  const handleReceiveTransfer = async (transferId, notes = '') => {
+    try {
+      const response = await api.put(`/transfers/${transferId}/complete`, { notes })
+      if (response.data.success) {
+        loadTransfers()
+        loadStatistics()
+        setViewDialog(false)
+      }
+    } catch (err) {
+    }
+  }
+
+  const handleRejectTransfer = async (transferId, notes = '') => {
+    try {
+      const response = await api.post(`/transfers/${transferId}/reject`, { notes })
+      if (response.data.success) {
+        loadTransfers()
+        loadStatistics()
+        setViewDialog(false)
+      }
+    } catch (err) {
+    }
+  }
+
   // Get status color
   const getStatusColor = (status) => {
     const colors = {
@@ -865,6 +898,29 @@ const TransferManagementPage = () => {
                               size="small"
                               color="error"
                               onClick={() => handleStatusUpdate(transfer.id, 'REJECTED')}
+                            >
+                              <RejectIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
+
+                      {(transfer.status === 'approved' || transfer.status === 'APPROVED') && isReceiverLocation(transfer) && (
+                        <>
+                          <Tooltip title="Receive Transfer">
+                            <IconButton
+                              size="small"
+                              color="success"
+                              onClick={() => handleReceiveTransfer(transfer.id)}
+                            >
+                              <ReceiveIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Reject and Return to Sender">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleRejectTransfer(transfer.id)}
                             >
                               <RejectIcon />
                             </IconButton>
@@ -1182,6 +1238,26 @@ const TransferManagementPage = () => {
               )}
             </DialogContent>
             <DialogActions>
+              {(selectedTransfer?.status === 'approved' || selectedTransfer?.status === 'APPROVED') && isReceiverLocation(selectedTransfer) && (
+                <>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    startIcon={<ReceiveIcon />}
+                    onClick={() => handleReceiveTransfer(selectedTransfer.id)}
+                  >
+                    Receive
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<RejectIcon />}
+                    onClick={() => handleRejectTransfer(selectedTransfer.id)}
+                  >
+                    Reject & Return
+                  </Button>
+                </>
+              )}
               <Button onClick={() => setViewDialog(false)}>
                 Close
               </Button>
