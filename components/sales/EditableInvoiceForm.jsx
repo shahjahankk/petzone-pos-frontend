@@ -836,6 +836,19 @@ const handleRemoveItem = (itemId) => {
                     InputProps={{ readOnly: true }}
                     />
                 </Grid>
+                <Grid item xs={12}>
+                    <TextField
+                    fullWidth
+                    size="small"
+                    multiline
+                    minRows={2}
+                    label="Sale Note"
+                    value={formData.notes || ''}
+                    onChange={(e) => handleFieldChange('notes', e.target.value)}
+                    inputProps={{ maxLength: 500 }}
+                    helperText={`${(formData.notes || '').length}/500`}
+                    />
+                </Grid>
                 </Grid>
 
             </CardContent>

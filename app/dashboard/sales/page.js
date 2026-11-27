@@ -216,6 +216,13 @@ const ReadOnlyInvoiceView = ({ open, onClose, sale, user, branches = [], warehou
             </Grid>
           </Paper>
 
+          {(sale.notes || pd.notes) && (
+            <Paper sx={{ p: 2, mb: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary">Sale Note</Typography>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{sale.notes || pd.notes}</Typography>
+            </Paper>
+          )}
+
           {/* Items Table */}
           <TableContainer component={Paper} sx={{ mb: 2 }}>
             <Table size="small">
@@ -1269,6 +1276,7 @@ const clearFilters = () => {
                             <TableCell>Invoice #</TableCell>
                             <TableCell>Location</TableCell>
                             <TableCell>Customer</TableCell>
+                            <TableCell>Sale Note</TableCell>
                             {hasWarehouseSales && <TableCell>Salesperson</TableCell>}
                             <TableCell align="right">Subtotal</TableCell>
                             <TableCell align="right">Tax</TableCell>
@@ -1305,6 +1313,11 @@ const clearFilters = () => {
                                   }
                                 </TableCell>
                                 <TableCell>{resolveCustomerName(sale)}</TableCell>
+                                <TableCell sx={{ maxWidth: 220 }}>
+                                  <Tooltip title={sale.notes || ''}>
+                                    <Typography variant="body2" noWrap>{sale.notes || '—'}</Typography>
+                                  </Tooltip>
+                                </TableCell>
                                 {hasWarehouseSales && <TableCell>{resolveSalesperson(sale) || '—'}</TableCell>}
                                 <TableCell align="right">{parseFloat(sale.subtotal || 0).toFixed(2)}</TableCell>
                                 <TableCell align="right">{parseFloat(sale.tax      || 0).toFixed(2)}</TableCell>
