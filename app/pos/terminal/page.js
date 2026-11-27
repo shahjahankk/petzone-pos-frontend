@@ -412,7 +412,18 @@ function POSTerminal() {
   const hydratingTabIdRef = useRef(null)
   const activeTabIdRef = useRef(activeTabId)
   const outstandingSearchTokenRef = useRef(0)
+  const customerSearchTokenRef = useRef(0)
   const isCompletingSaleRef = useRef(false)
+  const cancelCustomerSearch = useCallback(() => {
+    if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current)
+    customerSearchTokenRef.current += 1
+    setCustomerSearchLoading(false)
+  }, [])
+  const clearCustomerSearchUi = useCallback(() => {
+    setCustomerSearchResults([])
+    setShowCustomerSearch(false)
+    setCustomerHighlightedIndex(-1)
+  }, [])
   const makeSaleIdempotencyKey = () =>
     typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
       ? globalThis.crypto.randomUUID()
@@ -766,6 +777,8 @@ function POSTerminal() {
 
   const createNewTab = useCallback(() => {
     if (currentTab) updateCurrentTab(tabGlobalSnapshot)
+    cancelCustomerSearch()
+    clearCustomerSearchUi()
 
     const newTab = {
       id: generateTabId(),
@@ -781,7 +794,7 @@ function POSTerminal() {
     setActiveTabId(newTab.id)
     setTabCounter(prev => prev + 1)
     hydrateTabGlobals(newTab)
-  }, [currentTab, hydrateTabGlobals, tabCounter, tabGlobalSnapshot, updateCurrentTab])
+  }, [cancelCustomerSearch, clearCustomerSearchUi, currentTab, hydrateTabGlobals, tabCounter, tabGlobalSnapshot, updateCurrentTab])
 
   const loadAvailablePrinters = useCallback(async () => {
     const defaultPrinters = [
@@ -987,6 +1000,8 @@ function POSTerminal() {
     const wasActive = tabId === activeTabId
     const nextTab = wasActive ? newTabs[tabIndex >= newTabs.length ? newTabs.length - 1 : tabIndex] : null
 
+    if (nextTab) cancelCustomerSearch()
+    if (nextTab) clearCustomerSearchUi()
     if (nextTab) activeTabIdRef.current = nextTab.id
     if (nextTab) hydratingTabIdRef.current = nextTab.id
     setTabs(newTabs)
@@ -1002,14 +1017,13 @@ function POSTerminal() {
     setShowSearchResults(false)
     setSearchHighlightedIndex(-1)
     setSearchQuery('')
-    setCustomerSearchResults([])
-    setShowCustomerSearch(false)
-    setCustomerHighlightedIndex(-1)
+    clearCustomerSearchUi()
 
     if (tabId === activeTabId) return
     const targetTab = tabs.find(tab => tab.id === tabId)
     if (!targetTab) return
 
+    cancelCustomerSearch()
     if (currentTab) updateCurrentTab(tabGlobalSnapshot)
     activeTabIdRef.current = tabId
     hydratingTabIdRef.current = tabId
@@ -1138,10 +1152,17 @@ function POSTerminal() {
 
   const searchCustomers = useCallback(async (query) => {
     const trimmed = (query || '').trim()
+    const searchToken = ++customerSearchTokenRef.current
+    const requestedTabId = activeTabIdRef.current
+    const isCurrentSearch = () => searchToken === customerSearchTokenRef.current && requestedTabId === activeTabIdRef.current
+
     if (trimmed.length < 2) {
-      setCustomerSearchResults([])
-      setShowCustomerSearch(false)
-      setCustomerHighlightedIndex(-1)
+      if (isCurrentSearch()) {
+        setCustomerSearchResults([])
+        setShowCustomerSearch(false)
+        setCustomerHighlightedIndex(-1)
+        setCustomerSearchLoading(false)
+      }
       return
     }
 
@@ -1153,6 +1174,8 @@ function POSTerminal() {
         api.get('/customer-ledger/customers', { params: sharedParams }),
         api.get('/customers', { params: sharedParams }).catch(() => ({ data: { data: [] } })),
       ])
+
+      if (!isCurrentSearch()) return
 
       const ledgerCustomers = (ledgerRes.data?.data?.customers || []).map((c) => ({
         id: `ledger-${c.customer_name}-${c.customer_phone}`,
@@ -1187,11 +1210,12 @@ function POSTerminal() {
       setShowCustomerSearch(merged.length > 0)
       setCustomerHighlightedIndex(-1)
     } catch {
+      if (!isCurrentSearch()) return
       setCustomerSearchResults([])
       setShowCustomerSearch(false)
       setCustomerHighlightedIndex(-1)
     } finally {
-      setCustomerSearchLoading(false)
+      if (isCurrentSearch()) setCustomerSearchLoading(false)
     }
   }, [buildPosScopeParams])
 
@@ -1818,6 +1842,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
 
   const clearAllPOSState = () => {
     if (!currentTab) return
+    cancelCustomerSearch()
 
     const clearedState = createEmptyTabState({
       createdAt: currentTab.createdAt,
@@ -1868,8 +1893,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     setTotalDiscount(clearedState.totalDiscount)
     setNotes(clearedState.notes)
     setSaleDate(clearedState.saleDate)
-    setCustomerSearchResults([])
-    setShowCustomerSearch(false)
+    clearCustomerSearchUi()
     setSearchResults([])
     setShowSearchResults(false)
     setManualInput('')
