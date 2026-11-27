@@ -3344,7 +3344,22 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                   <IconButton onClick={() => setShowSettings(true)} size="small"><SettingsIcon /></IconButton>
                 </Tooltip>
                 <Tooltip title="Refresh Inventory">
-                  <IconButton onClick={() => dispatch(fetchInventory())} size="small"><RefreshIcon /></IconButton>
+                  <IconButton
+                    onClick={() => {
+                      const params = { limit: 'all' }
+                      if (user?.role === 'CASHIER') {
+                        params.scopeType = 'BRANCH'
+                        if (user.branchId) params.scopeId = user.branchId
+                      } else if (user?.role === 'WAREHOUSE_KEEPER' && user.warehouseId) {
+                        params.scopeType = 'WAREHOUSE'
+                        params.scopeId = user.warehouseId
+                      }
+                      dispatch(fetchInventory(params))
+                    }}
+                    size="small"
+                  >
+                    <RefreshIcon />
+                  </IconButton>
                 </Tooltip>
               </Box>
             </Box>

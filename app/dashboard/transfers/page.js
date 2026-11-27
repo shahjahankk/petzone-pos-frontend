@@ -37,7 +37,6 @@ import {
   Alert,
   CircularProgress,
   Card,
-  Autocomplete,
   CardContent,
   Divider,
   Tooltip,
@@ -64,6 +63,7 @@ import api from '../../../utils/axios'
 import DashboardLayout from '../../../components/layout/DashboardLayout'
 import RouteGuard from '../../../components/auth/RouteGuard'
 import PermissionCheck from '../../../components/auth/PermissionCheck'
+import ProductSearchField from '../../../components/common/ProductSearchField'
 
 const TransferManagementPage = () => {
   const dispatch = useDispatch()
@@ -151,6 +151,7 @@ const TransferManagementPage = () => {
     notes: ''
   })
   const [availableItems, setAvailableItems] = useState([])
+  const [itemsLoading, setItemsLoading] = useState(false)
   const [availableBranches, setAvailableBranches] = useState([])
   const [availableWarehouses, setAvailableWarehouses] = useState([])
   const [createLoading, setCreateLoading] = useState(false)
@@ -218,14 +219,17 @@ const TransferManagementPage = () => {
 
   // Load available inventory items for transfer
   const loadAvailableItems = useCallback(async (scopeType, scopeId) => {
+    setItemsLoading(true)
     try {
-      const response = await api.get(`/inventory?scopeType=${scopeType}&scopeId=${scopeId}`)
+      const response = await api.get('/inventory', {
+        params: { scopeType, scopeId, limit: 'all' }
+      })
       const items = response.data.data || []
       
-      // Transform items to ensure proper field names for frontend
       const transformedItems = items.map(item => ({
         ...item,
-        currentStock: item.current_stock || item.currentStock || 0,
+        currentStock: item.current_stock ?? item.currentStock ?? 0,
+        sellingPrice: item.selling_price ?? item.sellingPrice ?? item.price ?? 0,
         name: item.name || item.item_name,
         id: item.id || item.inventory_item_id
       }))
@@ -233,6 +237,8 @@ const TransferManagementPage = () => {
       setAvailableItems(transformedItems)
     } catch (error) {
       setAvailableItems([])
+    } finally {
+      setItemsLoading(false)
     }
   }, [])
 
@@ -341,7 +347,7 @@ const TransferManagementPage = () => {
           allowWarehouseToWarehouseTransfers: true,
           allowBranchToWarehouseTransfers: true,
           allowWarehouseToBranchTransfers: true,
-          requireApproval: true,
+          requireApproval: false,
           maxTransferAmount: 100000
         })
       }
@@ -514,7 +520,7 @@ const TransferManagementPage = () => {
   const addItemToTransfer = () => {
     setNewTransfer(prev => ({
       ...prev,
-      items: [...prev.items, { inventoryItemId: '', quantity: '' }]
+      items: [...prev.items, { inventoryItemId: '', quantity: '', search: '' }]
     }))
   }
 
@@ -532,6 +538,26 @@ const TransferManagementPage = () => {
       ...prev,
       items: prev.items.map((item, i) => 
         i === index ? { ...item, [field]: value } : item
+      )
+    }))
+  }
+
+  const updateTransferSearch = (index, search) => {
+    setNewTransfer(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) =>
+        i === index ? { ...item, search, inventoryItemId: '' } : item
+      )
+    }))
+  }
+
+  const selectTransferProduct = (index, product) => {
+    setNewTransfer(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) =>
+        i === index
+          ? { ...item, inventoryItemId: product.id, search: '' }
+          : item
       )
     }))
   }
@@ -1287,9 +1313,15 @@ const TransferManagementPage = () => {
                           <Select
                             value={newTransfer.fromWarehouseId}
                             onChange={(e) => {
-                              setNewTransfer(prev => ({ ...prev, fromWarehouseId: e.target.value }))
+                              setNewTransfer(prev => ({
+                                ...prev,
+                                fromWarehouseId: e.target.value,
+                                items: []
+                              }))
                               if (e.target.value) {
                                 loadAvailableItems('WAREHOUSE', e.target.value)
+                              } else {
+                                setAvailableItems([])
                               }
                             }}
                             label="From Warehouse"
@@ -1334,9 +1366,15 @@ const TransferManagementPage = () => {
                           <Select
                             value={newTransfer.fromBranchId}
                             onChange={(e) => {
-                              setNewTransfer(prev => ({ ...prev, fromBranchId: e.target.value }))
+                              setNewTransfer(prev => ({
+                                ...prev,
+                                fromBranchId: e.target.value,
+                                items: []
+                              }))
                               if (e.target.value) {
                                 loadAvailableItems('BRANCH', e.target.value)
+                              } else {
+                                setAvailableItems([])
                               }
                             }}
                             label="From Branch"
@@ -1380,27 +1418,18 @@ const TransferManagementPage = () => {
                     
                     {newTransfer.items.map((item, index) => (
                       <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
-                            <Autocomplete
-                              options={availableItems}
-                              getOptionLabel={(option) => `${option.name} (Stock: ${option.currentStock || option.current_stock || 0})`}
-                              value={availableItems.find(availableItem => availableItem.id === item.inventoryItemId) || null}
-                              onChange={(event, newValue) => {
-                                updateTransferItem(index, 'inventoryItemId', newValue?.id || '')
-                              }}
-                              renderInput={(params) => (
-                                <TextField
-                                  {...params}
-                                  label="Product"
-                                  placeholder="Search for a product..."
-                                  variant="outlined"
-                                />
-                              )}
-                              sx={{ minWidth: 250 }}
-                              noOptionsText="No products found"
-                              clearOnEscape
-                              selectOnFocus
-                              handleHomeEndKeys
-                            />
+                        <ProductSearchField
+                          items={availableItems}
+                          value={item.search || ''}
+                          onChange={(value) => updateTransferSearch(index, value)}
+                          onSelect={(product) => selectTransferProduct(index, product)}
+                          selectedId={item.inventoryItemId}
+                          label="Product"
+                          placeholder="Type product name, SKU, barcode, or category..."
+                          loading={itemsLoading}
+                          noResultsText={`No products found for "${item.search || ''}"`}
+                          sx={{ flex: 1 }}
+                        />
                         
                         <TextField
                           label="Quantity"
@@ -1456,7 +1485,7 @@ const TransferManagementPage = () => {
                         'Branch transfers are disabled for your branch. Contact admin to enable.'}
                       {currentUserRole === 'WAREHOUSE_KEEPER' && !transferSettings?.allowWarehouseTransfers && 
                         'Warehouse transfers are disabled for your warehouse. Contact admin to enable.'}
-                      {currentUserRole === 'ADMIN' && 'You have full control over all transfers'}
+                      {currentUserRole === 'ADMIN' && 'Admin-created transfers are approved automatically and ready to complete'}
                       {currentUserRole === 'CASHIER' && transferSettings?.allowBranchTransfers && 
                         'Branch transfers are enabled for your branch'}
                       {currentUserRole === 'WAREHOUSE_KEEPER' && transferSettings?.allowWarehouseTransfers && 
