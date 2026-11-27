@@ -140,6 +140,7 @@ const createEmptyTabState = (overrides = {}) => ({
   isPartialPayment: false,
   isFullyCredit: false,
   isBalancePayment: false,
+  selectedSalesperson: null,
   outstandingPayments: [],
   selectedOutstandingPayments: [],
   settlementPaymentAmount: '',
@@ -167,6 +168,23 @@ const getCartLineUnitPrice = (item) => {
 /** Price must be > 0; free lines use Disc (or cart discount), not a zero price. */
 const getZeroPriceCartItems = (cart) =>
   (cart || []).filter((item) => getCartLineUnitPrice(item) <= 0)
+
+const normalizeQuantity = (value, fallback = 1) => {
+  const parsed = typeof value === 'number' ? value : parseFloat(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback
+  return Math.max(0.01, Math.round(parsed * 100) / 100)
+}
+
+const readQuantityInput = (input, fallback) => {
+  if (!input) return fallback
+  const raw = input.value
+  if (raw === '' || raw === null || raw === undefined) return fallback
+  const parsed = parseFloat(raw)
+  if (!Number.isFinite(parsed)) return fallback
+  const normalized = normalizeQuantity(parsed, fallback)
+  if (normalized !== parsed) input.value = normalized
+  return normalized
+}
 
 /** Map cart row → sale API line (inventory or clinic service). */
 const mapCartLineForSale = (item) => {
@@ -306,6 +324,7 @@ function POSTerminal() {
 
   const [barcodeInput, setBarcodeInput] = useState('')
   const [manualInput, setManualInput] = useState('')
+  const [addQuantity, setAddQuantity] = useState('1')
   const [isScanning, setIsScanning] = useState(false)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -391,6 +410,8 @@ function POSTerminal() {
   const customerSearchTimerRef = useRef(null)
   const lastScanTimeRef = useRef(0)
   const hydratingTabIdRef = useRef(null)
+  const activeTabIdRef = useRef(activeTabId)
+  const outstandingSearchTokenRef = useRef(0)
   const isCompletingSaleRef = useRef(false)
   const makeSaleIdempotencyKey = () =>
     typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
@@ -413,6 +434,40 @@ function POSTerminal() {
     ))
   }, [activeTabId])
 
+  const tabGlobalSnapshot = useMemo(() => ({
+    customerName,
+    customerPhone,
+    paymentMethod,
+    paymentAmount,
+    creditAmount,
+    isPartialPayment,
+    isFullyCredit,
+    isBalancePayment,
+    selectedSalesperson,
+    outstandingPayments,
+    selectedOutstandingPayments,
+    settlementPaymentAmount,
+    settlementCreditAmount,
+    isSettlementPartial,
+    isSettlementFullyCredit,
+    showSettlementOptions,
+    taxRate,
+    totalDiscount,
+    notes,
+    saleDate
+  }), [
+    customerName, customerPhone, paymentMethod, paymentAmount, creditAmount,
+    isPartialPayment, isFullyCredit, isBalancePayment, selectedSalesperson,
+    outstandingPayments, selectedOutstandingPayments,
+    settlementPaymentAmount, settlementCreditAmount,
+    isSettlementPartial, isSettlementFullyCredit, showSettlementOptions,
+    taxRate, totalDiscount, notes, saleDate
+  ])
+
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId
+  }, [activeTabId])
+
   useEffect(() => {
     if (!currentTab) return
 
@@ -421,29 +476,7 @@ function POSTerminal() {
       return
     }
 
-    const updates = {
-      customerName,
-      customerPhone,
-      paymentMethod,
-      paymentAmount,
-      creditAmount,
-      isPartialPayment,
-      isFullyCredit,
-      isBalancePayment,
-      outstandingPayments,
-      selectedOutstandingPayments,
-      settlementPaymentAmount,
-      settlementCreditAmount,
-      isSettlementPartial,
-      isSettlementFullyCredit,
-      showSettlementOptions,
-      taxRate,
-      totalDiscount,
-      notes,
-      saleDate
-    }
-
-    const hasChanges = Object.entries(updates).some(([key, value]) => {
+    const hasChanges = Object.entries(tabGlobalSnapshot).some(([key, value]) => {
       const currentValue = currentTab[key]
       if (Array.isArray(value) && Array.isArray(currentValue)) {
         if (currentValue === value) return false
@@ -456,16 +489,8 @@ function POSTerminal() {
       return currentValue !== value
     })
 
-    if (hasChanges) updateCurrentTab(updates)
-  }, [
-    currentTab,
-    customerName, customerPhone, paymentMethod, paymentAmount, creditAmount,
-    isPartialPayment, isFullyCredit, isBalancePayment,
-    outstandingPayments, selectedOutstandingPayments,
-    settlementPaymentAmount, settlementCreditAmount,
-    isSettlementPartial, isSettlementFullyCredit, showSettlementOptions,
-    taxRate, totalDiscount, notes, saleDate, updateCurrentTab
-  ])
+    if (hasChanges) updateCurrentTab(tabGlobalSnapshot)
+  }, [currentTab, tabGlobalSnapshot, updateCurrentTab])
 
   const refreshPrinterStatus = useCallback(async () => {
     if (!isThermalPrintingSupported() && !isSystemPrinterMode()) {
@@ -615,6 +640,7 @@ function POSTerminal() {
   }, [refreshPrinterStatus, showToast])
 
   const addToCart = useCallback((product) => {
+    const quantityToAdd = normalizeQuantity(addQuantity, 1)
     const cartId = product.isService ? `service-${product.clinicServiceId || product.id}` : product.id
     const existingItem = currentCart.find(item => item.id === cartId)
     const listPrice = parseFloat(product.price ?? product.sellingPrice ?? product.defaultPrice ?? 0)
@@ -622,14 +648,14 @@ function POSTerminal() {
     if (existingItem) {
       newCart = currentCart.map(item =>
         item.id === cartId
-          ? { ...item, quantity: existingItem.quantity + 1 }
+          ? { ...item, quantity: Math.round((existingItem.quantity + quantityToAdd) * 100) / 100 }
           : item
       )
     } else {
       newCart = [...currentCart, {
         ...product,
         id: cartId,
-        quantity: 1,
+        quantity: quantityToAdd,
         discount: 0,
         price: listPrice,
         customPrice: listPrice,
@@ -637,7 +663,7 @@ function POSTerminal() {
       }]
     }
     updateCurrentTab({ cart: newCart })
-  }, [currentCart, updateCurrentTab])
+  }, [addQuantity, currentCart, updateCurrentTab])
 
   const selectSearchResult = useCallback((product) => {
     addToCart(product)
@@ -714,7 +740,33 @@ function POSTerminal() {
     return () => document.removeEventListener('keydown', handlePhysicalScanner)
   }, [barcodeInput, handleBarcodeScan])
 
+  const hydrateTabGlobals = useCallback((tab) => {
+    if (!tab) return
+    setCustomerName(tab.customerName || '')
+    setCustomerPhone(tab.customerPhone || '')
+    setPaymentMethod(tab.paymentMethod || 'CASH')
+    setPaymentAmount(tab.paymentAmount ?? '')
+    setCreditAmount(tab.creditAmount ?? '')
+    setIsPartialPayment(!!tab.isPartialPayment)
+    setIsFullyCredit(!!tab.isFullyCredit)
+    setIsBalancePayment(!!tab.isBalancePayment)
+    setSelectedSalesperson(tab.selectedSalesperson || null)
+    setOutstandingPayments(Array.isArray(tab.outstandingPayments) ? [...tab.outstandingPayments] : [])
+    setSelectedOutstandingPayments(Array.isArray(tab.selectedOutstandingPayments) ? [...tab.selectedOutstandingPayments] : [])
+    setSettlementPaymentAmount(tab.settlementPaymentAmount ?? '')
+    setSettlementCreditAmount(tab.settlementCreditAmount ?? '')
+    setIsSettlementPartial(!!tab.isSettlementPartial)
+    setIsSettlementFullyCredit(!!tab.isSettlementFullyCredit)
+    setShowSettlementOptions(!!tab.showSettlementOptions)
+    setTaxRate(tab.taxRate ?? 0)
+    setTotalDiscount(tab.totalDiscount ?? 0)
+    setNotes(tab.notes || '')
+    setSaleDate(tab.saleDate || '')
+  }, [])
+
   const createNewTab = useCallback(() => {
+    if (currentTab) updateCurrentTab(tabGlobalSnapshot)
+
     const newTab = {
       id: generateTabId(),
       name: generateTabName(tabCounter),
@@ -723,31 +775,13 @@ function POSTerminal() {
       ...createEmptyTabState()
     }
 
+    activeTabIdRef.current = newTab.id
     hydratingTabIdRef.current = newTab.id
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
     setTabCounter(prev => prev + 1)
-
-    setCustomerName(newTab.customerName)
-    setCustomerPhone(newTab.customerPhone)
-    setPaymentMethod(newTab.paymentMethod)
-    setPaymentAmount(newTab.paymentAmount)
-    setCreditAmount(newTab.creditAmount)
-    setIsPartialPayment(newTab.isPartialPayment)
-    setIsFullyCredit(newTab.isFullyCredit)
-    setIsBalancePayment(newTab.isBalancePayment)
-    setOutstandingPayments(newTab.outstandingPayments)
-    setSelectedOutstandingPayments(newTab.selectedOutstandingPayments)
-    setSettlementPaymentAmount(newTab.settlementPaymentAmount)
-    setSettlementCreditAmount(newTab.settlementCreditAmount)
-    setIsSettlementPartial(newTab.isSettlementPartial)
-    setIsSettlementFullyCredit(newTab.isSettlementFullyCredit)
-    setShowSettlementOptions(newTab.showSettlementOptions)
-    setTaxRate(newTab.taxRate)
-    setTotalDiscount(newTab.totalDiscount)
-    setNotes(newTab.notes)
-    setSaleDate(newTab.saleDate || '')
-  }, [tabCounter])
+    hydrateTabGlobals(newTab)
+  }, [currentTab, hydrateTabGlobals, tabCounter, tabGlobalSnapshot, updateCurrentTab])
 
   const loadAvailablePrinters = useCallback(async () => {
     const defaultPrinters = [
@@ -863,9 +897,16 @@ function POSTerminal() {
   }, [user, scopeInfo])
 
   const searchOutstandingPayments = useCallback(async (phoneNumber, customerName) => {
+    const searchToken = ++outstandingSearchTokenRef.current
+    const requestedTabId = activeTabIdRef.current
+    const isCurrentSearch = () => searchToken === outstandingSearchTokenRef.current && requestedTabId === activeTabIdRef.current
+
     if ((!phoneNumber || phoneNumber.trim().length < 3) && (!customerName || customerName.trim().length < 3)) {
-      setOutstandingPayments([])
-      setSelectedOutstandingPayments([])
+      if (isCurrentSearch()) {
+        setOutstandingPayments([])
+        setSelectedOutstandingPayments([])
+        setIsSearchingOutstanding(false)
+      }
       return
     }
 
@@ -880,6 +921,8 @@ function POSTerminal() {
       if (customerName && customerName.trim().length >= 3) params.append('customerName', customerName.trim())
 
       const response = await api.get(`/sales/outstanding?${params.toString()}`)
+
+      if (!isCurrentSearch()) return
 
       if (response.data.success) {
         const payments = response.data.data.map(customer => {
@@ -912,10 +955,11 @@ function POSTerminal() {
         setSelectedOutstandingPayments([])
       }
     } catch (error) {
+      if (!isCurrentSearch()) return
       setOutstandingPayments([])
       setSelectedOutstandingPayments([])
     } finally {
-      setIsSearchingOutstanding(false)
+      if (isCurrentSearch()) setIsSearchingOutstanding(false)
     }
   }, [buildPosScopeParams])
 
@@ -924,12 +968,11 @@ function POSTerminal() {
       if ((customerPhone && customerPhone.trim().length >= 3) || (customerName && customerName.trim().length >= 3)) {
         searchOutstandingPayments(customerPhone?.trim(), customerName?.trim())
       } else {
-        setOutstandingPayments([])
-        setSelectedOutstandingPayments([])
+        searchOutstandingPayments(null, null)
       }
     }, 500)
     return () => clearTimeout(timeoutId)
-  }, [customerPhone, customerName, searchOutstandingPayments])
+  }, [activeTabId, customerPhone, customerName, searchOutstandingPayments])
 
   useEffect(() => {
     if (barcodeInputRef.current && activeTabId) {
@@ -941,19 +984,37 @@ function POSTerminal() {
     if (tabs.length <= 1) return
     const tabIndex = tabs.findIndex(tab => tab.id === tabId)
     const newTabs = tabs.filter(tab => tab.id !== tabId)
+    const wasActive = tabId === activeTabId
+    const nextTab = wasActive ? newTabs[tabIndex >= newTabs.length ? newTabs.length - 1 : tabIndex] : null
+
+    if (nextTab) activeTabIdRef.current = nextTab.id
+    if (nextTab) hydratingTabIdRef.current = nextTab.id
     setTabs(newTabs)
-    if (tabId === activeTabId) {
-      const newActiveIndex = tabIndex >= newTabs.length ? newTabs.length - 1 : tabIndex
-      setActiveTabId(newTabs[newActiveIndex]?.id)
+    if (nextTab) {
+      setActiveTabId(nextTab.id)
+      hydrateTabGlobals(nextTab)
     }
   }
 
   const switchToTab = (tabId) => {
-    setActiveTabId(tabId)
     setBarcodeInput('')
     setManualInput('')
     setShowSearchResults(false)
     setSearchHighlightedIndex(-1)
+    setSearchQuery('')
+    setCustomerSearchResults([])
+    setShowCustomerSearch(false)
+    setCustomerHighlightedIndex(-1)
+
+    if (tabId === activeTabId) return
+    const targetTab = tabs.find(tab => tab.id === tabId)
+    if (!targetTab) return
+
+    if (currentTab) updateCurrentTab(tabGlobalSnapshot)
+    activeTabIdRef.current = tabId
+    hydratingTabIdRef.current = tabId
+    setActiveTabId(tabId)
+    hydrateTabGlobals(targetTab)
   }
 
   const handleSearch = (query) => {
@@ -1773,6 +1834,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       isPartialPayment: clearedState.isPartialPayment,
       isFullyCredit: clearedState.isFullyCredit,
       isBalancePayment: clearedState.isBalancePayment,
+      selectedSalesperson: clearedState.selectedSalesperson,
       outstandingPayments: clearedState.outstandingPayments,
       selectedOutstandingPayments: clearedState.selectedOutstandingPayments,
       settlementPaymentAmount: clearedState.settlementPaymentAmount,
@@ -1782,7 +1844,8 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       showSettlementOptions: clearedState.showSettlementOptions,
       taxRate: clearedState.taxRate,
       totalDiscount: clearedState.totalDiscount,
-      notes: clearedState.notes
+      notes: clearedState.notes,
+      saleDate: clearedState.saleDate
     })
 
     setCustomerName(clearedState.customerName)
@@ -1793,6 +1856,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     setIsPartialPayment(clearedState.isPartialPayment)
     setIsFullyCredit(clearedState.isFullyCredit)
     setIsBalancePayment(clearedState.isBalancePayment)
+    setSelectedSalesperson(clearedState.selectedSalesperson)
     setOutstandingPayments(clearedState.outstandingPayments)
     setSelectedOutstandingPayments(clearedState.selectedOutstandingPayments)
     setSettlementPaymentAmount(clearedState.settlementPaymentAmount)
@@ -1803,6 +1867,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     setTaxRate(clearedState.taxRate)
     setTotalDiscount(clearedState.totalDiscount)
     setNotes(clearedState.notes)
+    setSaleDate(clearedState.saleDate)
     setCustomerSearchResults([])
     setShowCustomerSearch(false)
     setSearchResults([])
@@ -1818,6 +1883,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
     setSettlementCreditAmount('')
     setIsSettlementPartial(false)
     setIsSettlementFullyCredit(false)
+    setShowSettlementOptions(false)
     setOutstandingPayments([])
     setSelectedOutstandingPayments([])
     if (currentTab) {
@@ -3073,6 +3139,18 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                 </Paper>
               )}
             </Box>
+            <Tooltip title="Quantity added per product click or scan; applies until changed" placement="top">
+              <TextField
+                size="small"
+                type="number"
+                label="Add Qty"
+                value={addQuantity}
+                onChange={(e) => setAddQuantity(e.target.value)}
+                onBlur={() => setAddQuantity(String(normalizeQuantity(addQuantity, 1)))}
+                inputProps={{ min: 0.01, step: 0.01, style: { fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center' }, inputMode: 'decimal' }}
+                sx={{ width: 100, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } }}
+              />
+            </Tooltip>
             <TextField
               select
               size="small"
@@ -3736,11 +3814,44 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
                           <IconButton size="small" onClick={() => resetItemPrice(item.id)} sx={{ p: 0.5, fontSize: '0.7rem', color: '#ffc107', '&:hover': { backgroundColor: '#fff3cd' } }} title="Reset to default price">↶</IconButton>
                         )}
                       </TableCell>
-                      <TableCell sx={{ minWidth: 50, width: '10%' }}>
+                      <TableCell sx={{ minWidth: 90, width: '10%' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                          <IconButton size="small" onClick={() => updateQuantity(item.id, item.quantity - 1)} sx={{ bgcolor: theme.palette.error.light, color: 'white', '&:hover': { bgcolor: theme.palette.error.main } }}><RemoveIcon fontSize="small" /></IconButton>
-                          <Typography sx={{ fontFamily: 'monospace', minWidth: 25, textAlign: 'center', fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.1), px: 0.5, py: 0.25, borderRadius: 1, fontSize: '0.8rem' }}>{item.quantity}</Typography>
-                          <IconButton size="small" onClick={() => updateQuantity(item.id, item.quantity + 1)} sx={{ bgcolor: theme.palette.success.light, color: 'white', '&:hover': { bgcolor: theme.palette.success.main } }}><AddIcon fontSize="small" /></IconButton>
+                          <IconButton size="small" onClick={(e) => {
+                            const currentQuantity = readQuantityInput(e.currentTarget.parentElement.querySelector('input[type="number"]'), Number(item.quantity))
+                            updateQuantity(item.id, currentQuantity - 1)
+                          }} sx={{ bgcolor: theme.palette.error.light, color: 'white', '&:hover': { bgcolor: theme.palette.error.main } }}><RemoveIcon fontSize="small" /></IconButton>
+                          <Tooltip title="Type to edit quantity" placement="top">
+                            <TextField
+                              key={`qty-${item.id}-${item.quantity}`}
+                              size="small"
+                              type="number"
+                              defaultValue={item.quantity}
+                              aria-label="Quantity"
+                              onBlur={(e) => {
+                                const currentQuantity = Number(item.quantity)
+                                const nextQuantity = readQuantityInput(e.target, currentQuantity)
+                                if (nextQuantity !== currentQuantity) updateQuantity(item.id, nextQuantity)
+                                else e.target.value = currentQuantity
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.stopPropagation()
+                                  e.currentTarget.blur()
+                                }
+                                if (e.key === 'Escape') {
+                                  e.stopPropagation()
+                                  e.currentTarget.value = item.quantity
+                                  e.currentTarget.blur()
+                                }
+                              }}
+                              inputProps={{ min: 0.01, step: 0.01, style: { fontFamily: 'monospace', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold' }, inputMode: 'decimal' }}
+                              sx={{ width: 62, '& .MuiInputBase-input': { py: 0.5 }, '& .MuiOutlinedInput-root': { backgroundColor: alpha(theme.palette.primary.main, 0.1), borderRadius: 1, '& fieldset': { border: 'none' } }, '& input[type=number]': { MozAppearance: 'textfield' }, '& input[type=number]::-webkit-outer-spin-button': { WebkitAppearance: 'none', margin: 0 }, '& input[type=number]::-webkit-inner-spin-button': { WebkitAppearance: 'none', margin: 0 } }}
+                            />
+                          </Tooltip>
+                          <IconButton size="small" onClick={(e) => {
+                            const currentQuantity = readQuantityInput(e.currentTarget.parentElement.querySelector('input[type="number"]'), Number(item.quantity))
+                            updateQuantity(item.id, currentQuantity + 1)
+                          }} sx={{ bgcolor: theme.palette.success.light, color: 'white', '&:hover': { bgcolor: theme.palette.success.main } }}><AddIcon fontSize="small" /></IconButton>
                         </Box>
                       </TableCell>
                       <TableCell sx={{ fontFamily: 'monospace', minWidth: 50, width: '10%', textAlign: 'right' }}>
