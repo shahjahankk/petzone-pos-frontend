@@ -1356,6 +1356,11 @@ const canEditInventory = useMemo(() => {
                           <span>Net Sold</span>
                         </Tooltip>
                       </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Transfer Out = stock sent from this location">
+                          <span>Transfer</span>
+                        </Tooltip>
+                      </TableCell>
                       <TableCell align="right">Returned</TableCell>
                       <TableCell align="right">Purchased</TableCell>
                       <TableCell align="right">Min Stock</TableCell>
@@ -1395,6 +1400,16 @@ const canEditInventory = useMemo(() => {
                               label={Number(item.netSold ?? item.totalSold ?? 0).toLocaleString()} 
                               size="small" 
                               color="primary"
+                              variant="outlined"
+                            />
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Tooltip title={`In: ${Number(item.totalTransferIn ?? item.ledgerSummary?.transferIn ?? 0).toLocaleString()} | Out: ${Number(item.totalTransferOut ?? item.ledgerSummary?.transferOut ?? 0).toLocaleString()} | Net: ${Number(item.netTransfer ?? 0).toLocaleString()}`}>
+                            <Chip
+                              label={Number(item.totalTransferOut ?? item.ledgerSummary?.transferOut ?? 0).toLocaleString()}
+                              size="small"
+                              color="secondary"
                               variant="outlined"
                             />
                           </Tooltip>
