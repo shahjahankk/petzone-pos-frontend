@@ -2253,7 +2253,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
         showToast('✅ Shift started successfully', 'success')
       }
     } catch (error) {
-      const msg = error?.message || 'Failed to start shift'
+      const msg = typeof error === 'string' ? error : (error?.message || 'Failed to start shift')
       showToast(`❌ ${msg}`, 'error')
       alert(`❌ Shift start failed: ${msg}`)
     }
@@ -2281,7 +2281,7 @@ Amount Paid: ${fmtNum(paymentAmount || total)}
       showToast(`✅ Shift ended. Total sales: ${summary.total_sales || 0}`, 'success')
     } catch (error) {
       setShiftEnding(false)
-      const msg = error?.message || 'Failed to end shift'
+      const msg = typeof error === 'string' ? error : (error?.message || 'Failed to end shift')
       showToast(`❌ ${msg}`, 'error')
       alert(`❌ Shift end failed: ${msg}`)
     }

@@ -1,6 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../../utils/axios'
 
+const getShiftErrorMessage = (error, fallback) => {
+  const data = error?.response?.data
+  if (typeof data === 'string' && data.trim()) return data
+  return data?.message || data?.error || error?.message || fallback
+}
+
 // Async thunks for Shift Management
 export const fetchShifts = createAsyncThunk(
   'shifts/fetchShifts',
@@ -142,7 +148,7 @@ export const startShift = createAsyncThunk(
       })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to start shift')
+      return rejectWithValue(getShiftErrorMessage(error, 'Failed to start shift'))
     }
   }
 )
@@ -157,7 +163,7 @@ export const endShift = createAsyncThunk(
       })
       return response.data
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to end shift')
+      return rejectWithValue(getShiftErrorMessage(error, 'Failed to end shift'))
     }
   }
 )
